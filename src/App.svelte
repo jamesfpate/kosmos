@@ -910,14 +910,32 @@
     <header>
       <button class="pill" onclick={() => (screen = 'cull')}>‹ Back</button>
       <b>{gridSel.size ? `${gridSel.size} selected` : `No album · ${backlog.length}`}</b>
-      {#if gridSel.size}
-        <button class="pill" onclick={() => (gridSel = new Set())}>Clear</button>
-      {:else}
-        <button class="pill" onclick={() => (gridSel = new Set(backlog.map((i) => i.id)))} disabled={!backlog.length}>
-          All
-        </button>
-      {/if}
+      <button class="pill" onclick={() => (gridSel = new Set())} disabled={!gridSel.size}>Clear</button>
     </header>
+    <nav class="albums" aria-label="Albums">
+      <span class="albums-label">{gridSel.size ? `Put ${gridSel.size} into` : 'Select photos, then tap an album'}</span>
+      <div class="album-row">
+        <div class="chips">
+          {#each gridAlbums as album (album.id)}
+            <button
+              class="chip"
+              class:target={album.id === gridSuggested?.id}
+              disabled={!gridSel.size}
+              onclick={() => fileGrid(album.monthly ? MONTH_ALBUM : album.id)}
+            >
+              {album.monthly && gridMonthsChosen.size > 1 ? 'Month (each photo’s own)' : albumTitle(album)}
+            </button>
+          {:else}
+            <span class="muted none">No albums yet</span>
+          {/each}
+        </div>
+        {#if gridSel.size}
+          <button class="chip add" onclick={() => (sheet = { fileAfter: true, grid: true })} aria-label="New album">
+            +
+          </button>
+        {/if}
+      </div>
+    </nav>
     <div class="backlog" use:pinch>
       {#each gridMonths as month (month.key)}
         <div class="month">
@@ -954,23 +972,6 @@
       {/each}
       {#if gridMonths.length < months.length}<div class="sentinel" use:more></div>{/if}
     </div>
-    {#if gridSel.size}
-      <nav class="albums" aria-label="Albums">
-        <span class="albums-label">Put {gridSel.size} into</span>
-        <div class="chips">
-          {#each gridAlbums as album (album.id)}
-            <button
-              class="chip"
-              class:target={album.id === gridSuggested?.id}
-              onclick={() => fileGrid(album.monthly ? MONTH_ALBUM : album.id)}
-            >
-              {album.monthly && gridMonthsChosen.size > 1 ? 'Month (each photo’s own)' : albumTitle(album)}
-            </button>
-          {/each}
-          <button class="chip new" onclick={() => (sheet = { fileAfter: true, grid: true })}>+ New album</button>
-        </div>
-      </nav>
-    {/if}
     {@render sizeSlider()}
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
@@ -1144,6 +1145,31 @@
   .chip.new {
     border-style: dashed;
     color: var(--accent);
+  }
+
+  .album-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .album-row .chips {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .chip.add {
+    flex: none;
+    width: 44px;
+    padding: 0;
+    border-style: dashed;
+    color: var(--accent);
+    font-size: 1.4rem;
+  }
+
+  .none {
+    align-self: center;
+    font-size: 0.9rem;
   }
 
   .chip.hover {
