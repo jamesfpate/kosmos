@@ -27,6 +27,8 @@
   type UndoEntry = { item: MediaItem; prev?: DecisionRecord }
 
   let screen = $state<Screen>('loading')
+  // The view the mode switch is on; settings and trash return to it.
+  let mode = $state<'cull' | 'grid'>('cull')
   let access = $state<Access>('prompt')
   let error = $state('')
   let items = $state<MediaItem[]>([])
@@ -474,9 +476,22 @@
   }
 
   function openGrid() {
-    gridSel = new Set()
-    gridLimit = GRID_STEP
+    if (screen !== 'grid' && mode !== 'grid') {
+      gridSel = new Set()
+      gridLimit = GRID_STEP
+    }
+    mode = 'grid'
     screen = 'grid'
+  }
+
+  function openSingle() {
+    mode = 'cull'
+    screen = 'cull'
+  }
+
+  /** Settings and trash toggle: tapping again goes back to the current mode. */
+  function toggleScreen(s: 'settings' | 'trash') {
+    screen = screen === s ? mode : s
   }
 
   function toggleGrid(id: number) {
@@ -686,7 +701,7 @@
       const gone = new Set(doomed.map((i) => i.id))
       items = items.filter((i) => !gone.has(i.id))
       undoStack = undoStack.filter((entry) => !entry.some((u) => gone.has(u.item.id)))
-      screen = 'cull'
+      screen = mode
     } catch (e) {
       error = String(e)
     } finally {
@@ -697,6 +712,29 @@
   const fmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
   const fmtTime = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 </script>
+
+{#snippet topBar()}
+  <header>
+    <div class="modes" role="group" aria-label="View">
+      <button class:on={screen === 'cull'} onclick={openSingle} aria-label="Single photo">▢</button>
+      <button class:on={screen === 'grid'} onclick={openGrid} aria-label="Grid">▦</button>
+    </div>
+    <span class="actions">
+      <button
+        class="pill"
+        class:on={screen === 'trash'}
+        disabled={!pendingTrash.length && screen !== 'trash'}
+        onclick={() => toggleScreen('trash')}
+        aria-label="Trash"
+      >
+        🗑 {pendingTrash.length}
+      </button>
+      <button class="pill" class:on={screen === 'settings'} onclick={() => toggleScreen('settings')} aria-label="Settings">
+        ⚙
+      </button>
+    </span>
+  </header>
+{/snippet}
 
 {#snippet sizeSlider()}
   <label class="size">
@@ -753,24 +791,16 @@
       <button onclick={() => chooseStart(0)}>Everything <span>{items.length}</span></button>
     </section>
   {:else if screen === 'cull'}
-    <header>
-      <div class="when">
-        {#if current}
+    {@render topBar()}
+    <div class="sub">
+      {#if current}
+        <span class="when">
           <b>{fmt.format(current.taken)}</b>
           <span class="muted">{fmtTime.format(current.taken)} · {current.bucket ?? ''}</span>
-        {:else}
-          <b>Kosmos</b>
-        {/if}
-      </div>
+        </span>
+      {/if}
       <span class="muted count">{isGroup ? `${group.length} in a row · ` : ''}{queue.length} left</span>
-      <span class="actions">
-        <button class="pill" onclick={openGrid} aria-label="Grid">▦ {backlog.length}</button>
-        <button class="pill" disabled={!pendingTrash.length} onclick={() => (screen = 'trash')}>
-          🗑 {pendingTrash.length}
-        </button>
-        <button class="pill" onclick={() => (screen = 'settings')} aria-label="Settings">⚙</button>
-      </span>
-    </header>
+    </div>
 
     <nav class="albums" bind:this={albumBar} aria-label="Albums">
       <span class="albums-label">Choose album{selected.size ? ` for ${selected.size}` : ''}</span>
@@ -895,11 +925,8 @@
       <AlbumSheet photoDate={group[0].taken} oncreate={createAlbum} oncancel={() => (sheet = null)} />
     {/if}
   {:else if screen === 'settings'}
-    <header>
-      <button class="pill" onclick={() => (screen = 'cull')}>‹ Back</button>
-      <b>Settings</b>
-      <span></span>
-    </header>
+    {@render topBar()}
+    <div class="sub"><b>Settings</b></div>
     <section class="settings">
       <h3>Group photos taken within</h3>
       <p class="muted">Shots taken this close together are culled as one card.</p>
@@ -931,11 +958,11 @@
       <button onclick={changeStart}>Change start point</button>
     </section>
   {:else if screen === 'grid'}
-    <header>
-      <button class="pill" onclick={() => (screen = 'cull')}>‹ Back</button>
+    {@render topBar()}
+    <div class="sub">
       <b>{gridSel.size ? `${gridSel.size} selected` : `No album · ${backlog.length}`}</b>
-      <button class="pill" onclick={() => (gridSel = new Set())} disabled={!gridSel.size}>Clear</button>
-    </header>
+      {#if gridSel.size}<button class="link" onclick={() => (gridSel = new Set())}>Clear</button>{/if}
+    </div>
     <nav class="albums" aria-label="Albums">
       <span class="albums-label">{gridSel.size ? `Choose album for ${gridSel.size}` : 'Select photos to choose an album or delete'}</span>
       <div class="album-row">
@@ -1045,11 +1072,8 @@
       <AlbumSheet photoDate={gridOldest} oncreate={createAlbum} oncancel={() => (sheet = null)} />
     {/if}
   {:else if screen === 'trash'}
-    <header>
-      <button class="pill" onclick={() => (screen = 'cull')}>‹ Back</button>
-      <b>Trash · {pendingTrash.length}</b>
-      <span></span>
-    </header>
+    {@render topBar()}
+    <div class="sub"><b>Trash · {pendingTrash.length}</b></div>
     <p class="muted hint">Tap a photo to keep it out of the delete.</p>
     <div class="grid">
       {#each pendingTrash as item (item.id)}
@@ -1107,6 +1131,38 @@
     justify-content: space-between;
     gap: 8px;
     min-height: 48px;
+  }
+
+  .modes {
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .modes button {
+    min-height: 40px;
+    min-width: 52px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 0;
+    background: var(--surface);
+    font-size: 1.15rem;
+  }
+
+  .modes button.on,
+  .pill.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0b0b0f;
+  }
+
+  .sub {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 36px;
   }
 
   .when {
