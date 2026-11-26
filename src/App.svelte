@@ -986,7 +986,7 @@
               disabled={!gridSel.size}
               onclick={() => fileGrid(album.monthly ? MONTH_ALBUM : album.id)}
             >
-              {album.monthly && gridMonthsChosen.size > 1 ? 'Month (each photo’s own)' : albumTitle(album)}
+              {album.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(album)}
             </button>
           {:else}
             <span class="muted none">No albums yet</span>
@@ -1044,7 +1044,7 @@
         onclick={() => gridSuggested && fileGrid(gridSuggested.monthly ? MONTH_ALBUM : gridSuggested.id)}
         disabled={!gridSel.size || !gridSuggested}
       >
-        → {gridSuggested ? (gridSuggested.monthly && gridMonthsChosen.size > 1 ? 'Month' : albumTitle(gridSuggested)) : 'Album'}
+        → {gridSuggested ? (gridSuggested.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(gridSuggested)) : 'Album'}
       </button>
     </footer>
     {#if viewing}
