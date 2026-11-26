@@ -24,9 +24,30 @@ export interface Album {
   monthly?: boolean
 }
 
+/** How dated albums are named (setting): "2026-11 Thanksgiving" or "2026 Thanksgiving". */
+export const naming = $state({ format: 'ym' as 'ym' | 'y' })
+
+/** The date part in front of a dated album's name, per the naming setting. */
+export function datePrefix(ms: number): string {
+  return naming.format === 'y' ? String(new Date(ms).getFullYear()) : monthPrefix(ms)
+}
+
 export function albumTitle(a: Pick<Album, 'name' | 'start'>): string {
   if (a.start === undefined) return a.name
-  return a.name ? `${monthPrefix(a.start)} ${a.name}` : monthPrefix(a.start)
+  // Month albums have no name: always "YYYY-MM".
+  return a.name ? `${datePrefix(a.start)} ${a.name}` : monthPrefix(a.start)
+}
+
+/** Immich tag for an album: Albums/2026/11/Thanksgiving (or Albums/2026/Thanksgiving), Albums/Kids school. */
+export function albumTag(a: Pick<Album, 'name' | 'start'>): string {
+  if (a.start === undefined) return `Albums/${a.name}`
+  const d = new Date(a.start)
+  const y = String(d.getFullYear())
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const parts = ['Albums', y]
+  if (naming.format === 'ym' || !a.name) parts.push(m)
+  if (a.name) parts.push(a.name)
+  return parts.join('/')
 }
 
 export function monthPrefix(ms: number): string {
