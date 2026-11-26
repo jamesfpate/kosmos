@@ -125,11 +125,12 @@
     chosenId === MONTH_ALBUM && group[0] ? monthChip(group[0].taken) : (recent.find((a) => a.id === chosenId) ?? suggested),
   )
   const barAlbums = $derived(target ? [target, ...recent.filter((a) => a.id !== target.id)] : recent)
-  const keepCount = $derived(isGroup && selected.size ? selected.size : group.length)
+  // In a burst, actions apply to the selected photos, or to the one shown large when none are selected.
+  const keepCount = $derived(selected.size || 1)
   const keepLabel = $derived(
-    `${isGroup ? `Keep ${keepCount}` : 'Keep'} → ${target ? albumTitle(target) : 'new album'}`,
+    `${selected.size ? `Keep ${keepCount}` : 'Keep'} → ${target ? albumTitle(target) : 'new album'}`,
   )
-  const trashLabel = $derived(isGroup ? `Trash all ${group.length}` : 'Trash')
+  const trashLabel = $derived(selected.size ? `Trash ${selected.size}` : 'Trash')
 
 
   /** Photos that still need an album: undecided (any date, e.g. before the start point) or kept without one. */
@@ -165,7 +166,8 @@
   const viewing = $derived(viewIdx === null ? undefined : backlog[viewIdx])
   const gridChosen = $derived(backlog.filter((i) => gridSel.has(i.id)))
   const gridOldest = $derived(gridChosen.reduce<number | undefined>((t, i) => (t === undefined || i.taken < t ? i.taken : t), undefined))
-  const gridSuggested = $derived(suggestFor(gridOldest))
+  // Nothing selected yet: the album used last is the default (green) so it's clear where photos will go.
+  const gridSuggested = $derived(gridOldest === undefined ? recentFor(undefined)[0] : suggestFor(gridOldest))
   const gridRecent = $derived(recentFor(gridOldest))
   const gridAlbums = $derived(
     gridSuggested ? [gridSuggested, ...gridRecent.filter((a) => a.id !== gridSuggested.id)] : gridRecent,
@@ -247,6 +249,9 @@
 
   const gridMonthsChosen = $derived(new Set(gridChosen.map((i) => monthPrefix(i.taken))))
 
+  // Bumped on every decision so the swipe card starts fresh even when the burst's first photo stays.
+  let cardKey = $state(0)
+
   function nextCard() {
     selected = new Set()
     focus = 0
@@ -264,23 +269,34 @@
   }
 
   /**
-   * Records the card's decision. Keeping: in a group with photos ticked, only the ticked ones go into the album
-   * and the rest to trash.
+   * Records a decision for the selected photos of the burst, or the one shown large when none are selected. The
+   * rest of the burst stays on screen (same album target) until every photo is decided.
    */
   async function file(dir: Direction, albumId?: string) {
-    const cardItems = group
-    const ticked = selected
-    if (!cardItems.length) return
-    if (albumId === MONTH_ALBUM) albumId = (await monthAlbumFor(cardItems[0].taken)).id
+    const chosen = selected.size ? group.filter((i) => selected.has(i.id)) : current ? [current] : []
+    if (!chosen.length) return
+    const rest = group.length - chosen.length
+    const keepTarget = chosenId
+    const at = focus
     const now = Date.now()
-    const records = cardItems.map((item): DecisionRecord => {
-      const keep = dir === 'right' && (!ticked.size || ticked.has(item.id))
-      return keep
-        ? { id: item.id, decision: 'keep', decidedAt: now, albumId }
+    const ids = new Map<number, string | undefined>()
+    for (const item of chosen) {
+      ids.set(item.id, dir === 'left' ? undefined : albumId === MONTH_ALBUM ? (await monthAlbumFor(item.taken)).id : albumId)
+    }
+    const records = chosen.map((item): DecisionRecord => {
+      const id = ids.get(item.id)
+      return id
+        ? { id: item.id, decision: 'keep', decidedAt: now, albumId: id }
         : { id: item.id, decision: 'pending_trash', decidedAt: now }
     })
     nextCard()
-    await commit(cardItems, records)
+    await commit(chosen, records)
+    cardKey++
+    if (rest > 0) {
+      // Same burst continues: keep the album choice and show the photo that took this one's place.
+      chosenId = keepTarget
+      focus = Math.min(at, Math.max(0, group.length - 1))
+    }
   }
 
   /** Grid: files the selected photos into an album, or marks them for trash without one. */
@@ -757,7 +773,7 @@
     </header>
 
     <nav class="albums" bind:this={albumBar} aria-label="Albums">
-      <span class="albums-label">Swipe right into</span>
+      <span class="albums-label">{selected.size ? `Put ${selected.size} into` : 'Swipe right into'}</span>
       <div class="chips">
         {#each barAlbums as album (album.id)}
           <button
@@ -765,7 +781,7 @@
             class:target={album.id === target?.id}
             class:hover={hover === album.id}
             data-target={album.id}
-            onclick={() => (chosenId = album.id)}
+            onclick={() => (selected.size ? file('right', album.id) : (chosenId = album.id))}
           >
             {albumTitle(album)}
           </button>
@@ -778,7 +794,7 @@
 
     <div class="stage">
       {#if current}
-        {#key group[0].id}
+        {#key cardKey}
           <SwipeCard
             bind:this={card}
             onswipe={decide}
@@ -823,7 +839,10 @@
                     style:height={`${row.h}px`}
                     class:focused={i === focus}
                     class:kept={selected.has(item.id)}
-                    onclick={() => (i === focus ? toggleKeep(item.id) : (focus = i))}
+                    onclick={() => {
+                      focus = i
+                      toggleKeep(item.id)
+                    }}
                     role="option"
                     aria-selected={selected.has(item.id)}
                   >
@@ -856,15 +875,18 @@
     {#if isGroup}
       {@render sizeSlider()}
       <p class="muted hint">
-        Tap a photo to tick it · right keeps {selected.size ? 'the ticked ones' : 'all'}, left trashes all · drag up onto an
-        album
+        {selected.size
+          ? `${selected.size} selected · swipe or tap an album to file them, left to trash`
+          : 'Swipe files the large photo · tap thumbnails to select several'}
       </p>
     {/if}
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
-      <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>Trash</button>
+      <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>
+        Trash{selected.size ? ` ${selected.size}` : ''}
+      </button>
       <button class="keep" onclick={() => card?.fling('right')} disabled={!current}>
-        Keep{isGroup ? ` ${keepCount}` : ''}
+        Keep{selected.size ? ` ${selected.size}` : ''}
       </button>
       <button onclick={later} disabled={queue.length <= group.length}>Later</button>
     </footer>
@@ -1131,6 +1153,10 @@
     padding: 0 14px;
     border-radius: 999px;
     white-space: nowrap;
+  }
+
+  .chip.target:disabled {
+    opacity: 0.7;
   }
 
   .chip.target {
