@@ -10,7 +10,7 @@ import 'common.dart';
 
 const _sections = [
   ('general', 'General'),
-  ('single', 'Single photo'),
+  ('single', 'Single'),
   ('grid', 'Grid'),
   ('integrations', 'Integrations'),
   ('backup', 'Backup'),
@@ -62,7 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _jump(String id) {
     final ctx = _keys[id]!.currentContext;
-    if (ctx != null) Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart);
+    if (ctx != null) Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     setState(() {
       _current = id;
       _jumped = DateTime.now();
@@ -151,7 +151,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ]),
       ),
       Expanded(
-        child: ListView(controller: _scroll, children: [
+        // A plain column (not a lazy list) so every section exists and the jump bar can scroll to it.
+        child: SingleChildScrollView(
+          controller: _scroll,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _h2('general', 'General'),
           _h3('Order'),
           _p('Which photos come first, everywhere: swiping one by one, bursts and the grid.'),
@@ -171,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _h3('Start point'),
           _p('${s.cutoff == null || s.cutoff == 0 ? 'Culling everything.' : 'Culling photos from ${dayOf(s.cutoff!)}.'} Photos already reviewed stay reviewed.'),
           Btn('Change start point', onTap: s.changeStart),
-          _h2('single', 'Single photo'),
+          _h2('single', 'Single'),
           _h3('Review bursts together'),
           _p('Photos taken in quick succession show as one card: keep the best, remove the rest.'),
           Choices(options: const [(true, 'On'), (false, 'Off')], value: s.bursts, onPick: s.setBursts),
@@ -211,15 +214,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: Text('Coming later', style: TextStyle(color: C.muted)),
           ),
           _h2('backup', 'Backup'),
-          _p('Export or import your app settings, albums and photo decisions. They live only on this phone: export saves them to a file, import brings them back after a reinstall or on a new install. Backups from the earlier Winnow work too.'),
+          _p('Export or import app settings and albums.'),
           Row(children: [
             Expanded(child: Btn('Export data', onTap: _export)),
             const SizedBox(width: 8),
             Expanded(child: Btn('Import data', onTap: _import)),
           ]),
           if (_backupMsg.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_backupMsg, style: const TextStyle(color: C.muted))),
-          const SizedBox(height: 40),
-        ]),
+          // Room to scroll the last section's heading up under the jump bar.
+          SizedBox(height: MediaQuery.sizeOf(context).height * 0.5),
+          ]),
+        ),
       ),
     ]);
   }

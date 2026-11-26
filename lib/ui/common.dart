@@ -108,7 +108,7 @@ class _Modes extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(border: Border.all(color: C.line), borderRadius: BorderRadius.circular(20)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          seg(Icons.crop_portrait, s.screen == Screen.cull, s.openSingle, 'Single photo'),
+          seg(Icons.crop_portrait, s.screen == Screen.cull, s.openSingle, 'Single'),
           seg(Icons.grid_view, s.screen == Screen.grid, s.openGrid, 'Grid'),
           seg(Icons.photo_library_outlined, s.screen == Screen.explore, s.openExplore, 'Explorer'),
         ]),
