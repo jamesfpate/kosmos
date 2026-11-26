@@ -13,7 +13,7 @@ class C {
   static const muted = Color(0xFF8C8899);
   static const surface = Color(0xFF17161D);
   static const line = Color(0xFF2A2833);
-  static const accent = Color(0xFFB9A6FF);
+  static const accent = Color(0xFF60A5FA);
   static const keep = Color(0xFF4ADE80);
   static const trash = Color(0xFFF87171);
 
@@ -239,7 +239,9 @@ class AlbumChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fg = target ? C.bg : (dashed ? C.accent : C.text);
-    return AnimatedScale(
+    return Opacity(
+      opacity: onTap == null ? 0.4 : 1,
+      child: AnimatedScale(
       scale: hover ? 1.08 : 1,
       duration: const Duration(milliseconds: 100),
       child: Material(
@@ -258,6 +260,7 @@ class AlbumChip extends StatelessWidget {
             ]),
           ),
         ),
+      ),
       ),
     );
   }

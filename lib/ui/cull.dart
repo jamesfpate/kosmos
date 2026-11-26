@@ -110,9 +110,7 @@ class _CullScreenState extends State<CullScreen> {
         Text(
           s.burstAll
               ? (sel.isEmpty ? 'Nothing checked · tap a photo to view it, again to check it' : 'All checked · tap a photo to view it, again to uncheck it')
-              : s.burstRest > 0
-                  ? '${sel.length} checked · the other ${s.burstRest} go the opposite way'
-                  : '${sel.length} checked · the other ${g.length - sel.length} stay for later',
+              : '${sel.length} checked · ${g.length - sel.length} unchecked',
           style: const TextStyle(color: C.muted, fontSize: 12.5),
           textAlign: TextAlign.center,
         ),
