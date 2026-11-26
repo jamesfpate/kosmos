@@ -228,13 +228,15 @@ class Choices<T> extends StatelessWidget {
 
 /// Album chip in the album bars. The target is green with an arrow.
 class AlbumChip extends StatelessWidget {
-  const AlbumChip({super.key, required this.label, this.target = false, this.hover = false, this.onTap, this.dashed = false});
+  const AlbumChip(
+      {super.key, required this.label, this.target = false, this.hover = false, this.onTap, this.onLongPress, this.dashed = false});
 
   final String label;
   final bool target;
   final bool hover;
   final bool dashed;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -250,6 +252,7 @@ class AlbumChip extends StatelessWidget {
         child: InkWell(
           customBorder: const StadiumBorder(),
           onTap: onTap,
+          onLongPress: onLongPress,
           child: Container(
             height: 40,
             padding: const EdgeInsets.symmetric(horizontal: 14),

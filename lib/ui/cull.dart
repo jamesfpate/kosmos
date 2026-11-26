@@ -64,7 +64,9 @@ class _CullScreenState extends State<CullScreen> {
                 label: albumTitle(a),
                 target: a.id == target?.id,
                 hover: hover == a.id,
-                onTap: () => s.choose(a.id),
+                // Tap picks it; tapping the current album again (or a long press) edits it.
+                onTap: () => a.id == target?.id ? editAlbum(context, s, a) : s.choose(a.id),
+                onLongPress: () => editAlbum(context, s, a),
               ),
             ),
           AlbumChip(

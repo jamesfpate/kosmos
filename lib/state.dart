@@ -347,6 +347,39 @@ class AppState extends ChangeNotifier {
     return a;
   }
 
+  /// Saves an edited album. In Immich the album is renamed and its photos move to the new tag right away when
+  /// possible; otherwise they're re-filed on the next sync.
+  Future<void> updateAlbum(Album old, Album updated) async {
+    final oldTitle = albumTitle(old), oldTag = albumTag(old);
+    albums = [for (final a in albums) a.id == old.id ? updated : a];
+    await db.put('albums', updated.id, updated.toJson());
+    changed();
+    final immichId = updated.immichAlbumId;
+    if (immichId == null || (oldTitle == albumTitle(updated) && oldTag == albumTag(updated))) return;
+    final recs = [
+      for (final j in await db.all('uploads'))
+        if (UploadRecord.fromJson(j).syncedAlbumId == updated.id) UploadRecord.fromJson(j),
+    ];
+    final api = ImmichApi(immich);
+    try {
+      if (!immich.ready) throw Exception('Immich not set up');
+      if (oldTitle != albumTitle(updated)) await api.call('PATCH', '/albums/$immichId', {'albumName': albumTitle(updated)});
+      if (oldTag != albumTag(updated) && recs.isNotEmpty) {
+        final ids = [for (final r in recs) r.assetId];
+        await api.call('DELETE', '/tags/${await api.ensureTag(oldTag)}/assets', {'ids': ids});
+        await api.tag(await api.ensureTag(albumTag(updated)), ids);
+      }
+    } catch (_) {
+      // Offline or not set up: file them again on the next sync (album add is idempotent; adds the new tag).
+      for (final r in recs) {
+        r.syncedAlbumId = null;
+        await db.put('uploads', r.id, r.toJson());
+      }
+    } finally {
+      api.close();
+    }
+  }
+
   Future<void> createAlbum(Album a, {bool fileAfter = false, bool grid = false}) async {
     albums = [...albums, a];
     await db.put('albums', a.id, a.toJson());

@@ -105,7 +105,10 @@ class _GridScreenState extends State<GridScreen> {
                   child: AlbumChip(
                     label: chipLabel(a),
                     target: a.id == target?.id,
-                    onTap: () => sel.isEmpty ? s.chooseGrid(a.monthly ? monthAlbumId : a.id) : s.fileGrid(a.monthly ? monthAlbumId : a.id),
+                    onTap: () => sel.isNotEmpty
+                        ? s.fileGrid(a.monthly ? monthAlbumId : a.id)
+                        : (a.id == target?.id ? editAlbum(context, s, a) : s.chooseGrid(a.monthly ? monthAlbumId : a.id)),
+                    onLongPress: () => editAlbum(context, s, a),
                   ),
                 ),
             ]),

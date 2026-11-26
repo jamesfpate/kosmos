@@ -40,7 +40,15 @@ class ImmichConfig {
 }
 
 /// What the API key must be allowed to do (Immich → Account settings → API keys).
-const immichPermissions = ['asset.upload', 'album.read', 'album.create', 'albumAsset.create', 'tag.create', 'tag.asset'];
+const immichPermissions = [
+  'asset.upload',
+  'album.read',
+  'album.create',
+  'album.update',
+  'albumAsset.create',
+  'tag.create',
+  'tag.asset',
+];
 
 /// Extra permissions for sharing albums (Share albums with).
 const immichSharePermissions = ['user.read', 'albumUser.create'];

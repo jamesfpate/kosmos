@@ -12,18 +12,20 @@ final _dateStart = RegExp(
 
 /// New album: optional dates (start = the photo's day), a fixed YYYY-MM prefix, and the name.
 /// [photoDate] null: no photo chosen yet, so a dated album takes its date from the first photo filed into it.
-Future<Album?> showAlbumSheet(BuildContext context, int? photoDate) => showModalBottomSheet<Album>(
+/// With [existing]: edit that album (name, dates, end) instead.
+Future<Album?> showAlbumSheet(BuildContext context, int? photoDate, {Album? existing}) => showModalBottomSheet<Album>(
       context: context,
       isScrollControlled: true,
       backgroundColor: C.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _AlbumSheet(photoDate),
+      builder: (_) => _AlbumSheet(photoDate, existing),
     );
 
 class _AlbumSheet extends StatefulWidget {
-  const _AlbumSheet(this.photoDate);
+  const _AlbumSheet(this.photoDate, this.existing);
 
   final int? photoDate;
+  final Album? existing;
 
   @override
   State<_AlbumSheet> createState() => _AlbumSheetState();
@@ -35,15 +37,26 @@ class _AlbumSheetState extends State<_AlbumSheet> {
   DateTime? end;
   final name = TextEditingController();
 
+  Album? get existing => widget.existing;
+
   @override
   void initState() {
     super.initState();
-    final d = DateTime.fromMillisecondsSinceEpoch(widget.photoDate ?? DateTime.now().millisecondsSinceEpoch);
+    final e = existing;
+    final d = DateTime.fromMillisecondsSinceEpoch(e?.start ?? widget.photoDate ?? DateTime.now().millisecondsSinceEpoch);
     start = DateTime(d.year, d.month, d.day);
+    if (e != null) {
+      name.text = e.name;
+      dated = e.start != null || e.autoDate;
+      if (e.end != null) {
+        final x = DateTime.fromMillisecondsSinceEpoch(e.end!);
+        end = DateTime(x.year, x.month, x.day);
+      }
+    }
     name.addListener(() => setState(() {}));
   }
 
-  bool get later => dated && widget.photoDate == null;
+  bool get later => dated && (existing == null ? widget.photoDate == null : existing!.start == null && existing!.autoDate);
   String get prefix => !dated ? '' : (later ? 'YYYY-MM' : monthPrefix(start.millisecondsSinceEpoch));
   bool get dateTyped => dated && _dateStart.hasMatch(name.text);
   bool get valid => name.text.trim().isNotEmpty;
@@ -69,17 +82,19 @@ class _AlbumSheetState extends State<_AlbumSheet> {
   void create() {
     if (!valid) return;
     final now = DateTime.now().millisecondsSinceEpoch;
+    final e = existing;
     Navigator.pop(
       context,
       Album(
-        id: newId(),
+        id: e?.id ?? newId(),
         name: name.text.trim(),
         start: dated && !later ? start.millisecondsSinceEpoch : null,
         end: dated && !later && end != null ? end!.millisecondsSinceEpoch + day - 1 : null,
         autoDate: later,
-        createdAt: now,
+        createdAt: e?.createdAt ?? now,
         // Not "used" until a photo goes in, so creating an album doesn't change the default.
-        lastUsedAt: 0,
+        lastUsedAt: e?.lastUsedAt ?? 0,
+        immichAlbumId: e?.immichAlbumId,
       ),
     );
   }
@@ -102,7 +117,7 @@ class _AlbumSheetState extends State<_AlbumSheet> {
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Text('New album', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        Text(existing == null ? 'New album' : 'Edit album', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Dates'),
@@ -114,6 +129,18 @@ class _AlbumSheetState extends State<_AlbumSheet> {
           const Text('No photo chosen yet: the YYYY-MM comes from the first photo you put in.', style: TextStyle(color: C.muted, fontSize: 13))
         else if (dated) ...[
           Row(children: [dateField('Start', start, true), const SizedBox(width: 10), dateField('End', end, false)]),
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            if (end != null) TextButton(onPressed: () => setState(() => end = null), child: const Text('Ongoing')),
+            // Closes an ongoing album: later photos stop being suggested into it.
+            TextButton(
+              onPressed: () => setState(() {
+                final t = DateTime.now();
+                end = DateTime(t.year, t.month, t.day);
+                if (end!.isBefore(start)) end = start;
+              }),
+              child: const Text('End today'),
+            ),
+          ]),
           const SizedBox(height: 6),
           const Text("Photos taken between these dates are suggested into this album. Leave End empty while it's ongoing.",
               style: TextStyle(color: C.muted, fontSize: 13)),
@@ -131,7 +158,7 @@ class _AlbumSheetState extends State<_AlbumSheet> {
           Expanded(
             child: TextField(
               controller: name,
-              autofocus: true,
+              autofocus: existing == null,
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => create(),
               decoration: InputDecoration(
@@ -167,11 +194,21 @@ class _AlbumSheetState extends State<_AlbumSheet> {
         Row(children: [
           Expanded(child: Btn('Cancel', onTap: () => Navigator.pop(context))),
           const SizedBox(width: 8),
-          Expanded(child: Btn('Create', bold: true, color: C.bg, bg: C.accent, onTap: valid ? create : null)),
+          Expanded(child: Btn(existing == null ? 'Create' : 'Save', bold: true, color: C.bg, bg: C.accent, onTap: valid ? create : null)),
         ]),
       ]),
     );
   }
+}
+
+/// Edits an album (month albums follow their month and can't be edited).
+Future<void> editAlbum(BuildContext context, AppState s, Album a) async {
+  if (a.monthly || a.id == monthAlbumId) {
+    toast(context, 'Month albums are named after their month');
+    return;
+  }
+  final updated = await showAlbumSheet(context, null, existing: a);
+  if (updated != null) await s.updateAlbum(a, updated);
 }
 
 /// Opens the sheet and creates the album (filing into it right after when asked).
