@@ -43,8 +43,9 @@
   let restore = $state(new Set<number>())
   let busy = $state(false)
   let card = $state<SwipeCard>()
-  // Burst photos the user unchecked; every other photo of the burst is checked (all of them at first).
-  let unchecked = $state(new Set<number>())
+  // Burst photos the user flipped from the default (all checked, or none, per setting).
+  let flipped = $state(new Set<number>())
+  let checkDefault = $state(true)
   let focus = $state(0)
   // Photos taken within this many seconds of the previous one are culled together as one card (setting).
   let groupGap = $state(5)
@@ -107,7 +108,7 @@
   const isGroup = $derived(group.length > 1)
   // Checked photos of the burst on screen; empty for a single photo.
   const selected = $derived(
-    group.length > 1 ? new Set(group.filter((i) => !unchecked.has(i.id)).map((i) => i.id)) : new Set<number>(),
+    group.length > 1 ? new Set(group.filter((i) => checkDefault !== flipped.has(i.id)).map((i) => i.id)) : new Set<number>(),
   )
   const pendingTrash = $derived(items.filter((i) => decided.get(i.id)?.decision === 'pending_trash'))
   // Month albums ("YYYY-MM", the catch-all) count as one recent, shown for the photo's month.
@@ -269,6 +270,7 @@
       bursts = (await meta.get<boolean>('bursts')) ?? groupGap !== 0
       if (groupGap === 0) groupGap = 5
       autoTrash = (await meta.get<boolean>('autoTrash')) ?? true
+      checkDefault = (await meta.get<boolean>('burstChecked')) ?? true
       newestFirst = (await meta.get<boolean>('newestFirst')) ?? false
       gridFrac = (await meta.get<number>('gridFrac')) ?? 0.4
       thumbH = (await meta.get<number>('thumbH')) ?? 150
@@ -331,7 +333,7 @@
   let cardKey = $state(0)
 
   function nextCard() {
-    unchecked = new Set()
+    flipped = new Set()
     focus = 0
     chosenId = null
     pinned = null
@@ -467,10 +469,10 @@
   }
 
   function toggleKeep(id: number) {
-    const next = new Set(unchecked)
+    const next = new Set(flipped)
     if (next.has(id)) next.delete(id)
     else next.add(id)
-    unchecked = next
+    flipped = next
   }
 
   function targetAt(point: { x: number; y: number }): string | null {
@@ -639,6 +641,12 @@
     queue = [...queue].sort(byOrder)
     nextCard()
     await meta.set('newestFirst', newest)
+  }
+
+  async function setCheckDefault(on: boolean) {
+    checkDefault = on
+    flipped = new Set()
+    await meta.set('burstChecked', on)
   }
 
   async function setAutoTrash(on: boolean) {
@@ -1166,7 +1174,9 @@
       {@render sizeSlider()}
       <p class="muted hint">
         {burstAll
-          ? 'All checked · tap a photo to view it, again to uncheck it'
+          ? selected.size
+            ? 'All checked · tap a photo to view it, again to uncheck it'
+            : 'Nothing checked · tap a photo to view it, again to check it'
           : burstRest
             ? `${selected.size} checked · the other ${burstRest} go the opposite way`
             : `${selected.size} checked · the other ${group.length - selected.size} stay for later`}
@@ -1216,6 +1226,15 @@
             {seconds}s
           </button>
         {/each}
+      </div>
+      {/if}
+
+      {#if bursts}
+      <h3>Check burst photos by default</h3>
+      <p class="muted">On: every photo of a burst starts checked, uncheck the odd ones out. Off: start with none.</p>
+      <div class="choices">
+        <button class:on={checkDefault} onclick={() => setCheckDefault(true)}>On</button>
+        <button class:on={!checkDefault} onclick={() => setCheckDefault(false)}>Off</button>
       </div>
       {/if}
 
@@ -1682,8 +1701,9 @@
     justify-content: center;
   }
 
+  /* Checked / selected (accent, not green: a check isn't "keep", the buttons decide). */
   .photo.kept :global(img) {
-    outline: 4px solid var(--keep);
+    outline: 4px solid var(--accent);
     outline-offset: -4px;
   }
 
@@ -1696,7 +1716,7 @@
     display: grid;
     place-items: center;
     border-radius: 50%;
-    background: var(--keep);
+    background: var(--accent);
     color: #0b0b0f;
     font-weight: 700;
   }
@@ -1804,7 +1824,11 @@
     pointer-events: none;
   }
 
-  .cell.kept,
+  .cell.kept {
+    outline: 3px solid var(--accent);
+    outline-offset: -3px;
+  }
+
   .cell.restore {
     outline: 3px solid var(--keep);
     outline-offset: -3px;
@@ -2056,8 +2080,8 @@
   }
 
   .viewer button.selected {
-    background: var(--keep);
-    border-color: var(--keep);
+    background: var(--accent);
+    border-color: var(--accent);
     color: #0b0b0f;
     font-weight: 600;
   }
