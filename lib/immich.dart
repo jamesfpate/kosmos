@@ -9,18 +9,25 @@ import 'models.dart';
 // Immich v3 API: POST /assets (multipart, streamed from the original file), albums, tags.
 
 class ImmichConfig {
-  const ImmichConfig({this.server = '', this.key = '', this.enabled = false});
+  const ImmichConfig({this.server = '', this.key = '', this.enabled = false, this.shareWith = const {}});
 
   final String server;
   final String key;
   final bool enabled;
 
+  /// Immich users (id -> name) every album is shared with, as editors (they can add photos too).
+  final Map<String, String> shareWith;
+
   bool get ready => server.isNotEmpty && key.isNotEmpty;
 
-  ImmichConfig copyWith({String? server, String? key, bool? enabled}) =>
-      ImmichConfig(server: server ?? this.server, key: key ?? this.key, enabled: enabled ?? this.enabled);
+  ImmichConfig copyWith({String? server, String? key, bool? enabled, Map<String, String>? shareWith}) => ImmichConfig(
+        server: server ?? this.server,
+        key: key ?? this.key,
+        enabled: enabled ?? this.enabled,
+        shareWith: shareWith ?? this.shareWith,
+      );
 
-  Map<String, Object?> toJson() => {'server': server, 'key': key, 'enabled': enabled};
+  Map<String, Object?> toJson() => {'server': server, 'key': key, 'enabled': enabled, 'shareWith': shareWith};
 
   static ImmichConfig fromJson(Map<String, Object?>? j) => j == null
       ? const ImmichConfig()
@@ -28,11 +35,15 @@ class ImmichConfig {
           server: (j['server'] as String?) ?? '',
           key: (j['key'] as String?) ?? '',
           enabled: j['enabled'] == true,
+          shareWith: ((j['shareWith'] as Map?) ?? {}).cast<String, String>(),
         );
 }
 
 /// What the API key must be allowed to do (Immich → Account settings → API keys).
 const immichPermissions = ['asset.upload', 'album.read', 'album.create', 'albumAsset.create', 'tag.create', 'tag.asset'];
+
+/// Extra permissions for sharing albums (Share albums with).
+const immichSharePermissions = ['user.read', 'albumUser.create'];
 
 String cleanServer(String url) {
   var s = url.trim().replaceAll(RegExp(r'/+$'), '').replaceAll(RegExp(r'/api$'), '');
@@ -65,12 +76,34 @@ class ImmichApi {
     return res.body.isEmpty ? null : jsonDecode(res.body);
   }
 
-  /// Checks the server and key; returns the key's name and any missing permissions.
+  /// Checks the server and key; returns the key's name and any missing permissions (sharing ones only if sharing).
   Future<({String name, List<String> missing})> test() async {
     final key = await call('GET', '/api-keys/me') as Map;
     final perms = (key['permissions'] as List).cast<String>();
     final all = perms.contains('all');
-    return (name: '${key['name']}', missing: all ? <String>[] : [for (final p in immichPermissions) if (!perms.contains(p)) p]);
+    final need = [...immichPermissions, if (cfg.shareWith.isNotEmpty) ...immichSharePermissions];
+    return (name: '${key['name']}', missing: all ? <String>[] : [for (final p in need) if (!perms.contains(p)) p]);
+  }
+
+  /// Everyone on the server except the key's owner (who can't share with themselves).
+  Future<List<({String id, String name, String email})>> users() async {
+    final me = await call('GET', '/users/me') as Map;
+    final list = (await call('GET', '/users') as List).cast<Map>();
+    return [
+      for (final u in list)
+        if (u['id'] != me['id']) (id: u['id'] as String, name: '${u['name']}', email: '${u['email']}'),
+    ];
+  }
+
+  /// Adds the share-with users to an album as editors (skips anyone already in it).
+  Future<void> share(String albumId) async {
+    if (cfg.shareWith.isEmpty) return;
+    final album = await call('GET', '/albums/$albumId') as Map;
+    final present = {
+      for (final au in (album['albumUsers'] as List? ?? []).cast<Map>()) (au['user'] as Map)['id'],
+    };
+    final add = [for (final id in cfg.shareWith.keys) if (!present.contains(id)) {'userId': id, 'role': 'editor'}];
+    if (add.isNotEmpty) await call('PUT', '/albums/$albumId/users', {'albumUsers': add});
   }
 
   /// Uploads the original file (location kept when Winnow has media location access). Returns the Immich asset id.

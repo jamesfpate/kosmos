@@ -252,6 +252,53 @@ class _ImmichScreenState extends State<ImmichScreen> {
     }
   }
 
+  Future<void> _choose() async {
+    await s.saveImmich(server: _server.text, key: _key.text);
+    try {
+      final users = await ImmichApi(s.immich).users();
+      if (!mounted) return;
+      final picked = {...s.immich.shareWith};
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (c) => StatefulBuilder(
+          builder: (c, set) => AlertDialog(
+            title: const Text('Share albums with'),
+            content: users.isEmpty
+                ? const Text('No other Immich users on this server yet. They appear after logging in once (Pocket ID).')
+                : Column(mainAxisSize: MainAxisSize.min, children: [
+                    for (final u in users)
+                      CheckboxListTile(
+                        value: picked.containsKey(u.id),
+                        title: Text(u.name),
+                        subtitle: Text(u.email),
+                        onChanged: (v) => set(() => v == true ? picked[u.id] = u.name : picked.remove(u.id)),
+                      ),
+                  ]),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Save')),
+            ],
+          ),
+        ),
+      );
+      if (ok != true) return;
+      await s.saveImmich(shareWith: picked);
+      if (picked.isNotEmpty) await _shareAll();
+    } catch (e) {
+      setState(() => _msg = "Can't load users: $e");
+    }
+  }
+
+  Future<void> _shareAll() async {
+    setState(() => _msg = 'Sharing…');
+    try {
+      final n = await s.shareAllAlbums();
+      setState(() => _msg = 'Shared $n album${n == 1 ? '' : 's'} with ${s.immich.shareWith.values.join(', ')}');
+    } catch (e) {
+      setState(() => _msg = 'Sharing failed: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final sync = s.sync;
@@ -304,6 +351,21 @@ class _ImmichScreenState extends State<ImmichScreen> {
               await s.saveImmich(enabled: on);
             },
           ),
+          const SizedBox(height: 16),
+          const Text('Share albums with', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(
+            'Every album Winnow makes in Immich is shared with these people as editors, so they see it and can add their own photos. Needs the key permissions ${immichSharePermissions.join(', ')}.',
+            style: const TextStyle(color: C.muted),
+          ),
+          const SizedBox(height: 6),
+          Text(s.immich.shareWith.isEmpty ? 'Nobody yet' : s.immich.shareWith.values.join(', ')),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(child: Btn('Choose people', onTap: ready ? _choose : null)),
+            const SizedBox(width: 8),
+            Expanded(child: Btn('Share existing albums now', onTap: ready && s.immich.shareWith.isNotEmpty ? _shareAll : null)),
+          ]),
           if (s.immich.enabled) ...[
             const SizedBox(height: 8),
             Text(

@@ -760,8 +760,25 @@ class AppState extends ChangeNotifier {
 
   // ---------------------------------------------------------------- Immich
 
-  Future<void> saveImmich({String? server, String? key, bool? enabled}) async {
-    immich = immich.copyWith(server: server == null ? null : cleanServer(server), key: key?.trim(), enabled: enabled);
+  /// Shares every album already in Immich with the share-with users (new ones are shared as they sync).
+  Future<int> shareAllAlbums() async {
+    final api = ImmichApi(immich);
+    var n = 0;
+    try {
+      for (final a in albums) {
+        if (a.immichAlbumId == null) continue;
+        await api.share(a.immichAlbumId!);
+        n++;
+      }
+    } finally {
+      api.close();
+    }
+    return n;
+  }
+
+  Future<void> saveImmich({String? server, String? key, bool? enabled, Map<String, String>? shareWith}) async {
+    immich = immich.copyWith(
+        server: server == null ? null : cleanServer(server), key: key?.trim(), enabled: enabled, shareWith: shareWith);
     await _set('immich', immich.toJson());
     if (enabled == true) runSync();
   }
@@ -815,6 +832,7 @@ class AppState extends ChangeNotifier {
           if (album == null) continue;
           final immichId = await api.ensureAlbum(album);
           await db.put('albums', album.id, album.toJson());
+          await api.share(immichId);
           final ids = [for (final r in entry.value) r.assetId];
           await api.addToAlbum(immichId, ids);
           await api.tag(await api.ensureTag(albumTag(album)), ids);
