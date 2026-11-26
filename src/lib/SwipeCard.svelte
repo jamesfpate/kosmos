@@ -10,6 +10,7 @@
     ondrop,
     keepLabel = 'Keep',
     trashLabel = 'Trash',
+    disabled = false,
     children,
   }: {
     onswipe: (dir: Direction) => void
@@ -20,6 +21,8 @@
     ondrop?: (point: { x: number; y: number }) => boolean
     keepLabel?: string
     trashLabel?: string
+    /** No dragging (bursts are decided with the buttons); fling() still animates. */
+    disabled?: boolean
     children: Snippet
   } = $props()
 
@@ -39,7 +42,7 @@
   const SLOP = 12
 
   function down(e: PointerEvent) {
-    if (leaving || e.button !== 0) return
+    if (disabled || leaving || e.button !== 0) return
     if (e.clientX < EDGE || e.clientX > window.innerWidth - EDGE) return
     dragging = true
     moved = false

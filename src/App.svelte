@@ -991,6 +991,7 @@
             ondrop={onDrop}
             {keepLabel}
             {trashLabel}
+            disabled={isGroup}
           >
             <div class="photo" class:kept={isGroup && selected.has(current.id)}>
               <Preview item={current} play={playingId === current.id} onstop={() => (playingId = null)} />
@@ -1062,9 +1063,9 @@
       {@render sizeSlider()}
       <p class="muted hint">
         {selected.size === group.length
-          ? `Keeping all ${group.length} · tap a photo to view it, again to remove it`
+          ? `Keeping all ${group.length} · ✕ removes a photo, then confirm below`
           : selected.size
-            ? `Keeping ${selected.size} · ${burstDoomed.length ? `${burstDoomed.length} in red go to trash` : `the other ${group.length - selected.size} wait`}`
+            ? `Keeping ${selected.size} · ${burstDoomed.length ? `${burstDoomed.length} in red go to trash` : `the other ${group.length - selected.size} wait`} · confirm below`
             : `Nothing ticked · all ${group.length} go to trash`}
       </p>
     {/if}
@@ -1079,7 +1080,11 @@
         </button>
       {:else}
         <button class="put" onclick={() => card?.fling('right')} disabled={!current}>
-          <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{target ? albumTitle(target) : 'New album'}</span>
+          {#if isGroup}
+            {@render checkIcon()}<span class="label">Keep {selected.size}</span>
+          {:else}
+            <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{target ? albumTitle(target) : 'New album'}</span>
+          {/if}
         </button>
       {/if}
       <button class="later" onclick={later} disabled={queue.length <= group.length}>Later</button>
