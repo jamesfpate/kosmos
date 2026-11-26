@@ -111,14 +111,13 @@
     return list.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
   }
 
-  /** A dated album whose range covers the time wins; otherwise the album used last. */
+  /** A dated album whose range covers the time wins; otherwise that month's album. */
   function suggestFor(t: number | undefined): Album | undefined {
     if (t === undefined) return undefined
     const covering = albums
       .filter((a) => !a.monthly && a.start !== undefined && a.start <= t && (a.end === undefined || t <= a.end))
       .sort((a, b) => b.start! - a.start!)[0]
-    const last = recentFor(t)[0]
-    return covering ?? (last?.lastUsedAt ? last : undefined)
+    return covering ?? monthChip(t)
   }
 
   const recent = $derived(recentFor(group[0]?.taken))
@@ -168,9 +167,10 @@
   const viewing = $derived(viewIdx === null ? undefined : backlog[viewIdx])
   const gridChosen = $derived(backlog.filter((i) => gridSel.has(i.id)))
   const gridOldest = $derived(gridChosen.reduce<number | undefined>((t, i) => (t === undefined || i.taken < t ? i.taken : t), undefined))
-  // Nothing selected yet: the album used last is the default (green) so it's clear where photos will go.
-  const gridSuggested = $derived(gridOldest === undefined ? recentFor(undefined)[0] : suggestFor(gridOldest))
-  const gridRecent = $derived(recentFor(gridOldest))
+  // Nothing selected yet: suggest for the first photo in the grid (likely right); the selection takes over after.
+  const gridBasis = $derived(gridOldest ?? backlog[0]?.taken)
+  const gridSuggested = $derived(suggestFor(gridBasis))
+  const gridRecent = $derived(recentFor(gridBasis))
   const gridAlbums = $derived(
     gridSuggested ? [gridSuggested, ...gridRecent.filter((a) => a.id !== gridSuggested.id)] : gridRecent,
   )
@@ -925,7 +925,7 @@
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
       <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>
-        Delete{selected.size ? ` ${selected.size}` : ''}
+        ← Delete{selected.size ? ` ${selected.size}` : ''}
       </button>
       <button class="put" onclick={() => card?.fling('right')} disabled={!current}>
         → {target ? albumTitle(target) : 'New album'}
@@ -1033,7 +1033,7 @@
     {@render sizeSlider()}
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
-      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>Delete {gridSel.size || ''}</button>
+      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>← Delete {gridSel.size || ''}</button>
       <button
         class="put"
         onclick={() => gridSuggested && fileGrid(gridSuggested.monthly ? MONTH_ALBUM : gridSuggested.id)}
