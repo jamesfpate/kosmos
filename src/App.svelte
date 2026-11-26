@@ -885,10 +885,10 @@
       <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>
         Delete{selected.size ? ` ${selected.size}` : ''}
       </button>
-      <button onclick={later} disabled={queue.length <= group.length}>Later</button>
       <button class="put" onclick={() => card?.fling('right')} disabled={!current}>
         → {target ? albumTitle(target) : 'New album'}
       </button>
+      <button onclick={later} disabled={queue.length <= group.length}>Later</button>
     </footer>
 
     {#if sheet && current}
