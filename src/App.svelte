@@ -62,7 +62,7 @@
   let rowW = $state(0)
   // Full-size viewer over the grid (index into the backlog), opened by long-press.
   let viewIdx = $state<number | null>(null)
-  let viewX = 0
+  let viewX: number | null = null
   let held = false
 
   const bucketOf = (i: MediaItem) => i.bucket ?? ''
@@ -561,7 +561,7 @@
       cancel()
       timer = setTimeout(() => {
         held = true
-        viewIdx = backlog.findIndex((i) => i.id === id)
+        openViewer(id)
       }, 450)
     }
     const move = (e: PointerEvent) => Math.hypot(e.clientX - x, e.clientY - y) > 10 && cancel()
@@ -576,14 +576,42 @@
     }
   }
 
+  /**
+   * Opens the viewer while the finger is still down. The lift that ends the long-press (and any click Android
+   * synthesises from it) must not reach the viewer, so they're swallowed once.
+   */
+  function openViewer(id: number) {
+    viewIdx = backlog.findIndex((i) => i.id === id)
+    viewX = null
+    const swallow = (e: Event) => {
+      e.stopPropagation()
+      e.preventDefault()
+    }
+    const done = () => {
+      window.removeEventListener('pointerup', onUp, true)
+      window.removeEventListener('pointercancel', onUp, true)
+      window.removeEventListener('click', swallow, true)
+    }
+    const onUp = (e: Event) => {
+      swallow(e)
+      setTimeout(done, 400)
+    }
+    window.addEventListener('pointerup', onUp, true)
+    window.addEventListener('pointercancel', onUp, true)
+    window.addEventListener('click', swallow, true)
+  }
+
   function viewStep(by: number) {
     if (viewIdx === null) return
     const next = viewIdx + by
     if (next >= 0 && next < backlog.length) viewIdx = next
   }
 
+  /** Only a swipe that started inside the viewer moves to the next/previous photo. */
   function viewUp(e: PointerEvent) {
+    if (viewX === null) return
     const dx = e.clientX - viewX
+    viewX = null
     if (Math.abs(dx) > 60) viewStep(dx < 0 ? 1 : -1)
   }
 
@@ -958,14 +986,11 @@
         aria-label="Photo"
       >
         <header>
-          <button class="pill" onclick={() => (viewIdx = null)}>✕</button>
           <span class="when">
             <b>{fmt.format(viewing.taken)}</b>
             <span class="muted">{fmtTime.format(viewing.taken)} · {viewing.bucket ?? ''}</span>
           </span>
-          <button class="pill" class:on={gridSel.has(viewing.id)} onclick={() => toggleGrid(viewing.id)}>
-            {gridSel.has(viewing.id) ? '✓ Selected' : 'Select'}
-          </button>
+          <span class="muted count">{viewIdx! + 1} of {backlog.length}</span>
         </header>
         <div class="photo">
           {#key viewing.id}<Preview item={viewing} />{/key}
@@ -975,7 +1000,13 @@
             </button>
           {/if}
         </div>
-        <p class="muted hint">Swipe for the next photo · {viewIdx! + 1} of {backlog.length}</p>
+        <p class="muted hint">Swipe for the next photo</p>
+        <footer>
+          <button onclick={() => (viewIdx = null)}>✕ Close</button>
+          <button class:selected={gridSel.has(viewing.id)} onclick={() => toggleGrid(viewing.id)}>
+            {gridSel.has(viewing.id) ? '✓ Selected' : 'Select'}
+          </button>
+        </footer>
       </div>
     {/if}
     {#if sheet && gridOldest !== undefined}
@@ -1410,7 +1441,7 @@
     touch-action: none;
   }
 
-  .viewer .pill.on {
+  .viewer button.selected {
     background: var(--keep);
     border-color: var(--keep);
     color: #0b0b0f;
