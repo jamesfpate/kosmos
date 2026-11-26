@@ -71,6 +71,7 @@ class Album {
     this.monthly = false,
     this.immichAlbumId,
     this.autoDate = false,
+    this.staleTags = const [],
   });
 
   final String id;
@@ -84,6 +85,9 @@ class Album {
 
   /// Dated, but made before any photo was chosen: [start] is set from the first photo filed into it.
   bool autoDate;
+
+  /// Immich tags from before a rename that still need removing from its photos (done on the next sync).
+  List<String> staleTags;
   final int createdAt;
 
   /// When a photo last went in (0 = never used; creating an album doesn't count).
@@ -105,6 +109,7 @@ class Album {
         if (monthly) 'monthly': true,
         if (immichAlbumId != null) 'immichAlbumId': immichAlbumId,
         if (autoDate) 'autoDate': true,
+        if (staleTags.isNotEmpty) 'staleTags': staleTags,
       };
 
   static Album fromJson(Map<String, Object?> j) => Album(
@@ -117,6 +122,7 @@ class Album {
         monthly: j['monthly'] == true || j['everyday'] == true,
         immichAlbumId: j['immichAlbumId'] as String?,
         autoDate: j['autoDate'] == true,
+        staleTags: ((j['staleTags'] as List?) ?? []).cast<String>(),
       );
 }
 

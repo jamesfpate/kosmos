@@ -370,10 +370,14 @@ class AppState extends ChangeNotifier {
         await api.tag(await api.ensureTag(albumTag(updated)), ids);
       }
     } catch (_) {
-      // Offline or not set up: file them again on the next sync (album add is idempotent; adds the new tag).
+      // Offline or not set up: the next sync renames the album, adds the new tag and removes the old one.
       for (final r in recs) {
         r.syncedAlbumId = null;
         await db.put('uploads', r.id, r.toJson());
+      }
+      if (oldTag != albumTag(updated) && !updated.staleTags.contains(oldTag)) {
+        updated.staleTags = [...updated.staleTags, oldTag];
+        await db.put('albums', updated.id, updated.toJson());
       }
     } finally {
       api.close();
@@ -900,6 +904,18 @@ class AppState extends ChangeNotifier {
           final ids = [for (final r in entry.value) r.assetId];
           await api.addToAlbum(immichId, ids);
           await api.tag(await api.ensureTag(albumTag(album)), ids);
+          if (album.staleTags.isNotEmpty) {
+            final all = [
+              for (final j in await db.all('uploads'))
+                if (UploadRecord.fromJson(j).syncedAlbumId == album.id || entry.value.any((r) => r.id == j['id']))
+                  UploadRecord.fromJson(j).assetId,
+            ];
+            for (final t in album.staleTags) {
+              await api.call('DELETE', '/tags/${await api.ensureTag(t)}/assets', {'ids': all});
+            }
+            album.staleTags = [];
+            await db.put('albums', album.id, album.toJson());
+          }
           for (final r in entry.value) {
             r.syncedAlbumId = album.id;
             await db.put('uploads', r.id, r.toJson());

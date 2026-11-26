@@ -138,8 +138,13 @@ class ImmichApi {
     final name = albumTitle(album);
     if (album.immichAlbumId != null) {
       try {
-        final found = await call('GET', '/albums?id=${album.immichAlbumId}') as List;
-        if (found.any((a) => (a as Map)['id'] == album.immichAlbumId)) return album.immichAlbumId!;
+        final found = (await call('GET', '/albums?id=${album.immichAlbumId}') as List).cast<Map>();
+        final mine = found.where((a) => a['id'] == album.immichAlbumId).firstOrNull;
+        if (mine != null) {
+          // Renamed in Winnow while Immich couldn't be reached: catch up.
+          if (mine['albumName'] != name) await call('PATCH', '/albums/${album.immichAlbumId}', {'albumName': name});
+          return album.immichAlbumId!;
+        }
       } catch (_) {}
     }
     final same = await call('GET', '/albums?name=${Uri.encodeQueryComponent(name)}') as List;
