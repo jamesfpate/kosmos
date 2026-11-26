@@ -4,9 +4,13 @@
   import { decisions, meta, type DecisionRecord } from './lib/store'
   import SwipeCard, { type Direction } from './lib/SwipeCard.svelte'
   import Thumb from './lib/Thumb.svelte'
+  import Preview from './lib/Preview.svelte'
 
   const version = __APP_VERSION__
   const DAY = 24 * 60 * 60 * 1000
+  // Photos taken within GROUP_GAP of the previous one are culled together as one card.
+  const GROUP_GAP = 5000
+  const GROUP_MAX = 40
 
   type Screen = 'loading' | 'access' | 'start' | 'cull' | 'trash' | 'error'
 
@@ -17,12 +21,31 @@
   let decided = $state(new Map<number, DecisionRecord>())
   let cutoff = $state<number | undefined>(undefined)
   let queue = $state<MediaItem[]>([])
-  let undoStack = $state<{ item: MediaItem; prev?: DecisionRecord }[]>([])
+  type UndoEntry = { item: MediaItem; prev?: DecisionRecord }
+  let undoStack = $state<UndoEntry[][]>([])
   let restore = $state(new Set<number>())
   let busy = $state(false)
   let card = $state<SwipeCard>()
+  let selected = $state(new Set<number>())
+  let focus = $state(0)
 
-  const current = $derived(queue[0])
+  // The card on screen: the next item plus any taken right after it (a burst / quick series).
+  const group = $derived.by(() => {
+    const g: MediaItem[] = []
+    for (const item of queue) {
+      const last = g.at(-1)
+      if (last && (item.taken < last.taken || item.taken - last.taken > GROUP_GAP || g.length >= GROUP_MAX)) break
+      g.push(item)
+    }
+    return g
+  })
+  const current = $derived(group[focus] ?? group[0])
+  const isGroup = $derived(group.length > 1)
+  const keepCount = $derived(selected.size || group.length)
+  const keepLabel = $derived(
+    !isGroup ? 'Keep' : selected.size && selected.size < group.length ? `Keep ${selected.size}` : `Keep all ${group.length}`,
+  )
+  const trashLabel = $derived(isGroup ? `Trash all ${group.length}` : 'Trash')
   const pendingTrash = $derived(items.filter((i) => decided.get(i.id)?.decision === 'pending_trash'))
 
   onMount(() => {
@@ -87,19 +110,38 @@
     return items.filter((i) => i.taken >= from).length
   }
 
+  /**
+   * Swipe left trashes the whole card. Swipe right keeps it; in a group with photos ticked, only the ticked
+   * ones are kept and the rest go to trash.
+   */
   async function decide(dir: Direction) {
-    const item = current
-    if (!item) return
-    const record: DecisionRecord = {
-      id: item.id,
-      decision: dir === 'right' ? 'keep' : 'pending_trash',
-      decidedAt: Date.now(),
-    }
-    undoStack = [...undoStack.slice(-49), { item, prev: decided.get(item.id) }]
-    decided = new Map(decided).set(item.id, record)
-    queue = queue.slice(1)
-    for (const next of queue.slice(0, 3)) previewUrl(next).catch(() => {})
-    await decisions.put(record)
+    const items = group
+    if (!items.length) return
+    const now = Date.now()
+    const records = items.map(
+      (item): DecisionRecord => ({
+        id: item.id,
+        decision: dir === 'right' && (!selected.size || selected.has(item.id)) ? 'keep' : 'pending_trash',
+        decidedAt: now,
+      }),
+    )
+    undoStack = [...undoStack.slice(-49), items.map((item) => ({ item, prev: decided.get(item.id) }))]
+    const next = new Map(decided)
+    for (const r of records) next.set(r.id, r)
+    decided = next
+    const done = new Set(items.map((i) => i.id))
+    queue = queue.filter((i) => !done.has(i.id))
+    selected = new Set()
+    focus = 0
+    for (const n of queue.slice(0, 3)) previewUrl(n).catch(() => {})
+    for (const r of records) await decisions.put(r)
+  }
+
+  function toggleKeep(id: number) {
+    const next = new Set(selected)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    selected = next
   }
 
   async function undo() {
@@ -107,21 +149,29 @@
     if (!last) return
     undoStack = undoStack.slice(0, -1)
     const next = new Map(decided)
-    if (last.prev) {
-      next.set(last.item.id, last.prev)
-      await decisions.put(last.prev)
-    } else {
-      next.delete(last.item.id)
-      await decisions.remove(last.item.id)
+    for (const { item, prev } of last) {
+      if (prev) {
+        next.set(item.id, prev)
+        await decisions.put(prev)
+      } else {
+        next.delete(item.id)
+        await decisions.remove(item.id)
+      }
     }
     decided = next
-    queue = [last.item, ...queue.filter((i) => i.id !== last.item.id)]
+    const back = new Set(last.map((e) => e.item.id))
+    queue = [...last.map((e) => e.item), ...queue.filter((i) => !back.has(i.id))]
+    selected = new Set()
+    focus = 0
     screen = 'cull'
   }
 
   function later() {
-    if (queue.length < 2) return
-    queue = [...queue.slice(1), queue[0]]
+    if (queue.length <= group.length) return
+    const moved = new Set(group.map((i) => i.id))
+    queue = [...queue.filter((i) => !moved.has(i.id)), ...group]
+    selected = new Set()
+    focus = 0
   }
 
   function toggleRestore(id: number) {
@@ -141,7 +191,8 @@
     decided = next
     queue = [...back, ...queue]
     restore = new Set()
-    undoStack = undoStack.filter((u) => !back.some((b) => b.id === u.item.id))
+    const backIds = new Set(back.map((b) => b.id))
+    undoStack = undoStack.filter((entry) => !entry.some((u) => backIds.has(u.item.id)))
   }
 
   async function deleteTrash() {
@@ -161,7 +212,7 @@
       decided = next
       const gone = new Set(doomed.map((i) => i.id))
       items = items.filter((i) => !gone.has(i.id))
-      undoStack = undoStack.filter((u) => !gone.has(u.item.id))
+      undoStack = undoStack.filter((entry) => !entry.some((u) => gone.has(u.item.id)))
       screen = 'cull'
     } catch (e) {
       error = String(e)
@@ -221,7 +272,7 @@
           <b>Kosmos</b>
         {/if}
       </div>
-      <span class="muted">{queue.length} left</span>
+      <span class="muted">{isGroup ? `${group.length} in a row · ` : ''}{queue.length} left</span>
       <button class="pill" disabled={!pendingTrash.length} onclick={() => (screen = 'trash')}>
         🗑 {pendingTrash.length}
       </button>
@@ -229,13 +280,48 @@
 
     <div class="stage">
       {#if current}
-        {#key current.id}
+        {#key group[0].id}
           <SwipeCard
             bind:this={card}
-            item={current}
             onswipe={decide}
-            onplay={() => Media.open({ id: current.id, type: current.type, mime: current.mime })}
-          />
+            ontap={isGroup ? () => toggleKeep(current.id) : undefined}
+            {keepLabel}
+            {trashLabel}
+          >
+            <div class="photo" class:kept={isGroup && selected.has(current.id)}>
+              <Preview item={current} />
+              {#if isGroup && selected.has(current.id)}<span class="tick">✓</span>{/if}
+              {#if current.type === 'video'}
+                <button
+                  class="play"
+                  onpointerdown={(e) => e.stopPropagation()}
+                  onclick={() => Media.open({ id: current.id, type: current.type, mime: current.mime })}
+                >
+                  ▶ {Math.round(current.duration / 1000)}s
+                </button>
+              {/if}
+            </div>
+            {#if isGroup}
+              <div class="strip" onpointerdown={(e) => e.stopPropagation()} role="listbox" tabindex="-1">
+                {#each group as item, i (item.id)}
+                  <button
+                    class="frame"
+                    class:focused={i === focus}
+                    class:kept={selected.has(item.id)}
+                    onclick={() => (i === focus ? toggleKeep(item.id) : (focus = i))}
+                    role="option"
+                    aria-selected={selected.has(item.id)}
+                  >
+                    <Thumb {item} />
+                    {#if selected.has(item.id)}<span class="tick small">✓</span>{/if}
+                  </button>
+                {/each}
+              </div>
+              <p class="muted hint">
+                Tap the photo to keep it · swipe right keeps {selected.size ? 'the ✓ ones' : 'all'}, left trashes all
+              </p>
+            {/if}
+          </SwipeCard>
         {/key}
       {:else}
         <div class="center">
@@ -252,8 +338,10 @@
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
       <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>Trash</button>
-      <button class="keep" onclick={() => card?.fling('right')} disabled={!current}>Keep</button>
-      <button onclick={later} disabled={queue.length < 2}>Later</button>
+      <button class="keep" onclick={() => card?.fling('right')} disabled={!current}>
+        Keep{isGroup ? ` ${keepCount}` : ''}
+      </button>
+      <button onclick={later} disabled={queue.length <= group.length}>Later</button>
     </footer>
   {:else if screen === 'trash'}
     <header>
@@ -432,6 +520,82 @@
     left: 6px;
     right: auto;
     color: var(--keep);
+  }
+
+  .photo {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .photo.kept :global(img) {
+    outline: 4px solid var(--keep);
+    outline-offset: -4px;
+  }
+
+  .tick {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--keep);
+    color: #0b0b0f;
+    font-weight: 700;
+  }
+
+  .tick.small {
+    top: 4px;
+    left: 4px;
+    width: 20px;
+    height: 20px;
+    font-size: 0.7rem;
+  }
+
+  .play {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 0;
+    border-radius: 999px;
+    background: rgb(0 0 0 / 0.6);
+    color: white;
+  }
+
+  .strip {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    overflow-x: auto;
+    padding: 8px 0 0;
+    touch-action: pan-x;
+  }
+
+  .frame {
+    position: relative;
+    flex: 0 0 64px;
+    height: 64px;
+    min-height: 0;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .frame.focused {
+    border-color: var(--text);
+  }
+
+  .frame.kept {
+    border-color: var(--keep);
   }
 
   .version {
