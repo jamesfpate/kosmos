@@ -53,6 +53,13 @@
   let hidden = $state(new Set<string>())
   let gridSel = $state(new Set<number>())
   let gridLimit = $state(GRID_STEP)
+  // Grid mode columns: pinch or the size button (remembered).
+  let gridCols = $state(3)
+  const COLS = [2, 3, 4, 5]
+  // Full-size viewer over the grid (index into the backlog), opened by long-press.
+  let viewIdx = $state<number | null>(null)
+  let viewX = 0
+  let held = false
 
   const bucketOf = (i: MediaItem) => i.bucket ?? ''
   const shown = (i: MediaItem) => !hidden.has(bucketOf(i))
@@ -150,6 +157,7 @@
     }
     return out
   })
+  const viewing = $derived(viewIdx === null ? undefined : backlog[viewIdx])
   const gridChosen = $derived(backlog.filter((i) => gridSel.has(i.id)))
   const gridOldest = $derived(gridChosen.reduce<number | undefined>((t, i) => (t === undefined || i.taken < t ? i.taken : t), undefined))
   const gridSuggested = $derived(suggestFor(gridOldest))
@@ -180,6 +188,7 @@
       cutoff = await meta.get<number>('cutoff')
       groupGap = (await meta.get<number>('groupGap')) ?? 5
       gridFrac = (await meta.get<number>('gridFrac')) ?? 0.4
+      gridCols = (await meta.get<number>('gridCols')) ?? 3
       hidden = new Set((await meta.get<string[]>('hiddenBuckets')) ?? [])
       albums = await albumStore.all()
       await reload()
@@ -434,6 +443,84 @@
       else next.add(i.id)
     }
     gridSel = next
+  }
+
+  function setCols(n: number) {
+    gridCols = Math.min(COLS.at(-1)!, Math.max(COLS[0], n))
+    meta.set('gridCols', gridCols)
+  }
+
+  /** Two-finger pinch on the grid: spread for bigger photos (fewer columns), pinch for more. */
+  function pinch(node: HTMLElement) {
+    let base = 0
+    const dist = (e: TouchEvent) =>
+      Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
+    const start = (e: TouchEvent) => {
+      if (e.touches.length === 2) base = dist(e)
+    }
+    const move = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !base) return
+      e.preventDefault()
+      const r = dist(e) / base
+      if (r > 1.3 || r < 0.77) {
+        setCols(gridCols + (r > 1 ? -1 : 1))
+        base = dist(e)
+      }
+    }
+    const end = (e: TouchEvent) => {
+      if (e.touches.length < 2) base = 0
+    }
+    node.addEventListener('touchstart', start, { passive: true })
+    node.addEventListener('touchmove', move, { passive: false })
+    node.addEventListener('touchend', end)
+    node.addEventListener('touchcancel', end)
+    return {
+      destroy() {
+        node.removeEventListener('touchstart', start)
+        node.removeEventListener('touchmove', move)
+        node.removeEventListener('touchend', end)
+        node.removeEventListener('touchcancel', end)
+      },
+    }
+  }
+
+  /** Long-press opens the photo full size; the click that follows the press is swallowed. */
+  function hold(node: HTMLElement, id: number) {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let x = 0
+    let y = 0
+    const cancel = () => clearTimeout(timer)
+    const down = (e: PointerEvent) => {
+      x = e.clientX
+      y = e.clientY
+      held = false
+      cancel()
+      timer = setTimeout(() => {
+        held = true
+        viewIdx = backlog.findIndex((i) => i.id === id)
+      }, 450)
+    }
+    const move = (e: PointerEvent) => Math.hypot(e.clientX - x, e.clientY - y) > 10 && cancel()
+    node.addEventListener('pointerdown', down)
+    node.addEventListener('pointermove', move)
+    node.addEventListener('pointerup', cancel)
+    node.addEventListener('pointercancel', cancel)
+    node.addEventListener('contextmenu', (e) => e.preventDefault())
+    return {
+      update: (next: number) => (id = next),
+      destroy: cancel,
+    }
+  }
+
+  function viewStep(by: number) {
+    if (viewIdx === null) return
+    const next = viewIdx + by
+    if (next >= 0 && next < backlog.length) viewIdx = next
+  }
+
+  function viewUp(e: PointerEvent) {
+    const dx = e.clientX - viewX
+    if (Math.abs(dx) > 60) viewStep(dx < 0 ? 1 : -1)
   }
 
   /** Grows the grid when the sentinel at its end scrolls into view. */
@@ -707,6 +794,9 @@
     <header>
       <button class="pill" onclick={() => (screen = 'cull')}>‹ Back</button>
       <b>{gridSel.size ? `${gridSel.size} selected` : `No album · ${backlog.length}`}</b>
+      <button class="pill" onclick={() => setCols(gridCols === COLS.at(-1) ? COLS[0] : gridCols + 1)} aria-label="Photo size">
+        ⊞ {gridCols}
+      </button>
       {#if gridSel.size}
         <button class="pill" onclick={() => (gridSel = new Set())}>Clear</button>
       {:else}
@@ -715,7 +805,7 @@
         </button>
       {/if}
     </header>
-    <div class="backlog">
+    <div class="backlog" use:pinch>
       {#each gridMonths as month (month.key)}
         <div class="month">
           <b>{fmtMonth.format(month.items[0].taken)}</b>
@@ -724,9 +814,14 @@
             {month.items.length}
           </button>
         </div>
-        <div class="grid month-grid">
+        <div class="grid month-grid" style:grid-template-columns={`repeat(${gridCols}, 1fr)`}>
           {#each month.items as item (item.id)}
-            <button class="cell" class:kept={gridSel.has(item.id)} onclick={() => toggleGrid(item.id)}>
+            <button
+              class="cell"
+              class:kept={gridSel.has(item.id)}
+              use:hold={item.id}
+              onclick={() => (held ? (held = false) : toggleGrid(item.id))}
+            >
               <Thumb {item} />
               {#if item.type === 'video'}<span class="badge">▶</span>{/if}
               {#if gridSel.has(item.id)}<span class="tick small">✓</span>{/if}
@@ -757,6 +852,36 @@
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
       <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>Trash {gridSel.size || ''}</button>
     </footer>
+    {#if viewing}
+      <div
+        class="viewer"
+        onpointerdown={(e) => (viewX = e.clientX)}
+        onpointerup={viewUp}
+        role="dialog"
+        tabindex="-1"
+        aria-label="Photo"
+      >
+        <header>
+          <button class="pill" onclick={() => (viewIdx = null)}>✕</button>
+          <span class="when">
+            <b>{fmt.format(viewing.taken)}</b>
+            <span class="muted">{fmtTime.format(viewing.taken)} · {viewing.bucket ?? ''}</span>
+          </span>
+          <button class="pill" class:on={gridSel.has(viewing.id)} onclick={() => toggleGrid(viewing.id)}>
+            {gridSel.has(viewing.id) ? '✓ Selected' : 'Select'}
+          </button>
+        </header>
+        <div class="photo">
+          {#key viewing.id}<Preview item={viewing} />{/key}
+          {#if viewing.type === 'video'}
+            <button class="play" onclick={() => Media.open({ id: viewing.id, type: viewing.type, mime: viewing.mime })}>
+              ▶ {Math.round(viewing.duration / 1000)}s
+            </button>
+          {/if}
+        </div>
+        <p class="muted hint">Swipe for the next photo · {viewIdx! + 1} of {backlog.length}</p>
+      </div>
+    {/if}
     {#if sheet && gridOldest !== undefined}
       <AlbumSheet photoDate={gridOldest} oncreate={createAlbum} oncancel={() => (sheet = null)} />
     {/if}
@@ -1122,6 +1247,7 @@
 
   .backlog {
     flex: 1;
+    touch-action: pan-y;
     overflow-y: auto;
     margin: 4px 0 8px;
   }
@@ -1139,7 +1265,6 @@
 
   .month-grid {
     flex: none;
-    grid-template-columns: repeat(4, 1fr);
     overflow: visible;
     margin-bottom: 4px;
   }
@@ -1150,6 +1275,24 @@
     border: 0;
     background: none;
     color: var(--accent);
+  }
+
+  .viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    padding: max(env(safe-area-inset-top), 8px) 12px max(env(safe-area-inset-bottom), 8px);
+    background: #000;
+    touch-action: none;
+  }
+
+  .viewer .pill.on {
+    background: var(--keep);
+    border-color: var(--keep);
+    color: #0b0b0f;
+    font-weight: 600;
   }
 
   .sentinel {
