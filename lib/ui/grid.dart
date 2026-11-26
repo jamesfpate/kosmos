@@ -76,9 +76,9 @@ class _GridScreenState extends State<GridScreen> {
     return Column(children: [
       TopBar(
         s,
-        title: Text(sel.isEmpty ? 'No album' : '${sel.length} selected'),
+        title: sel.isEmpty ? const Logo() : Text('${sel.length} selected'),
         subtitle: sel.isEmpty
-            ? Text('${s.backlog.length} photos')
+            ? Text('${s.backlog.length} without an album')
             : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 if (s.gapCount > 0) ...[
                   _link(Icons.swap_horiz, 'Fill ${s.gapCount}', s.selectBetween),

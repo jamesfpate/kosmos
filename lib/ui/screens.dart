@@ -37,7 +37,7 @@ class AccessScreen extends StatelessWidget {
     final first = s.access == Access.prompt || (s.access == Access.denied && !s.askedAccess);
     if (first) {
       return _centered([
-        const Text('Winnow', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+        const Center(child: Logo(size: 34)),
         const SizedBox(height: 12),
         const Text('Winnow needs to see your photos and videos to sort them. Nothing leaves your phone unless you turn on an upload.'),
         const SizedBox(height: 12),
@@ -47,7 +47,7 @@ class AccessScreen extends StatelessWidget {
       ]);
     }
     return _centered([
-      const Text('Winnow', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+      const Center(child: Logo(size: 34)),
       const SizedBox(height: 12),
       Text(
         '${s.access == Access.limited ? 'Winnow can only see the photos you picked, so it would miss new ones.' : 'Photo access is off.'} Android won\'t ask again, so change it in settings:',

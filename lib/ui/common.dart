@@ -263,6 +263,26 @@ class AlbumChip extends StatelessWidget {
   }
 }
 
+/// The Winnow wordmark: the two n's offset, one dropped and one raised, like grain being winnowed.
+class Logo extends StatelessWidget {
+  const Logo({super.key, this.size = 22});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(fontSize: size, fontWeight: FontWeight.w800, color: C.text, height: 1);
+    final n = style.copyWith(color: C.accent);
+    final shift = size * 0.14;
+    return Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
+      Text('wi', style: style),
+      Transform.translate(offset: Offset(0, shift), child: Text('n', style: n)),
+      Transform.translate(offset: Offset(0, -shift), child: Text('n', style: n)),
+      Text('ow', style: style),
+    ]);
+  }
+}
+
 class Label extends StatelessWidget {
   const Label(this.text, {super.key});
 

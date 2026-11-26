@@ -49,7 +49,7 @@ class _CullScreenState extends State<CullScreen> {
     final target = s.target;
     return Column(children: [
       TopBar(s,
-          title: Text(cur == null ? 'Winnow' : dayOf(cur.taken)),
+          title: cur == null ? const Logo() : Text(dayOf(cur.taken)),
           subtitle: cur == null ? null : Text('${timeOf(cur.taken)} · ${s.queue.length} left')),
       Align(alignment: Alignment.centerLeft, child: Label(sel.isNotEmpty && !s.burstAll ? 'Choose album for ${sel.length}' : 'Choose album')),
       const SizedBox(height: 4),
