@@ -183,7 +183,7 @@
   const burstRest = $derived(isGroup && !burstAll && autoTrash ? group.length - selected.size : 0)
   const burstKeep = $derived(burstAll ? `Keep all ${group.length}` : `Keep ${selected.size}`)
   const burstDelete = $derived(burstAll ? `Delete all ${group.length}` : `Delete ${selected.size}`)
-  const keepLabel = $derived(isGroup ? burstKeep : `Keep → ${target ? albumTitle(target) : 'new album'}`)
+  const keepLabel = $derived(isGroup ? burstKeep : `Keep in ${target ? albumTitle(target) : 'a new album'}`)
   const trashLabel = $derived(isGroup ? burstDelete : 'Delete')
 
 
@@ -960,7 +960,7 @@
         <b>{gridSel.size ? `${gridSel.size} selected` : 'No album'}</b>
         {#if gridSel.size}
           <span class="title-links">
-            {#if gapCount}<button class="link" onclick={selectBetween} aria-label="Select the photos between">↔ Fill {gapCount}</button> ·{/if}
+            {#if gapCount}<button class="link" onclick={selectBetween} aria-label="Select the photos between">{@render icon('both')}Fill {gapCount}</button> ·{/if}
             <button class="link" onclick={() => (gridSel = new Set())}>Clear</button>
           </span>
         {:else}
@@ -978,7 +978,7 @@
     <span class="actions">
       {#if immich.enabled && (sync.pending || sync.running || sync.error)}
         <button class="pill" class:error={!!sync.error} onclick={() => (screen = 'immich')} aria-label="Uploads">
-          ⇡ {sync.error ? '!' : sync.pending}
+          {@render icon('up')}{sync.error ? '!' : sync.pending}
         </button>
       {/if}
       <button
@@ -1000,6 +1000,22 @@
       </button>
     </span>
   </header>
+{/snippet}
+
+{#snippet icon(name: 'right' | 'left' | 'undo' | 'both' | 'up' | 'chevron' | 'back' | 'play' | 'restore')}
+  <!-- Drawn icons instead of arrow characters: glyphs sit off-centre in most fonts. -->
+  <svg class="ic" class:fill={name === 'play'} viewBox="0 0 16 16" aria-hidden="true">
+    {#if name === 'right'}<path d="M2 8h11M9 4l4 4-4 4" />
+    {:else if name === 'left'}<path d="M14 8H3M7 4L3 8l4 4" />
+    {:else if name === 'undo'}<path d="M5.5 3L2.5 6l3 3M2.5 6H10a3.5 3.5 0 0 1 0 7H6" />
+    {:else if name === 'both'}<path d="M2 8h12M5 5L2 8l3 3M11 5l3 3-3 3" />
+    {:else if name === 'up'}<path d="M8 13.5V3M4 7l4-4 4 4" />
+    {:else if name === 'chevron'}<path d="M6 3.5l4.5 4.5L6 12.5" />
+    {:else if name === 'back'}<path d="M10 3.5L5.5 8l4.5 4.5" />
+    {:else if name === 'play'}<path d="M5 3.2l8 4.8-8 4.8z" />
+    {:else}<path d="M3 8a5 5 0 1 0 1.6-3.7M3 2.5v3h3" />
+    {/if}
+  </svg>
 {/snippet}
 
 {#snippet checkIcon()}
@@ -1085,7 +1101,7 @@
             data-target={album.id}
             onclick={() => (chosenId = album.id)}
           >
-            {albumTitle(album)}
+            {#if album.id === target?.id}{@render icon('right')}{/if}{albumTitle(album)}
           </button>
         {/each}
         <button class="chip new" class:hover={hover === 'new'} data-target="new" onclick={() => (sheet = { fileAfter: false })}>
@@ -1112,7 +1128,7 @@
               {#if isGroup && selected.has(current.id)}<span class="tick">{@render checkIcon()}</span>{/if}
               {#if current.type === 'video' && playingId !== current.id}
                 <button class="play" onpointerdown={(e) => e.stopPropagation()} onclick={() => (playingId = current.id)}>
-                  ▶ {Math.round(current.duration / 1000)}s
+                  {@render icon('play')}{Math.round(current.duration / 1000)}s
                 </button>
               {/if}
             </div>
@@ -1145,7 +1161,7 @@
                     aria-selected={selected.has(item.id)}
                   >
                     <Thumb {item} />
-                    {#if item.type === 'video'}<span class="badge video">▶</span>{/if}
+                    {#if item.type === 'video'}<span class="badge video">{@render icon('play')}</span>{/if}
                     {#if selected.has(item.id)}<span class="tick small">{@render checkIcon()}</span>{/if}
                   </div>
                 {/each}
@@ -1183,7 +1199,7 @@
       </p>
     {/if}
     <footer>
-      <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
+      <button onclick={undo} disabled={!undoStack.length}>{@render icon('undo')}Undo</button>
       {#if isGroup}
         <button class="trash two" onclick={() => card?.fling('left')}>
           <span>{burstDelete}</span>
@@ -1195,10 +1211,10 @@
         </button>
       {:else}
         <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>
-          <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 8H3M7 4L3 8l4 4" /></svg>Delete
+          {@render icon('left')}Delete
         </button>
         <button class="put" onclick={() => card?.fling('right')} disabled={!current}>
-          <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{target ? albumTitle(target) : 'New album'}</span>
+          {@render icon('right')}<span class="label">{target ? albumTitle(target) : 'New album'}</span>
         </button>
       {/if}
       <button class="later" onclick={later} disabled={queue.length <= group.length}>Later</button>
@@ -1279,7 +1295,7 @@
       <p class="muted">Upload kept photos with their albums.</p>
       <button class="row-link" onclick={() => (screen = 'immich')}>
         <span>Immich</span>
-        <span class="muted">{immich.enabled ? (sync.error ? 'Error' : sync.pending ? `${sync.pending} to upload` : 'Up to date') : 'Off'} ›</span>
+        <span class="muted">{immich.enabled ? (sync.error ? 'Error' : sync.pending ? `${sync.pending} to upload` : 'Up to date') : 'Off'}{@render icon('chevron')}</span>
       </button>
       <button class="row-link" disabled>
         <span>Google Photos</span>
@@ -1297,9 +1313,10 @@
   {:else if screen === 'immich'}
     {@render topBar()}
     <section class="settings">
+      <button class="link back" onclick={() => (screen = 'settings')}>{@render icon('back')}Settings</button>
       <p class="muted">
         Kept photos go to your Immich server with their original files and dates, into an album of the same name, tagged
-        Albums/YYYY/MM/name. Deleted photos are never uploaded. Leave Immich's own app backup off so photos don't arrive twice.
+        Albums/YYYY/MM/name. Deleted photos are never uploaded. Leave backup in Immich's own mobile app off, so photos don't arrive twice.
       </p>
 
       <h3>Server</h3>
@@ -1360,7 +1377,7 @@
                   ? fileGrid(album.monthly ? MONTH_ALBUM : album.id)
                   : (gridChosenId = album.monthly ? MONTH_ALBUM : album.id)}
             >
-              {album.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(album)}
+              {#if album.id === gridTarget?.id}{@render icon('right')}{/if}{album.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(album)}
             </button>
           {:else}
             <span class="muted none">No albums yet</span>
@@ -1394,7 +1411,7 @@
               onclick={() => (held ? (held = false) : toggleGrid(item.id))}
             >
               <Thumb {item} />
-              {#if item.type === 'video'}<span class="badge">▶</span>{/if}
+              {#if item.type === 'video'}<span class="badge">{@render icon('play')}</span>{/if}
               {#if gridSel.has(item.id)}<span class="tick small">{@render checkIcon()}</span>{/if}
             </button>
           {/each}
@@ -1410,14 +1427,14 @@
     </div>
     {@render sizeSlider()}
     <footer>
-      <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
-      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 8H3M7 4L3 8l4 4" /></svg>Delete {gridSel.size || ''}</button>
+      <button onclick={undo} disabled={!undoStack.length}>{@render icon('undo')}Undo</button>
+      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>{@render icon('left')}Delete {gridSel.size || ''}</button>
       <button
         class="put"
         onclick={() => gridTarget && fileGrid(gridTarget.monthly ? MONTH_ALBUM : gridTarget.id)}
         disabled={!gridSel.size || !gridTarget}
       >
-        <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{gridTarget ? (gridTarget.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(gridTarget)) : 'Album'}</span>
+        {@render icon('right')}<span class="label">{gridTarget ? (gridTarget.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(gridTarget)) : 'Album'}</span>
       </button>
     </footer>
     {#if viewing}
@@ -1442,7 +1459,7 @@
           {/key}
           {#if viewing.type === 'video' && playingId !== viewing.id}
             <button class="play" onpointerdown={(e) => e.stopPropagation()} onclick={() => (playingId = viewing.id)}>
-              ▶ {Math.round(viewing.duration / 1000)}s
+              {@render icon('play')}{Math.round(viewing.duration / 1000)}s
             </button>
           {/if}
         </div>
@@ -1465,8 +1482,8 @@
       {#each pendingTrash as item (item.id)}
         <button class="cell" class:restore={restore.has(item.id)} onclick={() => toggleRestore(item.id)}>
           <Thumb {item} />
-          {#if item.type === 'video'}<span class="badge">▶</span>{/if}
-          {#if restore.has(item.id)}<span class="badge back">↺</span>{/if}
+          {#if item.type === 'video'}<span class="badge">{@render icon('play')}</span>{/if}
+          {#if restore.has(item.id)}<span class="badge back">{@render icon('restore')}</span>{/if}
         </button>
       {/each}
     </div>
@@ -1570,7 +1587,15 @@
   }
 
   .title-links {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
     color: var(--muted);
+  }
+
+  .link.back {
+    align-self: flex-start;
+    padding: 0;
   }
 
   .title .link {
@@ -1643,9 +1668,6 @@
     font-weight: 600;
   }
 
-  .chip.target::before {
-    content: '→ ';
-  }
 
   .chip.new {
     border-style: dashed;
@@ -1863,6 +1885,10 @@
   }
 
   button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35em;
     min-height: 48px;
     padding: 0 16px;
     border: 1px solid var(--line);
@@ -1906,7 +1932,7 @@
     gap: 6px;
   }
 
-  .arrow {
+  .ic {
     flex: none;
     width: 1.05em;
     height: 1.05em;
@@ -1915,6 +1941,11 @@
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+
+  .ic.fill {
+    fill: currentColor;
+    stroke: none;
   }
 
   footer .label {
