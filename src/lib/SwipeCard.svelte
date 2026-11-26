@@ -21,7 +21,7 @@
     ondrop?: (point: { x: number; y: number }) => boolean
     keepLabel?: string
     trashLabel?: string
-    /** No dragging (bursts are decided with the buttons); fling() still animates. */
+    /** No dragging (bursts are decided with the buttons); taps and fling() still work. */
     disabled?: boolean
     children: Snippet
   } = $props()
@@ -42,7 +42,7 @@
   const SLOP = 12
 
   function down(e: PointerEvent) {
-    if (disabled || leaving || e.button !== 0) return
+    if (leaving || e.button !== 0) return
     if (e.clientX < EDGE || e.clientX > window.innerWidth - EDGE) return
     dragging = true
     moved = false
@@ -58,6 +58,7 @@
     const y = e.clientY - startY
     if (!moved && Math.hypot(x, y) < SLOP) return
     moved = true
+    if (disabled) return
     dx = x
     dy = y
     ondrag?.({ x: e.clientX, y: e.clientY })
@@ -73,6 +74,7 @@
       ontap?.()
       return
     }
+    if (disabled) return
     if (dy < -60 && Math.abs(dy) > Math.abs(dx) && ondrop) {
       if (ondrop({ x: e.clientX, y: e.clientY })) {
         leaving = true

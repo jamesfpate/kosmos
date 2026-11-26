@@ -40,8 +40,8 @@
   let restore = $state(new Set<number>())
   let busy = $state(false)
   let card = $state<SwipeCard>()
-  // Burst photos unticked for removal; every other photo of the burst is ticked (kept).
-  let unticked = $state(new Set<number>())
+  // Burst photos checked by the user (none at first); the buttons act on these.
+  let checked = $state(new Set<number>())
   let focus = $state(0)
   // Photos taken within this many seconds of the previous one are culled together as one card (setting).
   let groupGap = $state(5)
@@ -102,9 +102,9 @@
   })
   const current = $derived(group[focus] ?? group[0])
   const isGroup = $derived(group.length > 1)
-  // Ticked photos of the burst on screen (all of them until some are unticked); empty for a single photo.
+  // Checked photos of the burst on screen; empty for a single photo.
   const selected = $derived(
-    group.length > 1 ? new Set(group.filter((i) => !unticked.has(i.id)).map((i) => i.id)) : new Set<number>(),
+    group.length > 1 ? new Set(group.filter((i) => checked.has(i.id)).map((i) => i.id)) : new Set<number>(),
   )
   const pendingTrash = $derived(items.filter((i) => decided.get(i.id)?.decision === 'pending_trash'))
   // Month albums ("YYYY-MM", the catch-all) count as one recent, shown for the photo's month.
@@ -174,16 +174,13 @@
     chosenId === MONTH_ALBUM && group[0] ? monthChip(group[0].taken) : (recent.find((a) => a.id === chosenId) ?? suggested),
   )
   const barAlbums = $derived(target ? [target, ...recent.filter((a) => a.id !== target.id)] : recent)
-  // In a burst, actions apply to the selected photos, or to the one shown large when none are selected.
-  // Bursts: ticked = keep, unticked (red) = delete. Nothing ticked means the whole burst goes.
-  const burstNone = $derived(isGroup && selected.size === 0)
-  const keepLabel = $derived(
-    burstNone
-      ? `Delete all ${group.length}`
-      : `${isGroup ? `Keep ${selected.size}` : 'Keep'} → ${target ? albumTitle(target) : 'new album'}`,
-  )
-  const burstDoomed = $derived(isGroup && (autoTrash || burstNone) ? group.filter((i) => !selected.has(i.id)) : [])
-  const trashLabel = $derived(isGroup ? `Delete all ${group.length}` : 'Delete')
+  // Burst buttons: nothing checked = the whole burst; else the checked ones, and (setting) the rest the other way.
+  const burstAll = $derived(isGroup && selected.size === 0)
+  const burstRest = $derived(isGroup && !burstAll && autoTrash ? group.length - selected.size : 0)
+  const burstKeep = $derived(burstAll ? `Keep all ${group.length}` : `Keep ${selected.size}`)
+  const burstDelete = $derived(burstAll ? `Delete all ${group.length}` : `Delete ${selected.size}`)
+  const keepLabel = $derived(isGroup ? burstKeep : `Keep → ${target ? albumTitle(target) : 'new album'}`)
+  const trashLabel = $derived(isGroup ? burstDelete : 'Delete')
 
 
   /** Photos that still need an album: undecided (any date, e.g. before the start point) or kept without one. */
@@ -320,7 +317,7 @@
   let cardKey = $state(0)
 
   function nextCard() {
-    unticked = new Set()
+    checked = new Set()
     focus = 0
     chosenId = null
     pinned = null
@@ -334,7 +331,8 @@
       sheet = { fileAfter: true }
       return
     }
-    file(dir, dir === 'right' ? target!.id : undefined)
+    // The album is passed for both directions: a burst's Delete can keep the unchecked rest.
+    file(dir, target!.id)
   }
 
   /**
@@ -342,9 +340,28 @@
    * rest of the burst stays on screen (same album target) until every photo is decided.
    */
   async function file(dir: Direction, albumId?: string) {
-    // Burst: right keeps the ticked ones (the red ones go to trash), left deletes the whole burst.
-    const chosen = isGroup ? (dir === 'left' ? group : group.filter((i) => selected.has(i.id))) : current ? [current] : []
-    const doomed = isGroup && dir === 'right' ? burstDoomed : []
+    // Burst: nothing checked = the whole burst; else the checked ones, plus the rest the opposite way (setting).
+    let keep: MediaItem[] = []
+    let del: MediaItem[] = []
+    if (isGroup) {
+      const picked = group.filter((i) => selected.has(i.id))
+      const others = group.filter((i) => !selected.has(i.id))
+      if (!picked.length) {
+        if (dir === 'right') keep = group
+        else del = group
+      } else if (dir === 'right') {
+        keep = picked
+        if (autoTrash) del = others
+      } else {
+        del = picked
+        if (autoTrash) keep = others
+      }
+    } else if (current) {
+      if (dir === 'right') keep = [current]
+      else del = [current]
+    }
+    const chosen = keep
+    const doomed = del
     if (!chosen.length && !doomed.length) return
     const done = new Set([...chosen, ...doomed].map((i) => i.id))
     const remaining = group.filter((i) => !done.has(i.id))
@@ -354,7 +371,7 @@
     const now = Date.now()
     const ids = new Map<number, string | undefined>()
     for (const item of chosen) {
-      ids.set(item.id, dir === 'left' ? undefined : albumId === MONTH_ALBUM ? (await monthAlbumFor(item.taken)).id : albumId)
+      ids.set(item.id, albumId === MONTH_ALBUM ? (await monthAlbumFor(item.taken)).id : albumId)
     }
     const records = [...chosen, ...doomed].map((item): DecisionRecord => {
       const id = ids.get(item.id)
@@ -435,10 +452,10 @@
   }
 
   function toggleKeep(id: number) {
-    const next = new Set(unticked)
+    const next = new Set(checked)
     if (next.has(id)) next.delete(id)
     else next.add(id)
-    unticked = next
+    checked = next
   }
 
   function targetAt(point: { x: number; y: number }): string | null {
@@ -879,27 +896,6 @@
   </header>
 {/snippet}
 
-{#snippet removeButton(id: number, small: boolean)}
-  <!-- ✕ marks the photo for removal (red); ↺ brings it back. Tapping the photo itself only shows it. -->
-  <button
-    class="remove"
-    class:small
-    class:undo={!selected.has(id)}
-    onpointerdown={(e) => e.stopPropagation()}
-    onclick={(e) => {
-      e.stopPropagation()
-      toggleKeep(id)
-    }}
-    aria-label={selected.has(id) ? 'Remove this photo' : 'Keep this photo'}
-  >
-    {#if selected.has(id)}
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" /></svg>
-    {:else}
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5M5 4v4h4" /></svg>
-    {/if}
-  </button>
-{/snippet}
-
 {#snippet checkIcon()}
   <svg class="check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
 {/snippet}
@@ -991,12 +987,12 @@
             ondrop={onDrop}
             {keepLabel}
             {trashLabel}
+            ontap={isGroup ? () => toggleKeep(current.id) : undefined}
             disabled={isGroup}
           >
             <div class="photo" class:kept={isGroup && selected.has(current.id)}>
               <Preview item={current} play={playingId === current.id} onstop={() => (playingId = null)} />
               {#if isGroup && selected.has(current.id)}<span class="tick">{@render checkIcon()}</span>{/if}
-              {#if isGroup}{@render removeButton(current.id, false)}{/if}
               {#if current.type === 'video' && playingId !== current.id}
                 <button class="play" onpointerdown={(e) => e.stopPropagation()} onclick={() => (playingId = current.id)}>
                   ▶ {Math.round(current.duration / 1000)}s
@@ -1025,9 +1021,8 @@
                     style:height={`${row.h}px`}
                     class:focused={i === focus}
                     class:kept={selected.has(item.id)}
-                    class:doomed={(autoTrash || selected.size === 0) && !selected.has(item.id)}
-                    onclick={() => (focus = i)}
-                    onkeydown={(e) => e.key === 'Enter' && (focus = i)}
+                    onclick={() => (i === focus ? toggleKeep(item.id) : (focus = i))}
+                    onkeydown={(e) => e.key === 'Enter' && (i === focus ? toggleKeep(item.id) : (focus = i))}
                     role="option"
                     tabindex="0"
                     aria-selected={selected.has(item.id)}
@@ -1035,7 +1030,6 @@
                     <Thumb {item} />
                     {#if item.type === 'video'}<span class="badge video">▶</span>{/if}
                     {#if selected.has(item.id)}<span class="tick small">{@render checkIcon()}</span>{/if}
-                    {@render removeButton(item.id, true)}
                   </div>
                 {/each}
                   </div>
@@ -1062,29 +1056,30 @@
     {#if isGroup}
       {@render sizeSlider()}
       <p class="muted hint">
-        {selected.size === group.length
-          ? `Keeping all ${group.length} · ✕ removes a photo, then confirm below`
-          : selected.size
-            ? `Keeping ${selected.size} · ${burstDoomed.length ? `${burstDoomed.length} in red go to trash` : `the other ${group.length - selected.size} wait`} · confirm below`
-            : `Nothing ticked · all ${group.length} go to trash`}
+        {burstAll
+          ? 'Tap a photo to view it, again to check it'
+          : burstRest
+            ? `${selected.size} checked · the other ${burstRest} go the opposite way`
+            : `${selected.size} checked · the other ${group.length - selected.size} stay for later`}
       </p>
     {/if}
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
-      <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>
-        <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 8H3M7 4L3 8l4 4" /></svg>Delete{isGroup ? ` ${group.length}` : ''}
-      </button>
-      {#if burstNone}
-        <button class="put none" onclick={() => card?.fling('right')}>
-          <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">Delete all {group.length}</span>
+      {#if isGroup}
+        <button class="trash two" onclick={() => card?.fling('left')}>
+          <span>{burstDelete}</span>
+          {#if burstRest}<small>keep {burstRest}</small>{/if}
+        </button>
+        <button class="put two" onclick={() => card?.fling('right')}>
+          <span>{burstKeep}</span>
+          {#if burstRest}<small>delete {burstRest}</small>{/if}
         </button>
       {:else}
+        <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>
+          <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 8H3M7 4L3 8l4 4" /></svg>Delete
+        </button>
         <button class="put" onclick={() => card?.fling('right')} disabled={!current}>
-          {#if isGroup}
-            {@render checkIcon()}<span class="label">Keep {selected.size}</span>
-          {:else}
-            <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{target ? albumTitle(target) : 'New album'}</span>
-          {/if}
+          <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{target ? albumTitle(target) : 'New album'}</span>
         </button>
       {/if}
       <button class="later" onclick={later} disabled={queue.length <= group.length}>Later</button>
@@ -1115,10 +1110,11 @@
       </div>
       {/if}
 
-      <h3>Delete the unselected ones</h3>
+      <h3>Handle the unchecked ones too</h3>
       <p class="muted">
-        Keeping selected photos also deletes the unselected photos of a burst, and in the grid the unselected ones between
-        your first and last pick (shown with a red border). They go to Trash for review first.
+        Bursts: Keep 2 also deletes the rest, Delete 2 keeps the rest. Grid: filing a selection deletes the unselected
+        photos between your first and last pick (red border). Off: buttons act only on what you checked. Deletes go to
+        Trash for review first.
       </p>
       <div class="choices">
         <button class:on={autoTrash} onclick={() => setAutoTrash(true)}>On</button>
@@ -1546,45 +1542,6 @@
     height: 1.1em;
   }
 
-  .remove {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 40px;
-    min-height: 0;
-    height: 40px;
-    padding: 0;
-    display: grid;
-    place-items: center;
-    border: 0;
-    border-radius: 50%;
-    background: rgb(0 0 0 / 0.6);
-    color: #fff;
-    z-index: 1;
-  }
-
-  .remove.small {
-    top: 4px;
-    right: 4px;
-    width: 28px;
-    height: 28px;
-  }
-
-  .remove.undo {
-    background: var(--trash);
-    color: #0b0b0f;
-  }
-
-  .remove svg {
-    width: 60%;
-    height: 60%;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
   .badge.video {
     top: auto;
     bottom: 6px;
@@ -1771,9 +1728,18 @@
     flex: 0.8 1 0;
   }
 
-  footer button.put.none {
-    background: var(--trash);
-    border-color: var(--trash);
+  /* Burst buttons: main action, and what happens to the unchecked rest underneath. */
+  footer button.two {
+    flex: 1.5 1 0;
+    flex-direction: column;
+    gap: 0;
+    line-height: 1.1;
+  }
+
+  footer button.two small {
+    font-size: 0.72rem;
+    font-weight: 400;
+    opacity: 0.8;
   }
 
   footer button.put {
