@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'net.jamespate.kosmos',
-  appName: 'Kosmos',
+  appId: 'net.jamespate.winnow',
+  appName: 'Winnow',
   webDir: 'dist'
 };
 

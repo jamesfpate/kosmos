@@ -5,6 +5,8 @@
     albums as albumStore,
     albumTitle,
     decisions,
+    exportAll,
+    importAll,
     monthPrefix,
     meta,
     type Album,
@@ -549,6 +551,38 @@
     handle.addEventListener('pointercancel', onUp)
   }
 
+  let backupMsg = $state('')
+
+  async function exportData() {
+    backupMsg = ''
+    try {
+      const data = await exportAll()
+      const day = new Date().toISOString().slice(0, 10)
+      const { name } = await Media.saveFile({ name: `winnow-backup-${day}.json`, text: JSON.stringify(data) })
+      backupMsg = `Saved Download/${name} · ${data.decisions.length} decisions, ${data.albums.length} albums`
+    } catch (e) {
+      backupMsg = `Export failed: ${e instanceof Error ? e.message : e}`
+    }
+  }
+
+  async function importData() {
+    backupMsg = ''
+    try {
+      const { text, cancelled } = await Media.openFile()
+      if (cancelled || !text) return
+      const data = JSON.parse(text)
+      if (!confirm(`Import ${data.decisions?.length ?? 0} decisions and ${data.albums?.length ?? 0} albums? They're merged into what's here.`)) return
+      await importAll(data)
+      queue = []
+      undoStack = []
+      await init()
+      screen = 'settings'
+      backupMsg = `Imported ${data.decisions.length} decisions and ${data.albums.length} albums`
+    } catch (e) {
+      backupMsg = `Import failed: ${e instanceof Error ? e.message : e}`
+    }
+  }
+
   async function setOrder(newest: boolean) {
     newestFirst = newest
     queue = [...queue].sort(byOrder)
@@ -862,7 +896,7 @@
           {fmtTime.format(current.taken)} · {queue.length} left
         </span>
       {:else if screen === 'cull'}
-        <b>Kosmos</b>
+        <b>Winnow</b>
       {:else if screen === 'grid'}
         <b>{gridSel.size ? `${gridSel.size} selected` : 'No album'}</b>
         {#if gridSel.size}
@@ -928,9 +962,9 @@
     </section>
   {:else if screen === 'access'}
     <section class="center">
-      <h1>Kosmos</h1>
+      <h1>Winnow</h1>
       {#if access === 'limited'}
-        <p>Kosmos can only see the photos you selected. It needs <b>Allow all</b> to find new photos.</p>
+        <p>Winnow can only see the photos you selected. It needs <b>Allow all</b> to find new photos.</p>
         <button class="primary" onclick={() => Media.openSettings()}>Open settings</button>
         <button onclick={init}>I've changed it</button>
       {:else if access === 'denied'}
@@ -938,7 +972,7 @@
         <button class="primary" onclick={() => Media.openSettings()}>Open settings</button>
         <button onclick={init}>I've changed it</button>
       {:else}
-        <p>Kosmos needs access to your photos and videos to cull them. Choose <b>Allow all</b>.</p>
+        <p>Winnow needs access to your photos and videos to cull them. Choose <b>Allow all</b>.</p>
         <button class="primary" onclick={requestAccess}>Allow access</button>
       {/if}
     </section>
@@ -1146,6 +1180,14 @@
         reviewed.
       </p>
       <button onclick={changeStart}>Change start point</button>
+
+      <h3>Backup</h3>
+      <p class="muted">Your decisions and albums live only on this phone. Export them to Downloads, import them after a reinstall.</p>
+      <div class="choices">
+        <button onclick={exportData}>Export data</button>
+        <button onclick={importData}>Import data</button>
+      </div>
+      {#if backupMsg}<p class="muted">{backupMsg}</p>{/if}
     </section>
   {:else if screen === 'grid'}
     {@render topBar()}

@@ -34,7 +34,7 @@ export function monthPrefix(ms: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-const DB = 'kosmos'
+const DB = 'winnow'
 let dbp: Promise<IDBDatabase> | undefined
 
 function db(): Promise<IDBDatabase> {
@@ -77,4 +77,43 @@ export const albums = {
 export const meta = {
   get: <T>(key: string) => run<T | undefined>('meta', 'readonly', (s) => s.get(key)),
   set: (key: string, value: unknown) => run('meta', 'readwrite', (s) => s.put(value, key)),
+}
+
+/** Everything Winnow stores, as one JSON-able object (backup, or moving to a reinstalled / renamed app). */
+export interface Backup {
+  app: 'winnow'
+  version: 1
+  exportedAt: number
+  decisions: DecisionRecord[]
+  albums: Album[]
+  meta: [string, unknown][]
+}
+
+export async function exportAll(): Promise<Backup> {
+  const [d, a, keys, values] = await Promise.all([
+    decisions.all(),
+    albums.all(),
+    run<IDBValidKey[]>('meta', 'readonly', (s) => s.getAllKeys()),
+    run<unknown[]>('meta', 'readonly', (s) => s.getAll()),
+  ])
+  return {
+    app: 'winnow',
+    version: 1,
+    exportedAt: Date.now(),
+    decisions: d,
+    albums: a,
+    meta: keys.map((k, i) => [String(k), values[i]]),
+  }
+}
+
+/** Merges a backup in (same ids are overwritten). Photo ids are MediaStore ids, so they hold on the same phone. */
+export async function importAll(b: Backup): Promise<void> {
+  // 'kosmos' = backups from before the rename.
+  const app = (b as { app?: string })?.app
+  if ((app !== 'winnow' && app !== 'kosmos') || !Array.isArray(b.decisions) || !Array.isArray(b.albums)) {
+    throw new Error('Not a Winnow backup')
+  }
+  for (const r of b.decisions) await decisions.put(r)
+  for (const a of b.albums) await albums.put(a)
+  for (const [k, v] of b.meta ?? []) await meta.set(k, v)
 }

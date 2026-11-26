@@ -1,9 +1,10 @@
-package net.jamespate.kosmos;
+package net.jamespate.winnow;
 
 import android.Manifest;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.ContentUris;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -12,6 +13,7 @@ import android.graphics.Bitmap;
 import android.graphics.ImageDecoder;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.util.Size;
@@ -28,8 +30,12 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -57,6 +63,8 @@ public class MediaPlugin extends Plugin {
     private final ExecutorService previews = Executors.newFixedThreadPool(3);
     private ActivityResultLauncher<IntentSenderRequest> trashLauncher;
     private PluginCall pendingTrash;
+    private ActivityResultLauncher<String[]> openLauncher;
+    private PluginCall pendingOpen;
 
     @Override
     public void load() {
@@ -72,6 +80,75 @@ public class MediaPlugin extends Plugin {
                 call.resolve(ret);
             }
         );
+        openLauncher = getActivity().registerForActivityResult(
+            new ActivityResultContracts.OpenDocument(),
+            uri -> {
+                PluginCall call = pendingOpen;
+                pendingOpen = null;
+                if (call == null) return;
+                JSObject ret = new JSObject();
+                if (uri == null) {
+                    ret.put("cancelled", true);
+                    call.resolve(ret);
+                    return;
+                }
+                try (InputStream in = getContext().getContentResolver().openInputStream(uri)) {
+                    ret.put("text", new String(readAll(in), StandardCharsets.UTF_8));
+                    call.resolve(ret);
+                } catch (Exception e) {
+                    call.reject("could not read the file: " + e.getMessage(), e);
+                }
+            }
+        );
+    }
+
+    private static byte[] readAll(InputStream in) throws java.io.IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[16384];
+        int n;
+        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        return out.toByteArray();
+    }
+
+    /** Writes a text file to Downloads (backup export). Resolves { name } with the saved file name. */
+    @PluginMethod
+    public void saveFile(PluginCall call) {
+        String name = call.getString("name", "backup.json");
+        String text = call.getString("text", "");
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        values.put(MediaStore.MediaColumns.MIME_TYPE, "application/json");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+        ContentResolver resolver = getContext().getContentResolver();
+        Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) {
+            call.reject("could not create the file in Downloads");
+            return;
+        }
+        try (OutputStream out = resolver.openOutputStream(uri)) {
+            out.write(text.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            call.reject("could not write the file: " + e.getMessage(), e);
+            return;
+        }
+        String saved = name;
+        try (Cursor c = resolver.query(uri, new String[] { MediaStore.MediaColumns.DISPLAY_NAME }, null, null, null)) {
+            if (c != null && c.moveToFirst()) saved = c.getString(0);
+        }
+        JSObject ret = new JSObject();
+        ret.put("name", saved);
+        call.resolve(ret);
+    }
+
+    /** Lets the user pick a file (backup import) and resolves { text }, or { cancelled: true }. */
+    @PluginMethod
+    public void openFile(PluginCall call) {
+        if (pendingOpen != null) {
+            call.reject("a file picker is already open");
+            return;
+        }
+        pendingOpen = call;
+        getActivity().runOnUiThread(() -> openLauncher.launch(new String[] { "application/json", "text/plain", "application/octet-stream" }));
     }
 
     private String alias() {
@@ -261,7 +338,7 @@ public class MediaPlugin extends Plugin {
                 ret.put("path", out.getAbsolutePath());
                 call.resolve(ret);
             } catch (Exception e) {
-                android.util.Log.e("Kosmos", "preview " + id + " failed", e);
+                android.util.Log.e("Winnow", "preview " + id + " failed", e);
                 call.reject("preview failed: " + e, e);
             }
         });

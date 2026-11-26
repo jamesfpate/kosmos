@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Kosmos</string>
-    <string name="title_activity_main">Kosmos</string>
-    <string name="package_name">net.jamespate.kosmos</string>
-    <string name="custom_url_scheme">net.jamespate.kosmos</string>
+    <string name="app_name">Winnow</string>
+    <string name="title_activity_main">Winnow</string>
+    <string name="package_name">net.jamespate.winnow</string>
+    <string name="custom_url_scheme">net.jamespate.winnow</string>
 </resources>

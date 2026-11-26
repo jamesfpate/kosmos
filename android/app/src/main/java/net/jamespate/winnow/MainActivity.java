@@ -1,4 +1,4 @@
-package net.jamespate.kosmos;
+package net.jamespate.winnow;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;

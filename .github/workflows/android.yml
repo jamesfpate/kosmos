@@ -1,6 +1,6 @@
 name: Android
 
-# Push to main: debug APK ("Kosmos dev", installs next to the release) as a workflow artifact.
+# Push to main: debug APK ("Winnow dev", installs next to the release) as a workflow artifact.
 # Tag v*: signed release APK attached to a GitHub release, which Obtainium installs and updates.
 on:
   push:
@@ -38,8 +38,8 @@ jobs:
             name="0.0.0-dev.${GITHUB_RUN_NUMBER}+${GITHUB_SHA::7}"
             code=$GITHUB_RUN_NUMBER
           fi
-          echo "KOSMOS_VERSION_NAME=$name" >> "$GITHUB_ENV"
-          echo "KOSMOS_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "WINNOW_VERSION_NAME=$name" >> "$GITHUB_ENV"
+          echo "WINNOW_VERSION_CODE=$code" >> "$GITHUB_ENV"
 
       - run: npm ci
       - run: npm run check
@@ -54,24 +54,24 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: github.ref_type != 'tag'
         with:
-          name: kosmos-dev-${{ env.KOSMOS_VERSION_CODE }}
+          name: winnow-dev-${{ env.WINNOW_VERSION_CODE }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Release APK
         if: github.ref_type == 'tag'
         working-directory: android
         env:
-          KOSMOS_KEYSTORE_BASE64: ${{ secrets.KOSMOS_KEYSTORE_BASE64 }}
-          KOSMOS_KEYSTORE_PASSWORD: ${{ secrets.KOSMOS_KEYSTORE_PASSWORD }}
-          KOSMOS_KEY_ALIAS: ${{ secrets.KOSMOS_KEY_ALIAS }}
+          WINNOW_KEYSTORE_BASE64: ${{ secrets.WINNOW_KEYSTORE_BASE64 }}
+          WINNOW_KEYSTORE_PASSWORD: ${{ secrets.WINNOW_KEYSTORE_PASSWORD }}
+          WINNOW_KEY_ALIAS: ${{ secrets.WINNOW_KEY_ALIAS }}
         run: |
-          export KOSMOS_KEYSTORE_FILE="$RUNNER_TEMP/kosmos.jks"
-          echo "$KOSMOS_KEYSTORE_BASE64" | base64 -d > "$KOSMOS_KEYSTORE_FILE"
+          export WINNOW_KEYSTORE_FILE="$RUNNER_TEMP/winnow.jks"
+          echo "$WINNOW_KEYSTORE_BASE64" | base64 -d > "$WINNOW_KEYSTORE_FILE"
           ./gradlew --no-daemon assembleRelease
-          mv app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/kosmos-$KOSMOS_VERSION_NAME.apk"
+          mv app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/winnow-$WINNOW_VERSION_NAME.apk"
 
       - uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
         with:
-          files: ${{ runner.temp }}/kosmos-${{ env.KOSMOS_VERSION_NAME }}.apk
+          files: ${{ runner.temp }}/winnow-${{ env.WINNOW_VERSION_NAME }}.apk
           generate_release_notes: true

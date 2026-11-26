@@ -1,15 +1,15 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "net.jamespate.kosmos"
+    namespace = "net.jamespate.winnow"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "net.jamespate.kosmos"
+        applicationId "net.jamespate.winnow"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // CI sets these from the git tag (v1.2.3) and the run number; local builds get 0.0.0-dev
-        versionCode = (System.getenv("KOSMOS_VERSION_CODE") ?: "1").toInteger()
-        versionName = System.getenv("KOSMOS_VERSION_NAME") ?: "0.0.0-dev"
+        versionCode = (System.getenv("WINNOW_VERSION_CODE") ?: "1").toInteger()
+        versionName = System.getenv("WINNOW_VERSION_NAME") ?: "0.0.0-dev"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -17,26 +17,26 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    // Release signing: the keystore comes from CI secrets (backup on the homelab server, /mnt/user/appdata/kosmos/).
+    // Release signing: the keystore comes from CI secrets (backup on the homelab server, /mnt/user/appdata/winnow/, winnow-release.jks + keystore.env).
     // Every release must use the same key, or Android refuses the update.
     signingConfigs {
         release {
-            def keystore = System.getenv("KOSMOS_KEYSTORE_FILE")
+            def keystore = System.getenv("WINNOW_KEYSTORE_FILE")
             if (keystore) {
                 storeFile file(keystore)
-                storePassword System.getenv("KOSMOS_KEYSTORE_PASSWORD")
-                keyAlias System.getenv("KOSMOS_KEY_ALIAS")
-                keyPassword System.getenv("KOSMOS_KEYSTORE_PASSWORD")
+                storePassword System.getenv("WINNOW_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("WINNOW_KEY_ALIAS")
+                keyPassword System.getenv("WINNOW_KEYSTORE_PASSWORD")
             }
         }
     }
     buildTypes {
         debug {
-            // Installs next to the release build (different signing key) as "Kosmos dev"
+            // Installs next to the release build (different signing key) as "Winnow dev"
             applicationIdSuffix ".dev"
         }
         release {
-            if (System.getenv("KOSMOS_KEYSTORE_FILE")) {
+            if (System.getenv("WINNOW_KEYSTORE_FILE")) {
                 signingConfig signingConfigs.release
             }
             minifyEnabled false

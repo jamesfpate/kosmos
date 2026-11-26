@@ -1,6 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 
-// Native side: android/app/src/main/java/net/jamespate/kosmos/MediaPlugin.java
+// Native side: android/app/src/main/java/net/jamespate/winnow/MediaPlugin.java
 
 export type MediaType = 'image' | 'video'
 
@@ -32,6 +32,8 @@ interface MediaPlugin {
   preview(opts: { id: number; type: MediaType; size?: number }): Promise<{ path: string }>
   open(opts: { id: number; type: MediaType; mime?: string }): Promise<void>
   trash(opts: { items: { id: number; type: MediaType }[] }): Promise<{ confirmed: boolean }>
+  saveFile(opts: { name: string; text: string }): Promise<{ name: string }>
+  openFile(): Promise<{ text?: string; cancelled?: boolean }>
 }
 
 // Browser fallback for `npm run dev`: everything allowed; `?mock` adds fake photos (singles and bursts) to test layout.
@@ -73,6 +75,14 @@ const web: MediaPlugin = {
   preview: async ({ id }) => ({ path: mock ? mockPreview(id) : '' }),
   open: async () => {},
   trash: async () => ({ confirmed: true }),
+  saveFile: async ({ name, text }) => {
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
+    a.download = name
+    a.click()
+    return { name }
+  },
+  openFile: async () => ({ cancelled: true }),
 }
 
 /** WebView URL that streams the file itself (for inline video), or null. */
