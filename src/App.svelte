@@ -44,7 +44,6 @@
   let groupGap = $state(5)
   // Share of the card the group grid takes (drag the handle to change; remembered).
   let gridFrac = $state(0.4)
-  let gridBox = $state({ w: 0, h: 0 })
   // Album picked from the bar for the card on screen; otherwise the suggestion is used.
   let chosenId = $state<string | null>(null)
   let hover = $state<string | null>(null)
@@ -128,33 +127,6 @@
   )
   const trashLabel = $derived(isGroup ? `Trash all ${group.length}` : 'Trash')
 
-  const CELL_MIN = 96 // px; below this the group grid scrolls instead of shrinking further
-  const CELL_GAP = 3
-  /** Largest square cell that fits the whole group in the grid area (never below CELL_MIN). */
-  const groupCell = $derived.by(() => {
-    const { w, h } = gridBox
-    const n = group.length
-    let best = { cols: 4, size: CELL_MIN }
-    if (!w || !h || !n) return best
-    let fit = 0
-    for (let cols = 1; cols <= n; cols++) {
-      const rows = Math.ceil(n / cols)
-      const size = Math.min((w - (cols - 1) * CELL_GAP) / cols, (h - (rows - 1) * CELL_GAP) / rows)
-      if (size > fit) {
-        fit = size
-        best = { cols, size }
-      }
-    }
-    if (fit >= CELL_MIN) return { cols: best.cols, size: Math.floor(fit) }
-    const cols = Math.max(1, Math.floor((w + CELL_GAP) / (CELL_MIN + CELL_GAP)))
-    return { cols, size: Math.floor((w - (cols - 1) * CELL_GAP) / cols) }
-  })
-
-  function measure(node: HTMLElement) {
-    const ro = new ResizeObserver(([e]) => (gridBox = { w: e.contentRect.width, h: e.contentRect.height }))
-    ro.observe(node)
-    return { destroy: () => ro.disconnect() }
-  }
 
   /** Photos that still need an album: undecided (any date, e.g. before the start point) or kept without one. */
   const backlog = $derived(
@@ -448,7 +420,7 @@
     const box = handle.parentElement!.getBoundingClientRect()
     handle.setPointerCapture(e.pointerId)
     const onMove = (ev: PointerEvent) => {
-      // Keep at least ~40% of the card for the photo, and room for one row of thumbnails.
+      // The handle sets how many rows show (cells keep their size); the photo keeps at least ~40%.
       gridFrac = Math.min(0.6, Math.max(0.2, (box.bottom - ev.clientY) / box.height))
     }
     const onUp = () => {
@@ -755,8 +727,6 @@
               <div
                 class="grid group-grid"
                 style:height={`${gridFrac * 100}%`}
-                style:grid-template-columns={`repeat(${groupCell.cols}, ${groupCell.size}px)`}
-                use:measure
                 onpointerdown={(e) => e.stopPropagation()}
                 role="listbox"
                 tabindex="-1"
@@ -1171,14 +1141,14 @@
 
   .group-grid {
     flex: none;
-    justify-content: center;
+    grid-template-columns: repeat(3, 1fr);
     margin: 0;
     touch-action: pan-y;
   }
 
   .cell {
     position: relative;
-    aspect-ratio: 1;
+    aspect-ratio: 3 / 4;
     min-height: 0;
     padding: 0;
     border: 0;
