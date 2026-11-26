@@ -125,7 +125,18 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                 listenable: s,
                 builder: (context, _) => switch (s.screen) {
                   // The same wave as during a sync, while the photo library loads.
-                  Screen.loading => Center(child: LoadingLogo(done: s.loadDone)),
+                  Screen.loading => Center(
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        LoadingLogo(done: s.loadDone),
+                        // Progress under the wordmark; fades with the outro.
+                        AnimatedOpacity(
+                          opacity: s.loadDone ? 0 : 1,
+                          duration: const Duration(milliseconds: 300),
+                          child: Text(s.loading.isEmpty ? 'Loading photos…' : s.loading,
+                              style: const TextStyle(color: C.muted, fontSize: 14)),
+                        ),
+                      ]),
+                    ),
                   Screen.error => Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         const Text('Something went wrong', style: TextStyle(fontSize: 20)),
