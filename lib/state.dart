@@ -92,6 +92,19 @@ class AppState extends ChangeNotifier {
   bool _syncAgain = false;
 
   int _rev = 0;
+  final _memo = <String, (int, Object?)>{};
+
+  /// Derived values are recomputed at most once per change (the UI reads them many times per frame).
+  T _cached<T>(String key, T Function() compute) {
+    final hit = _memo[key];
+    if (hit != null && hit.$1 == _rev) return hit.$2 as T;
+    final v = compute();
+    _memo[key] = (_rev, v);
+    return v;
+  }
+
+  /// Shown while the photo library loads (a big library takes a few seconds the first time).
+  String loading = '';
 
   void changed() {
     _rev++;
@@ -148,7 +161,11 @@ class AppState extends ChangeNotifier {
   bool inCull(Item i) => !decided.containsKey(i.id) && i.taken >= (cutoff ?? 0) && shown(i);
 
   Future<void> reload() async {
-    final all = await media.loadItems();
+    final all = await media.loadItems(onProgress: (n, total) {
+      if (screen != Screen.loading) return;
+      loading = 'Loading photos… $n of $total';
+      notifyListeners();
+    });
     final records = {for (final j in await db.all('decisions')) DecisionRecord.fromJson(j)};
     final map = {for (final r in records) r.id: r};
     final listed = {for (final i in all) i.id};
@@ -184,7 +201,9 @@ class AppState extends ChangeNotifier {
 
   // ---------------------------------------------------------------- swipe screen
 
-  List<Item> get group {
+  List<Item> get group => _cached('group', _group);
+
+  List<Item> _group() {
     final p = pinned;
     if (p != null) {
       final rest = queue.where((i) => p.contains(i.id)).toList();
@@ -211,7 +230,9 @@ class AppState extends ChangeNotifier {
   bool get isGroup => group.length > 1;
 
   /// Checked photos of the burst on screen; empty for a single photo.
-  Set<String> get selected {
+  Set<String> get selected => _cached('selected', _selected);
+
+  Set<String> _selected() {
     final g = group;
     if (g.length < 2) return {};
     return {for (final i in g) if (checkDefault != flipped.contains(i.id)) i.id};
@@ -231,12 +252,30 @@ class AppState extends ChangeNotifier {
     changed();
   }
 
+  /// Checks (or unchecks) every photo of the burst on screen.
+  void setAllChecked(bool on) {
+    final ids = {for (final i in group) i.id};
+    flipped = on == checkDefault ? {} : ids;
+    changed();
+  }
+
   void setFocus(int i) {
     focus = i;
     changed();
   }
 
-  List<Item> get pendingTrash => [for (final i in items) if (decided[i.id]?.decision == Decision.pendingTrash) i];
+  List<Item> get pendingTrash =>
+      _cached('trash', () => [for (final i in items) if (decided[i.id]?.decision == Decision.pendingTrash) i]);
+
+  /// When the photos in each album were taken (for "is this album near the photo's date").
+  Map<String, List<int>> get _albumTimes => _cached('albumTimes', () {
+        final out = <String, List<int>>{};
+        for (final r in decided.values) {
+          final t = r.albumId == null ? null : byId[r.id]?.taken;
+          if (t != null) out.putIfAbsent(r.albumId!, () => []).add(t);
+        }
+        return out;
+      });
 
   // ---------------------------------------------------------------- albums
 
@@ -258,15 +297,7 @@ class AppState extends ChangeNotifier {
     return list;
   }
 
-  bool _near(Album a, int t) {
-    for (final r in decided.values) {
-      if (r.albumId == a.id) {
-        final it = byId[r.id];
-        if (it != null && (it.taken - t).abs() <= near) return true;
-      }
-    }
-    return false;
-  }
+  bool _near(Album a, int t) => (_albumTimes[a.id] ?? const []).any((x) => (x - t).abs() <= near);
 
   /// Default album: a dated album whose range covers the time; else the album used last if it has no dates and holds
   /// a photo from within 5 days; else that month's album.

@@ -53,7 +53,7 @@ String _bucket(AssetEntity e) {
 }
 
 /// Every image and video on the device, oldest first.
-Future<List<Item>> loadItems() async {
+Future<List<Item>> loadItems({void Function(int done, int total)? onProgress}) async {
   final paths = await PhotoManager.getAssetPathList(
     onlyAll: true,
     type: RequestType.common,
@@ -67,11 +67,12 @@ Future<List<Item>> loadItems() async {
   final all = paths.first;
   final count = await all.assetCountAsync;
   final out = <Item>[];
-  for (var i = 0; i < count; i += 2000) {
-    final page = await all.getAssetListRange(start: i, end: i + 2000 > count ? count : i + 2000);
+  for (var i = 0; i < count; i += 1000) {
+    final page = await all.getAssetListRange(start: i, end: i + 1000 > count ? count : i + 1000);
     for (final e in page) {
       out.add(Item(e, _taken(e), _bucket(e)));
     }
+    onProgress?.call(out.length, count);
   }
   out.sort((a, b) => a.taken.compareTo(b.taken));
   return out;

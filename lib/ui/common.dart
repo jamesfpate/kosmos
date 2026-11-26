@@ -324,13 +324,16 @@ class PhotoThumb extends StatelessWidget {
 
 /// Large view of a photo, or an inline video player once [play] is set.
 class Preview extends StatefulWidget {
-  const Preview(this.item, {super.key, this.play = false, this.onStop, this.selected = false});
+  const Preview(this.item, {super.key, this.play = false, this.onStop, this.selected = false, this.onCheck});
 
   final Item item;
   final bool play;
 
   /// Checked in a burst: blue border around the photo itself, with the check.
   final bool selected;
+
+  /// In a burst: shows the check circle (filled or empty) on the photo; tapping it toggles.
+  final VoidCallback? onCheck;
   final VoidCallback? onStop;
 
   @override
@@ -412,34 +415,48 @@ class _PreviewState extends State<Preview> {
               ),
             ),
           ),
-          if (widget.selected) ...[
-            DecoratedBox(
-              decoration: BoxDecoration(border: Border.all(color: C.select, width: 4), borderRadius: BorderRadius.circular(12)),
+          if (widget.selected)
+            IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(border: Border.all(color: C.select, width: 4), borderRadius: BorderRadius.circular(12)),
+              ),
             ),
-            const Positioned(top: 10, left: 10, child: CheckBadge(size: 36)),
-          ],
+          if (widget.onCheck != null)
+            Positioned(top: 2, left: 2, child: CheckBadge(size: 36, checked: widget.selected, onTap: widget.onCheck)),
         ]),
       ),
     );
   }
 }
 
+/// Check circle: filled when [checked], an empty ring otherwise. With [onTap] it toggles directly (no need to tap the
+/// photo twice); the hit area is larger than the circle.
 class CheckBadge extends StatelessWidget {
-  const CheckBadge({super.key, this.size = 24});
+  const CheckBadge({super.key, this.size = 24, this.checked = true, this.onTap});
 
   final double size;
+  final bool checked;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: C.select,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.black.withValues(alpha: 0.35), width: 2),
-        ),
-        child: Icon(Icons.check, size: size * 0.62, color: C.bg),
-      );
+  Widget build(BuildContext context) {
+    final circle = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: checked ? C.select : Colors.black38,
+        shape: BoxShape.circle,
+        border: Border.all(color: checked ? Colors.black.withValues(alpha: 0.35) : Colors.white70, width: 2),
+      ),
+      child: checked ? Icon(Icons.check, size: size * 0.62, color: C.bg) : null,
+    );
+    if (onTap == null) return circle;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(padding: const EdgeInsets.all(8), child: circle),
+    );
+  }
 }
 
 class VideoBadge extends StatelessWidget {

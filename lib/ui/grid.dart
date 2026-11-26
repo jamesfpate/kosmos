@@ -78,7 +78,7 @@ class _GridScreenState extends State<GridScreen> {
         s,
         title: sel.isEmpty ? const Logo() : Text('${sel.length} selected'),
         subtitle: sel.isEmpty
-            ? Text('${s.backlog.length} without an album')
+            ? Text('${s.backlog.length} unreviewed')
             : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 if (s.gapCount > 0) ...[
                   _link(Icons.swap_horiz, 'Fill ${s.gapCount}', s.selectBetween),
@@ -226,7 +226,9 @@ class _GridScreenState extends State<GridScreen> {
           if (item.isVideo) const Positioned(bottom: 6, right: 6, child: VideoBadge()),
           if (checked) const Positioned(top: 5, left: 5, child: CheckBadge()),
           if (checked || doomed)
-            DecoratedBox(decoration: BoxDecoration(border: Border.all(color: checked ? C.select : C.trash, width: 3))),
+            IgnorePointer(
+              child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: checked ? C.select : C.trash, width: 3))),
+            ),
         ]),
       ),
     );

@@ -109,7 +109,7 @@ class _CullScreenState extends State<CullScreen> {
         SizeSlider(s),
         Text(
           s.burstAll
-              ? (sel.isEmpty ? 'Nothing checked · tap a photo to view it, again to check it' : 'All checked · tap a photo to view it, again to uncheck it')
+              ? (sel.isEmpty ? 'Nothing checked · tap a circle to check a photo' : 'All checked · tap a circle to uncheck a photo')
               : '${sel.length} checked · ${g.length - sel.length} unchecked',
           style: const TextStyle(color: C.muted, fontSize: 12.5),
           textAlign: TextAlign.center,
@@ -143,7 +143,8 @@ class _CullScreenState extends State<CullScreen> {
         child: Preview(cur,
             play: playing == cur.id,
             onStop: () => setState(() => playing = null),
-            selected: s.isGroup && sel.contains(cur.id)),
+            selected: s.isGroup && sel.contains(cur.id),
+            onCheck: s.isGroup ? () => s.toggleCheck(cur.id) : null),
       ),
       if (cur.isVideo && playing != cur.id)
         Positioned(
@@ -169,10 +170,21 @@ class _CullScreenState extends State<CullScreen> {
           },
           onVerticalDragEnd: (_) => s.setGridFrac(s.gridFrac, save: true),
           child: SizedBox(
-            height: 28,
-            child: Center(
-              child: Container(width: 48, height: 5, decoration: BoxDecoration(color: C.line, borderRadius: BorderRadius.circular(3))),
-            ),
+            height: 36,
+            width: double.infinity,
+            child: Stack(alignment: Alignment.center, children: [
+              Container(width: 48, height: 5, decoration: BoxDecoration(color: C.line, borderRadius: BorderRadius.circular(3))),
+              // Check / uncheck the whole burst.
+              Positioned(
+                right: 0,
+                child: TextButton.icon(
+                  onPressed: () => s.setAllChecked(sel.length != g.length),
+                  icon: Icon(sel.length == g.length ? Icons.remove_done : Icons.done_all, size: 18),
+                  label: Text(sel.length == g.length ? 'Uncheck all' : 'Check all'),
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact, foregroundColor: C.accent),
+                ),
+              ),
+            ]),
           ),
         ),
         SizedBox(
@@ -207,11 +219,14 @@ class _CullScreenState extends State<CullScreen> {
         child: Stack(fit: StackFit.expand, children: [
           PhotoThumb(item, height: h),
           if (item.isVideo) const Positioned(bottom: 6, right: 6, child: VideoBadge()),
-          if (checked) const Positioned(top: 5, left: 5, child: CheckBadge()),
           if (i == s.focus || checked)
-            DecoratedBox(
-              decoration: BoxDecoration(border: Border.all(color: checked ? C.select : C.text, width: checked ? 3 : 2)),
+            IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(border: Border.all(color: checked ? C.select : C.text, width: checked ? 3 : 2)),
+              ),
             ),
+          // Last, so it's on top of the frame and gets the tap.
+          Positioned(top: -3, left: -3, child: CheckBadge(checked: checked, onTap: () => s.toggleCheck(item.id))),
         ]),
       ),
     );

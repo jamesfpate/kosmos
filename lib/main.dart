@@ -80,7 +80,13 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
               child: ListenableBuilder(
                 listenable: s,
                 builder: (context, _) => switch (s.screen) {
-                  Screen.loading => const Center(child: Text('Loading…', style: TextStyle(color: C.muted))),
+                  Screen.loading => Center(
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        const Logo(size: 34),
+                        const SizedBox(height: 16),
+                        Text(s.loading.isEmpty ? 'Loading…' : s.loading, style: const TextStyle(color: C.muted)),
+                      ]),
+                    ),
                   Screen.error => Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         const Text('Something went wrong', style: TextStyle(fontSize: 20)),
