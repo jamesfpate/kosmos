@@ -8,11 +8,10 @@
 
   const version = __APP_VERSION__
   const DAY = 24 * 60 * 60 * 1000
-  // Photos taken within GROUP_GAP of the previous one are culled together as one card.
-  const GROUP_GAP = 5000
   const GROUP_MAX = 40
+  const GAP_CHOICES = [0, 2, 5, 10, 30, 60] // seconds; 0 = never group
 
-  type Screen = 'loading' | 'access' | 'start' | 'cull' | 'trash' | 'error'
+  type Screen = 'loading' | 'access' | 'start' | 'cull' | 'trash' | 'settings' | 'error'
 
   let screen = $state<Screen>('loading')
   let access = $state<Access>('prompt')
@@ -28,13 +27,16 @@
   let card = $state<SwipeCard>()
   let selected = $state(new Set<number>())
   let focus = $state(0)
+  // Photos taken within this many seconds of the previous one are culled together as one card (setting).
+  let groupGap = $state(5)
 
   // The card on screen: the next item plus any taken right after it (a burst / quick series).
   const group = $derived.by(() => {
     const g: MediaItem[] = []
     for (const item of queue) {
       const last = g.at(-1)
-      if (last && (item.taken < last.taken || item.taken - last.taken > GROUP_GAP || g.length >= GROUP_MAX)) break
+      if (last && (groupGap === 0 || item.taken < last.taken || item.taken - last.taken > groupGap * 1000 || g.length >= GROUP_MAX))
+        break
       g.push(item)
     }
     return g
@@ -64,6 +66,7 @@
         return
       }
       cutoff = await meta.get<number>('cutoff')
+      groupGap = (await meta.get<number>('groupGap')) ?? 5
       await reload()
       screen = cutoff === undefined ? 'start' : 'cull'
     } catch (e) {
@@ -174,6 +177,18 @@
     focus = 0
   }
 
+  async function setGroupGap(seconds: number) {
+    groupGap = seconds
+    selected = new Set()
+    focus = 0
+    await meta.set('groupGap', seconds)
+  }
+
+  function changeStart() {
+    queue = []
+    screen = 'start'
+  }
+
   function toggleRestore(id: number) {
     const next = new Set(restore)
     if (next.has(id)) next.delete(id)
@@ -273,9 +288,12 @@
         {/if}
       </div>
       <span class="muted">{isGroup ? `${group.length} in a row · ` : ''}{queue.length} left</span>
-      <button class="pill" disabled={!pendingTrash.length} onclick={() => (screen = 'trash')}>
-        🗑 {pendingTrash.length}
-      </button>
+      <span class="actions">
+        <button class="pill" disabled={!pendingTrash.length} onclick={() => (screen = 'trash')}>
+          🗑 {pendingTrash.length}
+        </button>
+        <button class="pill" onclick={() => (screen = 'settings')} aria-label="Settings">⚙</button>
+      </span>
     </header>
 
     <div class="stage">
@@ -343,6 +361,30 @@
       </button>
       <button onclick={later} disabled={queue.length <= group.length}>Later</button>
     </footer>
+  {:else if screen === 'settings'}
+    <header>
+      <button class="pill" onclick={() => (screen = 'cull')}>‹ Back</button>
+      <b>Settings</b>
+      <span></span>
+    </header>
+    <section class="settings">
+      <h3>Group photos taken within</h3>
+      <p class="muted">Shots taken this close together are culled as one card.</p>
+      <div class="choices">
+        {#each GAP_CHOICES as seconds}
+          <button class:on={groupGap === seconds} onclick={() => setGroupGap(seconds)}>
+            {seconds === 0 ? 'Off' : `${seconds}s`}
+          </button>
+        {/each}
+      </div>
+
+      <h3>Start point</h3>
+      <p class="muted">
+        {cutoff ? `Culling photos from ${fmt.format(cutoff)}.` : 'Culling everything.'} Photos already reviewed stay
+        reviewed.
+      </p>
+      <button onclick={changeStart}>Change start point</button>
+    </section>
   {:else if screen === 'trash'}
     <header>
       <button class="pill" onclick={() => (screen = 'cull')}>‹ Back</button>
@@ -596,6 +638,42 @@
 
   .frame.kept {
     border-color: var(--keep);
+  }
+
+  .actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .settings {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+  }
+
+  .settings h3 {
+    margin: 12px 0 0;
+    font-size: 1rem;
+  }
+
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .choices button {
+    min-width: 56px;
+    padding: 0 12px;
+  }
+
+  .choices button.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0b0b0f;
+    font-weight: 600;
   }
 
   .version {
