@@ -36,4 +36,6 @@ flutter_launcher_icons:
   image_path: assets/icon/icon.png
   adaptive_icon_background: "#0B0B0F"
   adaptive_icon_foreground: assets/icon/foreground.png
+  # Themed (single-colour) icons on Android 13+, used by Niagara and Pixel themed icons.
+  adaptive_icon_monochrome: assets/icon/monochrome.png
   remove_alpha_ios: true
