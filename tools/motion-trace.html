@@ -1,0 +1,404 @@
+<title>Winnow Trace Options</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Layout: the two fade options side by side, a grid-mode stage, then a settings panel that tunes both live.
+     Single dark look on purpose: it mirrors the app. */
+  :root {
+    color-scheme: dark;
+    --bg: #0b0b0f;
+    --surface: #17161d;
+    --line: #2a2833;
+    --text: #e8e6ee;
+    --muted: #8c8899;
+    --accent: #60a5fa;
+    --display: 'Sora', system-ui, sans-serif;
+    --body: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    padding-block: 24px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  main { max-width: 1000px; margin: 0 auto; display: grid; gap: 28px; }
+  header, .section-head { display: grid; gap: 8px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: 1.9rem; margin: 0; letter-spacing: -0.01em; }
+  h1 .n1 { color: var(--accent); position: relative; top: 0.12em; }
+  h1 .n2 { color: var(--accent); position: relative; top: -0.12em; }
+  h2 { font-family: var(--display); font-weight: 600; font-size: 1.2rem; margin: 0; }
+  p { margin: 0; color: var(--muted); line-height: 1.5; max-width: 64ch; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 12px; min-width: 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .card h3 { font-family: var(--display); font-weight: 600; font-size: 1rem; margin: 0; }
+  .card p { font-size: 0.88rem; }
+  .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; display: grid; place-items: center; padding: 16px 0; }
+  .tile { position: relative; }
+  .tile canvas { display: block; width: 100%; height: 100%; border-radius: 8px; }
+  .tile canvas.fx { position: absolute; inset: 0; pointer-events: none; }
+  .single .tile { width: 58%; aspect-ratio: 3 / 4; }
+  .btns { display: flex; gap: 8px; }
+  button { min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: 500 0.95rem var(--body); cursor: pointer; padding: 0 14px; }
+  button.keep { color: #0b0b0f; font-weight: 600; border: 0; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btns button { flex: 1; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { min-height: 36px; border-radius: 999px; font-size: 0.88rem; }
+  .chips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #0b0b0f; font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; background: #000; border-radius: 12px; padding: 8px; overflow: hidden; }
+  .grid .tile { aspect-ratio: 3 / 4; cursor: pointer; }
+  .tile .check { position: absolute; top: 5px; left: 5px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,.75); background: rgba(0,0,0,.35); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #0b0b0f; pointer-events: none; }
+  .tile.on .check { background: var(--accent); border-color: rgba(0,0,0,.35); }
+  .tile.on .check::after { content: '✓'; }
+  .tile .ring { position: absolute; inset: 0; border-radius: 8px; box-shadow: inset 0 0 0 3px var(--accent); pointer-events: none; opacity: 0; }
+  .tile.on .ring { opacity: 1; }
+  .grid-foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .grid-foot .summary { flex: 1 1 100%; color: var(--muted); font-size: 0.9rem; }
+  @media (min-width: 560px) { .grid-foot .summary { flex: 1; } }
+  .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px 22px; }
+  .setting { display: grid; gap: 4px; min-width: 0; }
+  .setting label { display: flex; justify-content: space-between; font-size: 0.9rem; }
+  .setting output { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .setting small { color: var(--muted); font-size: 0.78rem; line-height: 1.35; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .colors { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .colors label { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; }
+  input[type=color] { width: 38px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; }
+  .copy { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .copy code { font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
+</style>
+
+<main>
+  <header>
+    <h1>wi<span class="n1">n</span><span class="n2">n</span>ow trace</h1>
+    <p>Image lines light up (keep from the bottom up, delete from the top down), then deleted photos fade out in place; kept photos stay. Tune everything in Settings below; the demos use your values right away.</p>
+  </header>
+
+  <section class="cards" style="max-width:420px">
+    <article class="panel card single" data-fade="plain">
+      <h3>Fade</h3>
+      <div class="stage"></div>
+      <p>The photo, its lines and its check all fade together. Deleted photos go grey as they fade.</p>
+      <div class="btns"><button class="del" type="button">Delete</button><button class="keep" type="button">Keep</button></div>
+    </article>
+  </section>
+
+  <section class="panel">
+    <div class="section-head">
+      <h2>Grid mode</h2>
+      <p>Checked photos are kept, the rest deleted, all at once. Tap a photo to check or uncheck it.</p>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="grid-foot">
+      <span class="summary" id="summary"></span>
+      <button class="keep" id="file" type="button">File</button>
+      <button id="reset" type="button">Reset</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-head">
+      <h2>Settings</h2>
+      <p>These carry over to the app as-is: tell me the values you like, or copy them with the button below.</p>
+    </div>
+    <div class="setting">
+      <label><span>Kept photos</span></label>
+      <div class="chips" id="keepStaysEl">
+        <button type="button" data-v="stay" aria-pressed="true">Stay</button>
+        <button type="button" data-v="leave">Fade out too</button>
+      </div>
+      <small>Stay: a kept photo stays where it is; its lines trace over it and fade. Only deleted photos fade out.</small>
+    </div>
+    <div class="setting">
+      <label><span>Trace style</span></label>
+      <div class="chips" id="styleEl">
+        <button type="button" data-v="along" aria-pressed="true">Along the lines</button>
+        <button type="button" data-v="sweep">Sweep</button>
+      </div>
+      <small>Along the lines: each outline in the photo draws itself like a pen. Sweep: the lines are revealed by a band moving up (keep) or down (delete).</small>
+    </div>
+    <div class="settings" id="settings"></div>
+    <div class="colors" id="colors"></div>
+    <div class="copy"><button type="button" id="copy">Copy settings</button><code id="values"></code></div>
+  </section>
+</main>
+
+<script>
+  // ---------- settings ----------
+  const S = {
+    style: 'along', keepStays: true, fadeStart: 40, trace: 380, fade: 280, linger: 160, linesFade: 500, drift: 0, thick: 1.7, glow: 5, sens: 120, moveFrom: 'start',
+    keepA: '#60a5fa', keepB: '#f472b6', delA: '#991b1b', delB: '#f97316',
+  };
+  const SLIDERS = [
+    ['trace', 'Trace speed', 120, 1000, 10, 'ms', 'How long the lines take to cross the photo.'],
+    ['fade', 'Fade speed', 80, 800, 10, 'ms', 'How long a deleted photo (and the lines) take to fade.'],
+    ['fadeStart', 'Fade starts', 0, 100, 5, '%', 'When the fade begins, as a share of the trace: 0 = right away, 100 = once the lines are done.'],
+    ['thick', 'Line thickness', 0.8, 3.5, 0.1, 'px', 'Thickness of the image lines.'],
+    ['glow', 'Glow', 0, 20, 1, '', 'Soft glow around the lines.'],
+    ['sens', 'Edge sensitivity', 40, 300, 5, '', 'Lower finds more lines in the photo; higher keeps only strong outlines.'],
+  ];
+  const settingsEl = document.getElementById('settings');
+  for (const [k, label, min, max, step, unit, help] of SLIDERS) {
+    const id = 's-' + k;
+    const wrap = document.createElement('div');
+    wrap.className = 'setting';
+    wrap.innerHTML = `<label for="${id}"><span>${label}</span><output id="${id}-out"></output></label>
+      <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${S[k]}"><small>${help}</small>`;
+    settingsEl.append(wrap);
+    const input = wrap.querySelector('input'), out = wrap.querySelector('output');
+    const show = () => { out.textContent = `${S[k]}${unit}`; };
+    show();
+    input.addEventListener('input', () => {
+      S[k] = Number(input.value); show(); values();
+      if (k === 'sens') allTiles.forEach((t) => { t.lines = edges(t.base.getContext('2d'), t.W, t.H, t.original); });
+    });
+  }
+  const colorsEl = document.getElementById('colors');
+  [['keepA', 'Keep start'], ['keepB', 'Keep end'], ['delA', 'Delete start'], ['delB', 'Delete end']].forEach(([k, label]) => {
+    const l = document.createElement('label');
+    l.innerHTML = `<input type="color" id="c-${k}" value="${S[k]}"> ${label}`;
+    l.querySelector('input').addEventListener('input', (e) => { S[k] = e.target.value; paintButtons(); values(); });
+    colorsEl.append(l);
+  });
+  function paintButtons() {
+    document.querySelectorAll('button.keep').forEach((b) => { b.style.background = `linear-gradient(90deg, ${S.keepA}, ${S.keepB})`; });
+    document.querySelectorAll('button.del').forEach((b) => { b.style.color = S.delB; });
+  }
+  function values() { document.getElementById('values').textContent = JSON.stringify(S); }
+  document.getElementById('copy').addEventListener('click', async (e) => {
+    try { await navigator.clipboard.writeText(JSON.stringify(S)); e.target.textContent = 'Copied'; }
+    catch { const r = document.createRange(); r.selectNodeContents(document.getElementById('values')); getSelection().removeAllRanges(); getSelection().addRange(r); e.target.textContent = 'Selected, copy it'; }
+    setTimeout(() => { e.target.textContent = 'Copy settings'; }, 1500);
+  });
+  values();
+  const keepStaysEl = document.getElementById('keepStaysEl');
+  keepStaysEl.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    S.keepStays = b.dataset.v === 'stay'; values();
+    keepStaysEl.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  const styleEl = document.getElementById('styleEl');
+  styleEl.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    S.style = b.dataset.v; values();
+    styleEl.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+
+  // ---------- stand-in photos ----------
+  function rng(seed) { let s = seed * 9301 + 49297; return () => ((s = (s * 9301 + 49297) % 233280) / 233280); }
+  function paint(ctx, w, h, seed) {
+    const r = rng(seed);
+    const hue = Math.floor(r() * 360);
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, `hsl(${hue} 55% ${35 + r() * 20}%)`);
+    sky.addColorStop(1, `hsl(${(hue + 40) % 360} 60% ${55 + r() * 15}%)`);
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = `hsl(${(hue + 180) % 360} 80% 75%)`;
+    ctx.beginPath(); ctx.arc(w * (0.2 + r() * 0.6), h * (0.15 + r() * 0.2), w * (0.08 + r() * 0.06), 0, Math.PI * 2); ctx.fill();
+    for (let layer = 0; layer < 2; layer++) {
+      ctx.fillStyle = `hsl(${(hue + 120 + layer * 30) % 360} 35% ${22 + layer * 10}%)`;
+      ctx.beginPath(); ctx.moveTo(0, h);
+      const base = h * (0.55 + layer * 0.15);
+      for (let x = 0; x <= w; x += w / 6) ctx.lineTo(x, base - r() * h * 0.2);
+      ctx.lineTo(w, h); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = `hsl(${hue} 20% 12%)`;
+    const fx = w * (0.3 + r() * 0.4), fy = h * 0.72;
+    ctx.beginPath(); ctx.arc(fx, fy - h * 0.12, w * 0.05, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(fx - w * 0.05, fy - h * 0.09, w * 0.1, h * 0.16);
+  }
+  /**
+   * The photo's outlines: Sobel edges thinned to one-pixel lines (non-maximum suppression), as points (for the sweep)
+   * and as connected paths (for tracing along the lines).
+   */
+  function edges(ctx, w, h, img) {
+    const d = (img || ctx.getImageData(0, 0, w, h)).data;
+    const g = new Float32Array(w * h);
+    for (let i = 0; i < w * h; i++) g[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11;
+    const mag = new Float32Array(w * h), ang = new Float32Array(w * h);
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const gx = -g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1] + g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1];
+      const gy = -g[i - w - 1] - 2 * g[i - w] - g[i - w + 1] + g[i + w - 1] + 2 * g[i + w] + g[i + w + 1];
+      mag[i] = Math.hypot(gx, gy); ang[i] = Math.atan2(gy, gx);
+    }
+    const on = new Uint8Array(w * h);
+    const pts = [];
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x, m = mag[i];
+      if (m <= S.sens) continue;
+      // Keep only the ridge across the edge (compare with the two neighbours along the gradient).
+      const a = ((ang[i] * 180) / Math.PI + 180) % 180;
+      const [dx, dy] = a < 22.5 || a >= 157.5 ? [1, 0] : a < 67.5 ? [1, 1] : a < 112.5 ? [0, 1] : [-1, 1];
+      if (m < mag[i + dy * w + dx] || m < mag[i - dy * w - dx]) continue;
+      on[i] = 1; pts.push([x, y]);
+    }
+    // Link the line pixels into paths: start from line ends first, then whatever is left (closed loops).
+    const nb = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
+    const count = (x, y) => nb.reduce((n, [a, b]) => n + on[(y + b) * w + x + a], 0);
+    const seen = new Uint8Array(w * h);
+    const chains = [];
+    const walk = (x, y) => {
+      const c = [];
+      for (;;) {
+        seen[y * w + x] = 1; c.push([x, y]);
+        let next = null;
+        for (const [a, b] of nb) {
+          const j = (y + b) * w + x + a;
+          if (on[j] && !seen[j]) { next = [x + a, y + b]; break; }
+        }
+        if (!next) break;
+        [x, y] = next;
+      }
+      if (c.length >= 6) chains.push(c);
+    };
+    for (const [x, y] of pts) if (!seen[y * w + x] && count(x, y) === 1) walk(x, y);
+    for (const [x, y] of pts) if (!seen[y * w + x]) walk(x, y);
+    return { pts, chains };
+  }
+
+  const allTiles = [];
+  function makeTile(host, seed) {
+    const el = document.createElement('div');
+    el.className = 'tile';
+    const base = document.createElement('canvas'); base.className = 'base';
+    const fx = document.createElement('canvas'); fx.className = 'fx';
+    const ring = document.createElement('span'); ring.className = 'ring';
+    const check = document.createElement('span'); check.className = 'check';
+    el.append(base, ring, fx, check);
+    host.append(el);
+    const W = 180, H = 240;
+    base.width = fx.width = W; base.height = fx.height = H;
+    const ctx = base.getContext('2d');
+    paint(ctx, W, H, seed);
+    const original = ctx.getImageData(0, 0, W, H);
+    const t = { el, base, fx, ring, check, W, H, original, lines: edges(ctx, W, H), raf: 0, hasCheck: false };
+    allTiles.push(t);
+    return t;
+  }
+
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const mix = (a, b, f) => a.map((v, i) => Math.round(v + (b[i] - v) * f));
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  const ease = (x) => x * x * (3 - 2 * x);
+
+  /** Lines and frame lit up to progress p, faded to alpha. */
+  function drawLines(t, kind, p, alpha) {
+    const g = t.fx.getContext('2d');
+    const { W, H } = t;
+    g.clearRect(0, 0, W, H);
+    if (alpha <= 0) return;
+    const ca = hex(kind === 'keep' ? S.keepA : S.delA), cb = hex(kind === 'keep' ? S.keepB : S.delB);
+    const up = kind === 'keep', ins = 3;
+    const y0 = up ? H - ins : ins, y1 = up ? ins : H - ins;
+    const yy = y0 + (y1 - y0) * p;
+    g.globalAlpha = alpha;
+    // One gradient over the whole photo: colour follows height (start edge = first colour).
+    const grad = g.createLinearGradient(0, y0, 0, y1);
+    grad.addColorStop(0, rgba(ca, 1)); grad.addColorStop(1, rgba(cb, 1));
+    g.shadowBlur = S.glow; g.shadowColor = rgba(mix(ca, cb, 0.5), 0.9);
+    if (S.style === 'along') {
+      // Every outline draws itself from its lower end (keep) or upper end (delete), all at the same time.
+      g.strokeStyle = grad; g.lineWidth = S.thick; g.lineCap = 'round'; g.lineJoin = 'round';
+      g.beginPath();
+      for (const c of t.lines.chains) {
+        const pts = (up ? c[0][1] < c[c.length - 1][1] : c[0][1] > c[c.length - 1][1]) ? [...c].reverse() : c;
+        const n = Math.max(1, Math.ceil(pts.length * p));
+        g.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < n; i++) g.lineTo(pts[i][0], pts[i][1]);
+      }
+      g.stroke();
+    } else {
+      g.fillStyle = grad;
+      for (const [x, y] of t.lines.pts) {
+        if (up ? y < yy : y > yy) continue;
+        g.fillRect(x - S.thick / 2, y - S.thick / 2, S.thick, S.thick);
+      }
+    }
+    g.strokeStyle = grad; g.lineWidth = 4; g.lineCap = 'round'; g.shadowBlur = S.glow + 4; g.shadowColor = rgba(mix(ca, cb, 0.5), 0.9);
+    g.beginPath();
+    g.moveTo(ins, y0); g.lineTo(ins, yy);
+    g.moveTo(W - ins, y0); g.lineTo(W - ins, yy);
+    g.moveTo(ins, y0); g.lineTo(W - ins, y0);
+    if (p >= 0.98) { g.moveTo(ins, y1); g.lineTo(W - ins, y1); }
+    g.stroke();
+    g.globalAlpha = 1;
+  }
+
+  /** Sets the photo's own layers (picture, selection ring, check) to one opacity, plus drift and grey. */
+  function photoState(t, opacity, driftPx, grey) {
+    t.el.style.transform = driftPx ? `translateY(${driftPx}px)` : '';
+    for (const el of [t.base, t.ring, t.check]) el.style.opacity = String(opacity);
+    t.base.style.filter = grey ? `grayscale(${grey})` : '';
+  }
+
+  function reset(t) {
+    cancelAnimationFrame(t.raf);
+    photoState(t, 1, 0, 0);
+    t.fx.style.opacity = '1';
+    t.fx.getContext('2d').clearRect(0, 0, t.W, t.H);
+  }
+
+  /** One timeline (no CSS transitions): trace, then fade (and for "lines": linger, then fade the lines). */
+  function play(t, kind, fade, onEnd) {
+    reset(t);
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const T = reduce ? 1 : S.trace, F = reduce ? 1 : S.fade, L = fade === 'lines' ? (reduce ? 0 : S.linger) : 0;
+    const LF = fade === 'lines' ? (reduce ? 1 : S.linesFade) : 0;
+    // The fade can start partway through the trace (Fade starts, % of the trace).
+    const FS = T * (S.fadeStart / 100);
+    const total = Math.max(T, FS + F) + L + LF;
+    const dir = kind === 'keep' ? -1 : 1;
+    const driftMax = (S.drift / 100) * t.el.offsetHeight * dir;
+    const start = performance.now();
+    const frame = (now) => {
+      const e = now - start;
+      const trace = Math.min(1, e / T);
+      const fadeP = Math.min(1, Math.max(0, (e - FS) / F));
+      const after = Math.max(0, e - T);
+      // Drift runs across the whole animation (from the start) or from the end of the trace (after).
+      const driftP = S.moveFrom === 'start' ? Math.min(1, e / total) : total > T ? Math.min(1, after / (total - T)) : 1;
+      const grey = kind === 'keep' ? 0 : fadeP;
+      // Kept photos can stay put: only their lines come and go.
+      const stays = kind === 'keep' && S.keepStays;
+      photoState(t, stays ? 1 : 1 - ease(fadeP), stays ? 0 : driftMax * ease(driftP), grey);
+      let lineAlpha = 1;
+      if (fade === 'plain') lineAlpha = 1 - ease(fadeP);
+      else lineAlpha = 1 - ease(Math.min(1, Math.max(0, (e - T - F - L) / LF)));
+      drawLines(t, kind, ease(trace), lineAlpha);
+      if (e < total) t.raf = requestAnimationFrame(frame);
+      else onEnd && onEnd();
+    };
+    t.raf = requestAnimationFrame(frame);
+  }
+
+  // ---------- the two option cards ----------
+  document.querySelectorAll('.card').forEach((card, i) => {
+    const t = makeTile(card.querySelector('.stage'), 11 + i * 9);
+    t.el.classList.add('on');
+    const [del, keep] = card.querySelectorAll('button');
+    const again = () => setTimeout(() => reset(t), 500);
+    keep.addEventListener('click', () => play(t, 'keep', card.dataset.fade, again));
+    del.addEventListener('click', () => play(t, 'trash', card.dataset.fade, again));
+  });
+
+  // ---------- grid mode ----------
+  const gridFade = 'plain';
+  const grid = document.getElementById('grid');
+  const tiles = [true, false, true, true, false, true, false, true].map((on, i) => {
+    const t = makeTile(grid, 40 + i * 5);
+    t.on = on; t.el.classList.toggle('on', on);
+    t.el.addEventListener('click', () => { t.on = !t.on; t.el.classList.toggle('on', t.on); summary(); });
+    return t;
+  });
+  function summary() {
+    const k = tiles.filter((t) => t.on).length;
+    document.getElementById('summary').textContent = `${k} checked · ${tiles.length - k} unchecked`;
+    document.getElementById('file').textContent = `Keep ${k} · delete ${tiles.length - k}`;
+  }
+  summary();
+  document.getElementById('file').addEventListener('click', () => tiles.forEach((t) => play(t, t.on ? 'keep' : 'trash', gridFade)));
+  document.getElementById('reset').addEventListener('click', () => tiles.forEach(reset));
+  paintButtons();
+</script>

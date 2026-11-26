@@ -1,20 +1,23 @@
 # Winnow
 
-Android app for culling photos on the phone before they're backed up: swipe to trash or file into an album, and
-upload only what was kept to [Immich](https://immich.app) and/or Google Photos.
+Android (and later iOS) app for culling photos on the phone before they're backed up: swipe to delete or file into
+an album, review bursts together, file older photos in a grid, and upload only what was kept to
+[Immich](https://immich.app) (Google Photos later).
 
-Status: culling, albums (dated, undated, per-month), bursts, grid filing and backup work; Immich and Google Photos
-upload not yet. Formerly "Kosmos" (renamed before publishing; package id changed with it).
+Flutter app (rewritten from an earlier Capacitor/Svelte version; same package id and signing key, so it installs as
+an update over it, and that version's backups import here).
 
 ## Install
 With [Obtainium](https://github.com/ImranR98/Obtainium): Add app -> `https://github.com/jamesfpate/winnow`.
 Releases are signed APKs built by GitHub Actions from `v*` tags. Android 11+.
 
 ## Develop
-Svelte 5 + Vite in `src/`, Capacitor 8 Android shell in `android/`.
-- `npm install`, `npm run dev` (browser; add `?mock` for fake photos and bursts), `npm run check`
-- `npm run build && npx cap sync android`, then build with Android Studio or `cd android && ./gradlew assembleDebug`
-- Every push to `main` builds a debug APK ("Winnow dev", app id `net.jamespate.winnow.dev`) as a workflow
+Flutter 3.44 (`lib/`): `state.dart` holds all app state and logic, `media.dart` the photo library (photo_manager),
+`immich.dart` the Immich API, `db.dart` local SQLite, `ui/` the screens.
+- `flutter pub get`, `flutter analyze`, `flutter run`
+- codevm has no room for the SDK: `~/bin/fl <args>` runs Flutter in a container on the homelab server
+  (ghcr.io/cirruslabs/flutter:3.44.0, source synced to /mnt/apps/appdata/winnow-dev/app).
+- Every push to `main`/`flutter` builds a debug APK ("Winnow dev", app id `net.jamespate.winnow.dev`) as a workflow
   artifact; it installs next to the release build.
 
 ## Release

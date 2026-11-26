@@ -1,0 +1,172 @@
+<title>Winnow Motion Options</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;800&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  /* Layout: one column of demo cards, each a phone-sized photo stage with Keep / Delete triggers. Single dark look
+     on purpose: it mirrors the app. */
+  :root {
+    color-scheme: dark;
+    --bg: #0b0b0f;
+    --surface: #17161d;
+    --line: #2a2833;
+    --text: #e8e6ee;
+    --muted: #8c8899;
+    --accent: #60a5fa;
+    --keep: #4ade80;
+    --trash: #f87171;
+    --display: 'Sora', system-ui, sans-serif;
+    --body: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    padding-block: 24px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  main { max-width: 980px; margin: 0 auto; display: grid; gap: 28px; }
+  header { display: grid; gap: 8px; }
+  h1 { font-family: var(--display); font-weight: 800; font-size: 1.9rem; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+  h1 .n1 { color: var(--accent); position: relative; top: 0.12em; }
+  h1 .n2 { color: var(--accent); position: relative; top: -0.12em; }
+  header p { margin: 0; color: var(--muted); max-width: 62ch; line-height: 1.5; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+  .opt { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 12px; min-width: 0; }
+  .opt h2 { font-family: var(--display); font-weight: 600; font-size: 1.05rem; margin: 0; display: flex; gap: 10px; align-items: baseline; }
+  .opt h2 span { font-family: var(--body); font-size: 0.75rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+  .opt p { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.45; }
+  .stage { position: relative; height: 300px; border-radius: 12px; background: #000; overflow: hidden; display: grid; place-items: center; }
+  .photo { width: 62%; aspect-ratio: 3 / 4; border-radius: 10px; position: relative; overflow: hidden; }
+  .photo::after { content: attr(data-label); position: absolute; left: 8px; bottom: 8px; font-size: 11px; background: rgba(0,0,0,.55); color: #fff; padding: 3px 7px; border-radius: 6px; }
+  .chip { position: absolute; top: 10px; left: 10px; background: var(--keep); color: #0b0b0f; font-weight: 700; font-size: 12px; padding: 6px 12px; border-radius: 999px; z-index: 3; }
+  .bin { position: absolute; bottom: 10px; right: 10px; color: var(--trash); font-size: 12px; border: 1px solid var(--line); padding: 5px 10px; border-radius: 999px; z-index: 3; }
+  .btns { display: flex; gap: 8px; }
+  .btns button { flex: 1; min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: 500 0.95rem var(--body); cursor: pointer; }
+  .btns button.keep { background: var(--keep); border-color: var(--keep); color: #0b0b0f; font-weight: 600; }
+  .btns button.del { color: var(--trash); }
+  .btns button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- A: edge sweep — a color line runs edge to edge, then the photo goes ---------- */
+  .sweep .line { position: absolute; inset: 0; pointer-events: none; }
+  .sweep.k .line { background: linear-gradient(90deg, transparent 0%, rgba(74,222,128,.0) 40%, rgba(74,222,128,.85) 50%, rgba(74,222,128,.25) 60%, transparent 70%); background-size: 300% 100%; animation: sweepR 520ms ease-in forwards; }
+  .sweep.d .line { background: linear-gradient(270deg, transparent 0%, rgba(248,113,113,.0) 40%, rgba(248,113,113,.85) 50%, rgba(248,113,113,.25) 60%, transparent 70%); background-size: 300% 100%; animation: sweepL 520ms ease-in forwards; }
+  .sweep.k .photo { animation: outRight 300ms 480ms ease-in forwards; }
+  .sweep.d .photo { animation: outLeft 300ms 480ms ease-in forwards; }
+  @keyframes sweepR { from { background-position: 100% 0 } to { background-position: 0% 0 } }
+  @keyframes sweepL { from { background-position: 0% 0 } to { background-position: 100% 0 } }
+  @keyframes outRight { to { transform: translateX(140%) rotate(8deg); opacity: 0 } }
+  @keyframes outLeft { to { transform: translateX(-140%) rotate(-8deg); opacity: 0 } }
+
+  /* ---------- B: rise & sink — kept floats up into the album, deleted fades down ---------- */
+  .rise.k .photo { animation: riseUp 620ms cubic-bezier(.3,.7,.3,1) forwards; }
+  .rise.d .photo { animation: sinkDown 620ms ease-in forwards; }
+  @keyframes riseUp { 0% { transform: none } 30% { transform: translateY(6px) scale(1.02) } 100% { transform: translate(-70%, -95%) scale(.18); opacity: .2 } }
+  @keyframes sinkDown { to { transform: translateY(45%) scale(.9); opacity: 0; filter: grayscale(1) blur(2px) } }
+
+  /* ---------- C: border trace — the frame lights up around the photo ---------- */
+  .trace .frame { position: absolute; inset: 0; border-radius: 10px; pointer-events: none; padding: 3px;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+  .trace.k .frame { background: conic-gradient(from 0deg, var(--keep) var(--p), transparent 0); animation: trace 480ms linear forwards; }
+  .trace.d .frame { background: conic-gradient(from 0deg, var(--trash) var(--p), transparent 0); animation: trace 480ms linear forwards; }
+  .trace.k .photo { animation: popOut 260ms 480ms ease-in forwards; }
+  .trace.d .photo { animation: dropOut 260ms 480ms ease-in forwards; }
+  @property --p { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+  @keyframes trace { to { --p: 100% } }
+  @keyframes popOut { to { transform: scale(1.08); opacity: 0 } }
+  @keyframes dropOut { to { transform: scale(.85); opacity: 0; filter: grayscale(1) } }
+
+  /* ---------- D: color wipe — keep tints green left→right, delete drains color right→left ---------- */
+  .wipe .tint { position: absolute; inset: 0; pointer-events: none; transform-origin: left; transform: scaleX(0); }
+  .wipe.k .tint { background: rgba(74,222,128,.45); mix-blend-mode: screen; animation: wipeIn 420ms ease-out forwards; }
+  .wipe.d .tint { background: rgba(20,20,24,.75); transform-origin: right; animation: wipeIn 420ms ease-out forwards; }
+  .wipe.d .photo { animation: drain 420ms ease-out forwards, dropOut 260ms 460ms ease-in forwards; }
+  .wipe.k .photo { animation: outRight 280ms 440ms ease-in forwards; }
+  @keyframes wipeIn { to { transform: scaleX(1) } }
+  @keyframes drain { to { filter: grayscale(1) brightness(.6) } }
+
+  /* ---------- E: burst — keepers lift, the rest fade down, one after another ---------- */
+  .burst .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 92%; }
+  .burst .cell { aspect-ratio: 3 / 4; border-radius: 8px; position: relative; }
+  .burst .cell.keep::before { content: '✓'; position: absolute; top: 4px; left: 4px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #0b0b0f; font-size: 11px; display: grid; place-items: center; font-weight: 700; }
+  .burst.go .cell.keep { animation: lift 520ms cubic-bezier(.3,.7,.3,1) forwards; animation-delay: calc(var(--i) * 70ms); }
+  .burst.go .cell.drop { animation: fall 520ms ease-in forwards; animation-delay: calc(var(--i) * 70ms); }
+  @keyframes lift { 0% { transform: none; box-shadow: 0 0 0 0 rgba(74,222,128,0) } 40% { box-shadow: 0 0 0 3px var(--keep) } 100% { transform: translateY(-130%) scale(.6); opacity: 0 } }
+  @keyframes fall { to { transform: translateY(70%) scale(.85); opacity: 0; filter: grayscale(1) } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+  }
+</style>
+
+<main>
+  <header>
+    <h1>wi<span class="n1">n</span><span class="n2">n</span>ow motion</h1>
+    <p>Five keep and delete animations to choose from. Tap Keep or Delete under each to play it; the photo comes back after a moment. Pick one for single photos and one for bursts, or mix them.</p>
+  </header>
+
+  <div class="grid">
+    <section class="opt" data-kind="sweep">
+      <h2>Edge sweep <span>A</span></h2>
+      <div class="stage"><div class="chip">→ 2026-11 Thanksgiving</div><div class="photo" data-label="Thu, Nov 26 · 4:12 PM"></div><div class="line"></div><div class="bin">Trash</div></div>
+      <p>A line of color runs across the photo from one edge to the other: green left to right for keep, red right to left for delete. Then the photo slides out.</p>
+      <div class="btns"><button class="del" data-act="d">Delete</button><button class="keep" data-act="k">Keep</button></div>
+    </section>
+
+    <section class="opt" data-kind="rise">
+      <h2>Rise &amp; sink <span>B</span></h2>
+      <div class="stage"><div class="chip">→ 2026-11 Thanksgiving</div><div class="photo" data-label="Thu, Nov 26 · 4:12 PM"></div><div class="bin">Trash</div></div>
+      <p>A kept photo shrinks and floats up into the green album chip. A deleted one sinks, loses its color and fades away.</p>
+      <div class="btns"><button class="del" data-act="d">Delete</button><button class="keep" data-act="k">Keep</button></div>
+    </section>
+
+    <section class="opt" data-kind="trace">
+      <h2>Border trace <span>C</span></h2>
+      <div class="stage"><div class="chip">→ 2026-11 Thanksgiving</div><div class="photo" data-label="Thu, Nov 26 · 4:12 PM"><div class="frame"></div></div><div class="bin">Trash</div></div>
+      <p>The frame lights up around the photo like a progress ring, green or red, then the photo pops out (keep) or drops away grey (delete).</p>
+      <div class="btns"><button class="del" data-act="d">Delete</button><button class="keep" data-act="k">Keep</button></div>
+    </section>
+
+    <section class="opt" data-kind="wipe">
+      <h2>Color wipe <span>D</span></h2>
+      <div class="stage"><div class="chip">→ 2026-11 Thanksgiving</div><div class="photo" data-label="Thu, Nov 26 · 4:12 PM"><div class="tint"></div></div><div class="bin">Trash</div></div>
+      <p>Keep washes the photo in green from the left edge. Delete drains the color out from the right edge, leaving it dim and grey.</p>
+      <div class="btns"><button class="del" data-act="d">Delete</button><button class="keep" data-act="k">Keep</button></div>
+    </section>
+
+    <section class="opt burst" data-kind="burst">
+      <h2>Burst lift <span>E</span></h2>
+      <div class="stage"><div class="chip">→ 2026-11 Thanksgiving</div>
+        <div class="row">
+          <div class="cell keep" style="--i:0"></div><div class="cell drop" style="--i:1"></div><div class="cell keep" style="--i:2"></div><div class="cell drop" style="--i:3"></div>
+        </div><div class="bin">Trash</div></div>
+      <p>For bursts: the checked photos glow green and lift toward the album one after another, the unchecked ones fade down. Keep 2, delete 2.</p>
+      <div class="btns"><button class="keep" data-act="go">Keep 2 · delete 2</button></div>
+    </section>
+  </div>
+</main>
+
+<script>
+  // Stand-in "photos": soft gradients, different per card.
+  const hues = [[28, 200], [160, 260], [330, 40], [210, 120], [50, 300], [190, 10], [100, 230], [280, 60]];
+  let h = 0;
+  document.querySelectorAll('.photo, .cell').forEach((el) => {
+    const [a, b] = hues[h++ % hues.length];
+    el.style.background = `linear-gradient(150deg, hsl(${a} 60% 45%), hsl(${b} 55% 30%))`;
+  });
+
+  document.querySelectorAll('.opt').forEach((card) => {
+    const kind = card.dataset.kind;
+    let timer;
+    card.querySelectorAll('button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        clearTimeout(timer);
+        card.classList.remove('k', 'd', 'go', kind);
+        void card.offsetWidth; // restart the CSS animation
+        card.classList.add(kind, btn.dataset.act);
+        timer = setTimeout(() => card.classList.remove('k', 'd', 'go'), 1500);
+      });
+    });
+  });
+</script>
