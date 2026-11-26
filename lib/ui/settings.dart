@@ -347,7 +347,7 @@ class _ImmichScreenState extends State<ImmichScreen> {
           const SizedBox(height: 16),
           const Text('API key', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text('In Immich: Account settings → API keys → New. Permissions: ${immichPermissions.join(', ')}.', style: const TextStyle(color: C.muted)),
+          Text('In Immich: Account settings → API keys → New. Permissions: ${immichPermissions.join(', ')}. To browse Immich in Explorer, also ${immichBrowsePermissions.join(', ')}.', style: const TextStyle(color: C.muted)),
           const SizedBox(height: 6),
           TextField(
             controller: _key,

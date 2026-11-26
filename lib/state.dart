@@ -98,6 +98,9 @@ class AppState extends ChangeNotifier {
   /// deleted), 'reviewed' (filed into an album) or an album id.
   String gridView = 'unreviewed';
   String exploreView = 'all';
+
+  /// Names of Immich albums picked in Explorer (id -> name), for the source chip.
+  Map<String, String> immichAlbumNames = {};
   Set<String> gridSel = {};
   String? gridChosenId;
 
@@ -147,6 +150,7 @@ class AppState extends ChangeNotifier {
       await reload();
       mode = switch (m['mode']) { 'grid' => Screen.grid, 'explore' => Screen.explore, _ => Screen.cull };
       exploreView = (m['exploreView'] as String?) ?? 'all';
+      immichAlbumNames = ((m['immichAlbumNames'] as Map?) ?? {}).cast<String, String>();
       gridView = mode == Screen.explore ? exploreView : 'unreviewed';
       if (screen == Screen.loading && animations) {
         loadDone = true;
@@ -613,6 +617,11 @@ class AppState extends ChangeNotifier {
       _backlogRev = _rev;
     }
     return _backlog;
+  }
+
+  void rememberImmichAlbum(String id, String name) {
+    immichAlbumNames = {...immichAlbumNames, id: name};
+    db.setMeta('immichAlbumNames', immichAlbumNames);
   }
 
   void setGridView(String v) {

@@ -85,6 +85,9 @@ const immichPermissions = [
   'tag.asset',
 ];
 
+/// For browsing Immich in Explorer (list, thumbnails, save to phone).
+const immichBrowsePermissions = ['asset.read', 'asset.view', 'asset.download'];
+
 /// Extra permissions for sharing albums (Share albums with).
 const immichSharePermissions = ['user.read', 'albumUser.create'];
 
@@ -101,6 +104,19 @@ class ImmichApi {
   final _client = http.Client();
 
   Uri _uri(String path) => Uri.parse('${cleanServer(cfg.server)}/api$path');
+
+  /// Headers for loading Immich images directly (thumbnails in Explorer).
+  Map<String, String> get imageHeaders => {'x-api-key': cfg.key};
+
+  String thumbUrl(String assetId, {bool preview = false}) =>
+      '${cleanServer(cfg.server)}/api/assets/$assetId/thumbnail?size=${preview ? 'preview' : 'thumbnail'}';
+
+  /// The original file's bytes (for saving to the phone).
+  Future<List<int>> download(String assetId) async {
+    final res = await _client.get(_uri('/assets/$assetId/original'), headers: imageHeaders);
+    if (res.statusCode >= 400) throw Exception('Immich ${res.statusCode}: could not download');
+    return res.bodyBytes;
+  }
 
   Map<String, String> get _headers =>
       {'x-api-key': cfg.key, 'Accept': 'application/json', 'Content-Type': 'application/json'};
@@ -124,7 +140,11 @@ class ImmichApi {
     final key = await call('GET', '/api-keys/me') as Map;
     final perms = (key['permissions'] as List).cast<String>();
     final all = perms.contains('all');
-    final need = [...immichPermissions, if (cfg.shareWith.isNotEmpty) ...immichSharePermissions];
+    final need = [
+      ...immichPermissions,
+      ...immichBrowsePermissions,
+      if (cfg.shareWith.isNotEmpty) ...immichSharePermissions,
+    ];
     return (name: '${key['name']}', missing: all ? <String>[] : [for (final p in need) if (!perms.contains(p)) p]);
   }
 

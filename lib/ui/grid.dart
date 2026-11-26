@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../fx.dart';
+import '../immich.dart';
 import '../models.dart';
+import '../remote.dart';
 import '../state.dart';
 import 'album_sheet.dart';
 import 'common.dart';
+import 'remote.dart';
 
 /// Grid mode: every photo without an album, by month, in justified rows. Built lazily, so only rows near the screen
 /// exist (thousands of photos scroll without holding thousands of thumbnails).
@@ -74,6 +77,14 @@ class _GridScreenState extends State<GridScreen> {
     final doomed = s.gridDoomed;
     final months = s.gridMonthsChosen.length;
     String chipLabel(Album a) => a.monthly && months > 1 ? 'By month ($months)' : albumTitle(a);
+    if (s.screen == Screen.explore && isImmichView(s.gridView)) {
+      return Column(children: [
+        TopBar(s, title: Logo(busy: s.sync.running), subtitle: Text(syncStatus(s) ?? 'Immich')),
+        _viewBar(context),
+        const SizedBox(height: 6),
+        Expanded(child: RemoteExplorer(s, key: ValueKey(s.gridView), view: s.gridView)),
+      ]);
+    }
     return Column(children: [
       TopBar(
         s,
@@ -218,8 +229,60 @@ class _GridScreenState extends State<GridScreen> {
         chip('All on phone', view == 'all', () => s.setGridView('all')),
         chip('Reviewed', view == 'reviewed', () => s.setGridView('reviewed')),
         chip(album == null ? 'Albums ▾' : '${albumTitle(album)} ▾', album != null, () => _pickAlbum(context)),
+        if (s.immich.ready)
+          chip(isImmichView(view) ? '${_immichLabel(view)} ▾' : 'Immich ▾', isImmichView(view), () => _pickImmich(context)),
       ]),
     );
+  }
+
+  String _immichLabel(String view) => switch (view) {
+        immichAll => 'Immich',
+        immichOnly => 'Only on Immich',
+        _ => s.immichAlbumNames[view.substring(immichAlbumPrefix.length)] ?? 'Immich album',
+      };
+
+  /// Immich as the source: everything, only what isn't on this phone, or one Immich album.
+  Future<void> _pickImmich(BuildContext context) async {
+    final api = ImmichApi(s.immich);
+    final albums = api.albums().then((l) => l..sort((a, b) => b.name.compareTo(a.name))).whenComplete(api.close);
+    final view = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: C.surface,
+      isScrollControlled: true,
+      builder: (c) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(c).height * 0.7),
+          child: FutureBuilder(
+            future: albums,
+            builder: (c, snap) => ListView(shrinkWrap: true, children: [
+              ListTile(
+                leading: const Icon(Icons.cloud_outlined),
+                title: const Text('Everything on Immich'),
+                onTap: () => Navigator.pop(c, immichAll),
+              ),
+              ListTile(
+                leading: const Icon(Icons.cloud_off_outlined),
+                title: const Text('Only on Immich'),
+                subtitle: const Text('Not on this phone'),
+                onTap: () => Navigator.pop(c, immichOnly),
+              ),
+              const Divider(),
+              if (snap.hasError) ListTile(title: Text("Can't load albums: ${snap.error}")),
+              if (!snap.hasData && !snap.hasError) const ListTile(title: Text('Loading albums…')),
+              for (final a in snap.data ?? const <({String id, String name, DateTime? start, DateTime? end})>[])
+                ListTile(
+                  title: Text(a.name),
+                  onTap: () {
+                    s.rememberImmichAlbum(a.id, a.name);
+                    Navigator.pop(c, '$immichAlbumPrefix${a.id}');
+                  },
+                ),
+            ]),
+          ),
+        ),
+      ),
+    );
+    if (view != null) s.setGridView(view);
   }
 
   Future<void> _pickAlbum(BuildContext context) async {
