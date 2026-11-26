@@ -10,6 +10,7 @@ import 'fx.dart';
 import 'immich.dart';
 import 'media.dart' as media;
 import 'media.dart' show Access;
+import 'background.dart';
 import 'models.dart';
 
 enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, error }
@@ -141,19 +142,7 @@ class AppState extends ChangeNotifier {
         return changed();
       }
       final m = await db.allMeta();
-      cutoff = (m['cutoff'] as num?)?.toInt();
-      groupGap = (m['groupGap'] as num?)?.toInt() ?? 5;
-      bursts = (m['bursts'] as bool?) ?? groupGap != 0;
-      if (groupGap == 0) groupGap = 5;
-      checkDefault = (m['burstChecked'] as bool?) ?? true;
-      autoTrash = (m['autoTrash'] as bool?) ?? true;
-      gridAutoTrash = (m['gridAutoTrash'] as bool?) ?? false;
-      newestFirst = (m['newestFirst'] as bool?) ?? false;
-      animations = (m['animations'] as bool?) ?? true;
-      gridFrac = (m['gridFrac'] as num?)?.toDouble() ?? 0.4;
-      thumbH = (m['thumbH'] as num?)?.toDouble() ?? 150;
-      hidden = ((m['hiddenBuckets'] as List?) ?? []).cast<String>().toSet();
-      immich = ImmichConfig.fromJson((m['immich'] as Map?)?.cast<String, Object?>());
+      _loadSettings(m);
       albums = [for (final j in await db.all('albums')) Album.fromJson(j)];
       await reload();
       mode = switch (m['mode']) { 'grid' => Screen.grid, 'explore' => Screen.explore, _ => Screen.cull };
@@ -166,12 +155,42 @@ class AppState extends ChangeNotifier {
       }
       screen = cutoff == null ? Screen.start : mode;
       changed();
+      scheduleBackground(immich);
       runSync();
     } catch (e) {
       error = '$e';
       screen = Screen.error;
       changed();
     }
+  }
+
+  void _loadSettings(Map<String, Object?> m) {
+    cutoff = (m['cutoff'] as num?)?.toInt();
+    groupGap = (m['groupGap'] as num?)?.toInt() ?? 5;
+    bursts = (m['bursts'] as bool?) ?? groupGap != 0;
+    if (groupGap == 0) groupGap = 5;
+    checkDefault = (m['burstChecked'] as bool?) ?? true;
+    autoTrash = (m['autoTrash'] as bool?) ?? true;
+    gridAutoTrash = (m['gridAutoTrash'] as bool?) ?? false;
+    newestFirst = (m['newestFirst'] as bool?) ?? false;
+    animations = (m['animations'] as bool?) ?? true;
+    gridFrac = (m['gridFrac'] as num?)?.toDouble() ?? 0.4;
+    thumbH = (m['thumbH'] as num?)?.toDouble() ?? 150;
+    hidden = ((m['hiddenBuckets'] as List?) ?? []).cast<String>().toSet();
+    immich = ImmichConfig.fromJson((m['immich'] as Map?)?.cast<String, Object?>());
+  }
+
+  /// The background upload task (no screen): load what's needed and sync once.
+  Future<void> backgroundSync() async {
+    _db ??= await Db.open();
+    // No screen here: photo_manager's permission check needs one (it crashes), so skip it. Without access the photo
+    // list comes back empty and nothing uploads.
+    await media.skipPermissionCheck();
+    _loadSettings(await db.allMeta());
+    if (!immich.enabled || !immich.ready) return;
+    albums = [for (final j in await db.all('albums')) Album.fromJson(j)];
+    await reload();
+    await runSync();
   }
 
   Future<void> requestAccess() async {
@@ -1035,15 +1054,17 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> saveImmich(
-      {String? server, String? key, bool? enabled, Map<String, String>? shareWith, bool? wifiOnly, bool? videos}) async {
+      {String? server, String? key, bool? enabled, Map<String, String>? shareWith, bool? wifiOnly, bool? videos, String? background}) async {
     immich = immich.copyWith(
         server: server == null ? null : cleanServer(server),
         key: key?.trim(),
         enabled: enabled,
         shareWith: shareWith,
         wifiOnly: wifiOnly,
-        videos: videos);
+        videos: videos,
+        background: background);
     await _set('immich', immich.toJson());
+    scheduleBackground(immich);
     if (enabled == true || wifiOnly != null || videos != null) runSync();
   }
 

@@ -52,7 +52,11 @@ class TopBar extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              DefaultTextStyle.merge(style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14), child: title),
+              // Shrinks (rather than overflowing) when the upload pill takes room.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: DefaultTextStyle.merge(style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14), child: title),
+              ),
               if (subtitle != null)
                 DefaultTextStyle.merge(style: const TextStyle(color: C.muted, fontSize: 13), child: subtitle!),
             ]),

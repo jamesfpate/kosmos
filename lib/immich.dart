@@ -16,7 +16,12 @@ class ImmichConfig {
     this.shareWith = const {},
     this.wifiOnly = false,
     this.videos = true,
+    this.background = 'off',
   });
+
+  /// Upload while Winnow is closed (Android, about every 15 minutes): 'off', 'charging' (only while charging) or
+  /// 'always'.
+  final String background;
 
   final String server;
   final String key;
@@ -34,7 +39,7 @@ class ImmichConfig {
   bool get ready => server.isNotEmpty && key.isNotEmpty;
 
   ImmichConfig copyWith(
-          {String? server, String? key, bool? enabled, Map<String, String>? shareWith, bool? wifiOnly, bool? videos}) =>
+          {String? server, String? key, bool? enabled, Map<String, String>? shareWith, bool? wifiOnly, bool? videos, String? background}) =>
       ImmichConfig(
         server: server ?? this.server,
         key: key ?? this.key,
@@ -42,6 +47,7 @@ class ImmichConfig {
         shareWith: shareWith ?? this.shareWith,
         wifiOnly: wifiOnly ?? this.wifiOnly,
         videos: videos ?? this.videos,
+        background: background ?? this.background,
       );
 
   Map<String, Object?> toJson() => {
@@ -51,6 +57,7 @@ class ImmichConfig {
         'shareWith': shareWith,
         'wifiOnly': wifiOnly,
         'videos': videos,
+        'background': background,
       };
 
   static ImmichConfig fromJson(Map<String, Object?>? j) => j == null
@@ -62,6 +69,7 @@ class ImmichConfig {
           shareWith: ((j['shareWith'] as Map?) ?? {}).cast<String, String>(),
           wifiOnly: j['wifiOnly'] == true,
           videos: j['videos'] != false,
+          background: (j['background'] as String?) ?? 'off',
         );
 }
 

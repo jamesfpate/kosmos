@@ -380,6 +380,16 @@ class _ImmichScreenState extends State<ImmichScreen> {
             onPick: (v) => s.saveImmich(wifiOnly: v),
           ),
           const SizedBox(height: 12),
+          const Text('Upload in the background', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          const Text('Keeps uploading when Winnow is closed, about every 15 minutes.', style: TextStyle(color: C.muted)),
+          const SizedBox(height: 6),
+          Choices(
+            options: const [('off', 'Off'), ('charging', 'While charging'), ('always', 'Always')],
+            value: s.immich.background,
+            onPick: (v) => s.saveImmich(background: v),
+          ),
+          const SizedBox(height: 12),
           const Text('Videos', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           Choices(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import 'background.dart';
 import 'fx.dart';
 import 'state.dart';
 import 'ui/common.dart';
@@ -13,6 +14,7 @@ const version = String.fromEnvironment('WINNOW_VERSION', defaultValue: '0.0.0-de
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  initBackground();
   runApp(const WinnowApp());
 }
 

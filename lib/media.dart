@@ -24,6 +24,9 @@ Future<Access> requestAccess() async => _map(await PhotoManager.requestPermissio
 
 Future<void> openSettings() => PhotoManager.openSetting();
 
+/// For the background task (no activity): don't ask Android for the permission state before each call.
+Future<void> skipPermissionCheck() => PhotoManager.setIgnorePermissionCheck(true);
+
 // YYYYMMDD, optionally _HHMMSS / -HHMMSS (PXL_20241005_123456789, IMG-20240827-WA0000, 20240827_123456).
 final _nameDate = RegExp(r'(20\d{2})(\d{2})(\d{2})(?:[_-](\d{2})(\d{2})(\d{2}))?');
 
