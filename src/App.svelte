@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { Media, previewUrl, type Access, type MediaItem } from './lib/media'
+  import { aspect, Media, previewUrl, type Access, type MediaItem } from './lib/media'
   import {
     albums as albumStore,
     albumTitle,
@@ -53,9 +53,13 @@
   let hidden = $state(new Set<string>())
   let gridSel = $state(new Set<number>())
   let gridLimit = $state(GRID_STEP)
-  // Grid mode columns: pinch or the size button (remembered).
-  let gridCols = $state(3)
-  const COLS = [2, 3, 4, 5]
+  // Thumbnail row height in the burst grid and Grid mode: slider or pinch (remembered).
+  let thumbH = $state(150)
+  const THUMB_MIN = 72
+  const THUMB_MAX = 360
+  const ROW_GAP = 3
+  // Width available to thumbnail rows (measured; same for the burst grid and Grid mode).
+  let rowW = $state(0)
   // Full-size viewer over the grid (index into the backlog), opened by long-press.
   let viewIdx = $state<number | null>(null)
   let viewX = 0
@@ -190,7 +194,7 @@
       cutoff = await meta.get<number>('cutoff')
       groupGap = (await meta.get<number>('groupGap')) ?? 5
       gridFrac = (await meta.get<number>('gridFrac')) ?? 0.4
-      gridCols = (await meta.get<number>('gridCols')) ?? 3
+      thumbH = (await meta.get<number>('thumbH')) ?? 150
       hidden = new Set((await meta.get<string[]>('hiddenBuckets')) ?? [])
       albums = await albumStore.all()
       await reload()
@@ -475,12 +479,41 @@
     gridSel = next
   }
 
-  function setCols(n: number) {
-    gridCols = Math.min(COLS.at(-1)!, Math.max(COLS[0], n))
-    meta.set('gridCols', gridCols)
+  /**
+   * Justified rows: photos keep their real shape. Each full row is scaled to fill the width exactly (height near
+   * thumbH); the last row stays at thumbH.
+   */
+  function justify(list: MediaItem[]): { h: number; items: MediaItem[] }[] {
+    const rows: { h: number; items: MediaItem[] }[] = []
+    if (!rowW) return rows
+    let row: MediaItem[] = []
+    let sum = 0
+    for (const item of list) {
+      row.push(item)
+      sum += aspect(item)
+      const gaps = (row.length - 1) * ROW_GAP
+      if (sum * thumbH + gaps >= rowW) {
+        rows.push({ h: (rowW - gaps) / sum, items: row })
+        row = []
+        sum = 0
+      }
+    }
+    if (row.length) rows.push({ h: thumbH, items: row })
+    return rows
   }
 
-  /** Two-finger pinch on the grid: spread for bigger photos (fewer columns), pinch for more. */
+  function measureRows(node: HTMLElement) {
+    const ro = new ResizeObserver(([e]) => (rowW = Math.floor(e.contentRect.width)))
+    ro.observe(node)
+    return { destroy: () => ro.disconnect() }
+  }
+
+  function setThumbH(h: number, save = true) {
+    thumbH = Math.round(Math.min(THUMB_MAX, Math.max(THUMB_MIN, h)))
+    if (save) meta.set('thumbH', thumbH)
+  }
+
+  /** Two-finger pinch on the grid: spread for bigger thumbnails, pinch for smaller. */
   function pinch(node: HTMLElement) {
     let base = 0
     const dist = (e: TouchEvent) =>
@@ -491,14 +524,15 @@
     const move = (e: TouchEvent) => {
       if (e.touches.length !== 2 || !base) return
       e.preventDefault()
-      const r = dist(e) / base
-      if (r > 1.3 || r < 0.77) {
-        setCols(gridCols + (r > 1 ? -1 : 1))
-        base = dist(e)
-      }
+      const d = dist(e)
+      setThumbH((thumbH * d) / base, false)
+      base = d
     }
     const end = (e: TouchEvent) => {
-      if (e.touches.length < 2) base = 0
+      if (e.touches.length < 2 && base) {
+        base = 0
+        meta.set('thumbH', thumbH)
+      }
     }
     node.addEventListener('touchstart', start, { passive: true })
     node.addEventListener('touchmove', move, { passive: false })
@@ -618,6 +652,23 @@
   const fmtTime = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 </script>
 
+{#snippet sizeSlider()}
+  <label class="size">
+    <span aria-hidden="true">▫</span>
+    <input
+      type="range"
+      min={THUMB_MIN}
+      max={THUMB_MAX}
+      step="4"
+      value={thumbH}
+      oninput={(e) => setThumbH(+e.currentTarget.value, false)}
+      onchange={(e) => setThumbH(+e.currentTarget.value)}
+      aria-label="Thumbnail size"
+    />
+    <span aria-hidden="true">◻</span>
+  </label>
+{/snippet}
+
 <main>
   {#if screen === 'loading'}
     <section class="center"><p class="muted">Loading…</p></section>
@@ -725,15 +776,21 @@
                 <span></span>
               </div>
               <div
-                class="grid group-grid"
+                class="rows group-grid"
+                use:measureRows
                 style:height={`${gridFrac * 100}%`}
                 onpointerdown={(e) => e.stopPropagation()}
                 role="listbox"
                 tabindex="-1"
               >
-                {#each group as item, i (item.id)}
+                {#each justify(group) as row, r (r)}
+                  <div class="row">
+                {#each row.items as item (item.id)}
+                  {@const i = group.indexOf(item)}
                   <button
                     class="cell"
+                    style:width={`${aspect(item) * row.h}px`}
+                    style:height={`${row.h}px`}
                     class:focused={i === focus}
                     class:kept={selected.has(item.id)}
                     onclick={() => (i === focus ? toggleKeep(item.id) : (focus = i))}
@@ -744,6 +801,8 @@
                     {#if item.type === 'video'}<span class="badge">▶</span>{/if}
                     {#if selected.has(item.id)}<span class="tick small">✓</span>{/if}
                   </button>
+                {/each}
+                  </div>
                 {/each}
               </div>
             {/if}
@@ -765,6 +824,7 @@
     </div>
 
     {#if isGroup}
+      {@render sizeSlider()}
       <p class="muted hint">
         Tap a photo to tick it · right keeps {selected.size ? 'the ticked ones' : 'all'}, left trashes all · drag up onto an
         album
@@ -822,9 +882,6 @@
     <header>
       <button class="pill" onclick={() => (screen = 'cull')}>‹ Back</button>
       <b>{gridSel.size ? `${gridSel.size} selected` : `No album · ${backlog.length}`}</b>
-      <button class="pill" onclick={() => setCols(gridCols === COLS.at(-1) ? COLS[0] : gridCols + 1)} aria-label="Photo size">
-        ⊞ {gridCols}
-      </button>
       {#if gridSel.size}
         <button class="pill" onclick={() => (gridSel = new Set())}>Clear</button>
       {:else}
@@ -842,10 +899,14 @@
             {month.items.length}
           </button>
         </div>
-        <div class="grid month-grid" style:grid-template-columns={`repeat(${gridCols}, 1fr)`}>
-          {#each month.items as item (item.id)}
+        <div class="rows" use:measureRows>
+          {#each justify(month.items) as row, r (r)}
+            <div class="row">
+          {#each row.items as item (item.id)}
             <button
               class="cell"
+              style:width={`${aspect(item) * row.h}px`}
+              style:height={`${row.h}px`}
               class:kept={gridSel.has(item.id)}
               use:hold={item.id}
               onclick={() => (held ? (held = false) : toggleGrid(item.id))}
@@ -854,6 +915,8 @@
               {#if item.type === 'video'}<span class="badge">▶</span>{/if}
               {#if gridSel.has(item.id)}<span class="tick small">✓</span>{/if}
             </button>
+          {/each}
+            </div>
           {/each}
         </div>
       {:else}
@@ -880,6 +943,7 @@
         </div>
       </nav>
     {/if}
+    {@render sizeSlider()}
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
       <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>Trash {gridSel.size || ''}</button>
@@ -1141,14 +1205,14 @@
 
   .group-grid {
     flex: none;
-    grid-template-columns: repeat(3, 1fr);
+    overflow-y: auto;
     margin: 0;
     touch-action: pan-y;
   }
 
   .cell {
     position: relative;
-    aspect-ratio: 3 / 4;
+    aspect-ratio: 1;
     min-height: 0;
     padding: 0;
     border: 0;
@@ -1295,10 +1359,36 @@
     background: var(--bg);
   }
 
-  .month-grid {
-    flex: none;
-    overflow: visible;
+  /* Justified rows (see justify()): cells get exact sizes inline. */
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
     margin-bottom: 4px;
+  }
+
+  .row {
+    display: flex;
+    gap: 3px;
+  }
+
+  .rows .cell {
+    flex: none;
+    aspect-ratio: auto;
+    min-height: 0;
+  }
+
+  .size {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 4px 6px;
+    color: var(--muted);
+  }
+
+  .size input {
+    flex: 1;
+    accent-color: var(--accent);
   }
 
   .link {

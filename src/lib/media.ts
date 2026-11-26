@@ -10,6 +10,7 @@ export interface MediaItem {
   mime: string
   /** Date taken, epoch ms (falls back to date added). */
   taken: number
+  /** As displayed (rotation applied); 0 when unknown. */
   width: number
   height: number
   size: number
@@ -86,4 +87,10 @@ export function previewUrl(item: Pick<MediaItem, 'id' | 'type'>, size = 1600): P
     previewCache.set(key, p)
   }
   return p
+}
+
+/** Display aspect (width / height), clamped so panoramas and odd sizes stay usable in a grid. */
+export function aspect(item: Pick<MediaItem, 'width' | 'height'>): number {
+  if (!item.width || !item.height) return 3 / 4
+  return Math.min(2.5, Math.max(0.4, item.width / item.height))
 }

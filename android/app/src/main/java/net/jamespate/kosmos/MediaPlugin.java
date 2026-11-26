@@ -138,6 +138,7 @@ public class MediaPlugin extends Plugin {
             MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
             MediaStore.MediaColumns.DISPLAY_NAME,
             MediaStore.MediaColumns.DURATION,
+            MediaStore.MediaColumns.ORIENTATION,
         };
         String selection = MediaStore.Files.FileColumns.MEDIA_TYPE + " IN (" +
             MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE + "," + MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO + ")";
@@ -154,8 +155,11 @@ public class MediaPlugin extends Plugin {
                     o.put("type", video ? "video" : "image");
                     o.put("mime", c.getString(2));
                     o.put("taken", taken);
-                    o.put("width", c.getInt(5));
-                    o.put("height", c.getInt(6));
+                    // WIDTH/HEIGHT are as stored; a 90/270 rotation means the photo shows the other way round.
+                    int rot = c.isNull(11) ? 0 : c.getInt(11);
+                    boolean turned = rot == 90 || rot == 270;
+                    o.put("width", c.getInt(turned ? 6 : 5));
+                    o.put("height", c.getInt(turned ? 5 : 6));
                     o.put("size", c.getLong(7));
                     o.put("bucket", c.getString(8));
                     o.put("name", c.getString(9));
