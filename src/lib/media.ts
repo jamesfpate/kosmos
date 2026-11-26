@@ -25,8 +25,8 @@ export interface MediaItem {
 export type Access = 'granted' | 'limited' | 'prompt' | 'denied'
 
 interface MediaPlugin {
-  getAccess(): Promise<{ access: Access }>
-  requestAccess(): Promise<{ access: Access }>
+  getAccess(): Promise<{ access: Access; location?: boolean }>
+  requestAccess(): Promise<{ access: Access; location?: boolean }>
   openSettings(): Promise<void>
   list(): Promise<{ items: MediaItem[] }>
   preview(opts: { id: number; type: MediaType; size?: number }): Promise<{ path: string }>
@@ -79,7 +79,7 @@ function mockPreview(id: number): string {
 
 const mock = typeof location !== 'undefined' && location.search.includes('mock')
 const web: MediaPlugin = {
-  getAccess: async () => ({ access: 'granted' }),
+  getAccess: async () => ({ access: 'granted', location: true }),
   requestAccess: async () => ({ access: 'granted' }),
   openSettings: async () => {},
   list: async () => ({ items: mock ? mockItems() : [] }),

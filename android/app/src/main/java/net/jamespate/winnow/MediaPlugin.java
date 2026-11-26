@@ -166,9 +166,20 @@ public class MediaPlugin extends Plugin {
         return Build.VERSION.SDK_INT >= 33 ? "media" : "legacy";
     }
 
+    private boolean has(String permission) {
+        return ContextCompat.checkSelfPermission(getContext(), permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** Full photo/video read access (media location is requested alongside but never blocks the app). */
+    private boolean canRead() {
+        return Build.VERSION.SDK_INT >= 33
+            ? has(Manifest.permission.READ_MEDIA_IMAGES) && has(Manifest.permission.READ_MEDIA_VIDEO)
+            : has(Manifest.permission.READ_EXTERNAL_STORAGE);
+    }
+
     /** "granted", "limited" (Android 14+ "selected photos only"), "prompt" or "denied". */
     private String access() {
-        if (getPermissionState(alias()) == PermissionState.GRANTED) return "granted";
+        if (canRead()) return "granted";
         if (Build.VERSION.SDK_INT >= 34 &&
             ContextCompat.checkSelfPermission(getContext(), USER_SELECTED) == PackageManager.PERMISSION_GRANTED) {
             return "limited";
@@ -181,6 +192,7 @@ public class MediaPlugin extends Plugin {
     public void getAccess(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("access", access());
+        ret.put("location", has(Manifest.permission.ACCESS_MEDIA_LOCATION));
         call.resolve(ret);
     }
 
@@ -400,7 +412,8 @@ public class MediaPlugin extends Plugin {
             HttpURLConnection conn = null;
             try {
                 Uri uri = itemUri(id, video);
-                if (getPermissionState(alias()) == PermissionState.GRANTED) uri = MediaStore.setRequireOriginal(uri);
+                // Original bytes (with GPS) need ACCESS_MEDIA_LOCATION; without it Android redacts the location.
+                if (has(Manifest.permission.ACCESS_MEDIA_LOCATION)) uri = MediaStore.setRequireOriginal(uri);
                 String boundary = "winnow" + System.nanoTime();
                 conn = (HttpURLConnection) new URL(server.replaceAll("/+$", "") + "/api/assets").openConnection();
                 conn.setRequestMethod("POST");

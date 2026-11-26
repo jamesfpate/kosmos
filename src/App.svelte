@@ -244,6 +244,8 @@
     // Coming back to the app (e.g. after taking photos): pick up new items.
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
+      // Back from Android settings after changing photo access.
+      if (screen === 'access') return void init()
       if (screen === 'cull') reload()
       runSync()
     }
@@ -253,11 +255,14 @@
 
   async function init() {
     try {
-      access = (await Media.getAccess()).access
+      const got = await Media.getAccess()
+      access = got.access
       if (access !== 'granted') {
         screen = 'access'
         return
       }
+      // Installs from before uploads have photo access but not media location (needed to upload GPS): ask once more.
+      if (got.location === false) await Media.requestAccess().catch(() => {})
       cutoff = await meta.get<number>('cutoff')
       groupGap = (await meta.get<number>('groupGap')) ?? 5
       // Older versions stored "Off" as a gap of 0.
@@ -1022,17 +1027,28 @@
   {:else if screen === 'access'}
     <section class="center">
       <h1>Winnow</h1>
-      {#if access === 'limited'}
-        <p>Winnow can only see the photos you selected. It needs <b>Allow all</b> to find new photos.</p>
-        <button class="primary" onclick={() => Media.openSettings()}>Open settings</button>
-        <button onclick={init}>I've changed it</button>
-      {:else if access === 'denied'}
-        <p>Photo access is off. Turn on <b>Photos and videos → Allow all</b> in settings.</p>
-        <button class="primary" onclick={() => Media.openSettings()}>Open settings</button>
-        <button onclick={init}>I've changed it</button>
-      {:else}
-        <p>Winnow needs access to your photos and videos to cull them. Choose <b>Allow all</b>.</p>
+      {#if access === 'prompt'}
+        <p>Winnow needs to see your photos and videos to sort them. Nothing leaves your phone unless you turn on an upload.</p>
+        <ol class="steps">
+          <li>Tap <b>Allow access</b> below.</li>
+          <li>Android asks about photos and videos: choose <b>Allow all</b>, not <i>Select photos</i>.</li>
+        </ol>
         <button class="primary" onclick={requestAccess}>Allow access</button>
+      {:else}
+        <p>
+          {access === 'limited'
+            ? 'Winnow can only see the photos you picked, so it would miss new ones.'
+            : 'Photo access is off.'}
+          Android won't ask again, so change it in settings:
+        </p>
+        <ol class="steps">
+          <li>Tap <b>Open settings</b> below (Winnow's app info).</li>
+          <li>Tap <b>Permissions</b>, then <b>Photos and videos</b>.</li>
+          <li>Choose <b>Always allow all</b>.</li>
+          <li>Come back here. Winnow notices by itself.</li>
+        </ol>
+        <button class="primary" onclick={() => Media.openSettings()}>Open settings</button>
+        <button onclick={init}>Check again</button>
       {/if}
     </section>
   {:else if screen === 'start'}
@@ -1474,6 +1490,14 @@
 
   .muted {
     color: var(--muted);
+  }
+
+  .steps {
+    margin: 0;
+    padding-left: 1.4em;
+    max-width: 320px;
+    text-align: left;
+    line-height: 1.5;
   }
 
   header {
