@@ -18,6 +18,8 @@ export interface MediaItem {
   name: string
   /** Video length in ms, 0 for images. */
   duration: number
+  /** File path on the device (null if unknown); videos play inline from it. */
+  path?: string | null
 }
 
 export type Access = 'granted' | 'limited' | 'prompt' | 'denied'
@@ -71,6 +73,11 @@ const web: MediaPlugin = {
   preview: async ({ id }) => ({ path: mock ? mockPreview(id) : '' }),
   open: async () => {},
   trash: async () => ({ confirmed: true }),
+}
+
+/** WebView URL that streams the file itself (for inline video), or null. */
+export function fileUrl(item: Pick<MediaItem, 'path'>): string | null {
+  return item.path ? Capacitor.convertFileSrc(item.path) : null
 }
 
 export const Media = registerPlugin<MediaPlugin>('Media', { web: () => web })

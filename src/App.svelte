@@ -69,6 +69,8 @@
   let rowW = $state(0)
   // Full-size viewer over the grid (index into the backlog), opened by long-press.
   let viewIdx = $state<number | null>(null)
+  // Video playing inline (swipe card or viewer).
+  let playingId = $state<number | null>(null)
   let viewX: number | null = null
   let held = false
 
@@ -308,6 +310,7 @@
     focus = 0
     chosenId = null
     pinned = null
+    playingId = null
   }
 
   /** Swipe right keeps into the target album (or asks for one); left trashes the whole card. */
@@ -855,6 +858,10 @@
   </header>
 {/snippet}
 
+{#snippet checkIcon()}
+  <svg class="check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+{/snippet}
+
 {#snippet sizeSlider()}
   <label class="size">
     <span aria-hidden="true">▫</span>
@@ -945,14 +952,10 @@
             {trashLabel}
           >
             <div class="photo" class:kept={isGroup && selected.has(current.id)}>
-              <Preview item={current} />
-              {#if isGroup && selected.has(current.id)}<span class="tick">✓</span>{/if}
-              {#if current.type === 'video'}
-                <button
-                  class="play"
-                  onpointerdown={(e) => e.stopPropagation()}
-                  onclick={() => Media.open({ id: current.id, type: current.type, mime: current.mime })}
-                >
+              <Preview item={current} play={playingId === current.id} onstop={() => (playingId = null)} />
+              {#if isGroup && selected.has(current.id)}<span class="tick">{@render checkIcon()}</span>{/if}
+              {#if current.type === 'video' && playingId !== current.id}
+                <button class="play" onpointerdown={(e) => e.stopPropagation()} onclick={() => (playingId = current.id)}>
                   ▶ {Math.round(current.duration / 1000)}s
                 </button>
               {/if}
@@ -989,7 +992,7 @@
                   >
                     <Thumb {item} />
                     {#if item.type === 'video'}<span class="badge">▶</span>{/if}
-                    {#if selected.has(item.id)}<span class="tick small">✓</span>{/if}
+                    {#if selected.has(item.id)}<span class="tick small">{@render checkIcon()}</span>{/if}
                   </button>
                 {/each}
                   </div>
@@ -1136,7 +1139,7 @@
             >
               <Thumb {item} />
               {#if item.type === 'video'}<span class="badge">▶</span>{/if}
-              {#if gridSel.has(item.id)}<span class="tick small">✓</span>{/if}
+              {#if gridSel.has(item.id)}<span class="tick small">{@render checkIcon()}</span>{/if}
             </button>
           {/each}
             </div>
@@ -1178,9 +1181,11 @@
           <span class="muted count">{viewIdx! + 1} of {backlog.length}</span>
         </header>
         <div class="photo">
-          {#key viewing.id}<Preview item={viewing} />{/key}
-          {#if viewing.type === 'video'}
-            <button class="play" onclick={() => Media.open({ id: viewing.id, type: viewing.type, mime: viewing.mime })}>
+          {#key viewing.id}
+            <Preview item={viewing} play={playingId === viewing.id} onstop={() => (playingId = null)} />
+          {/key}
+          {#if viewing.type === 'video' && playingId !== viewing.id}
+            <button class="play" onpointerdown={(e) => e.stopPropagation()} onclick={() => (playingId = viewing.id)}>
               ▶ {Math.round(viewing.duration / 1000)}s
             </button>
           {/if}
@@ -1189,7 +1194,7 @@
         <footer>
           <button onclick={() => (viewIdx = null)}>✕ Close</button>
           <button class:selected={gridSel.has(viewing.id)} onclick={() => toggleGrid(viewing.id)}>
-            {gridSel.has(viewing.id) ? '✓ Selected' : 'Select'}
+            {#if gridSel.has(viewing.id)}{@render checkIcon()} Selected{:else}Select{/if}
           </button>
         </footer>
       </div>
@@ -1452,11 +1457,29 @@
   }
 
   .tick.small {
-    top: 4px;
-    left: 4px;
-    width: 22px;
-    height: 22px;
-    font-size: 0.75rem;
+    top: 5px;
+    left: 5px;
+    width: 24px;
+    height: 24px;
+  }
+
+  .tick {
+    box-shadow: 0 0 0 2px rgb(0 0 0 / 0.35);
+  }
+
+  .check {
+    width: 62%;
+    height: 62%;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  footer .check {
+    width: 1.1em;
+    height: 1.1em;
   }
 
   .play {

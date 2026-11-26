@@ -177,6 +177,7 @@ public class MediaPlugin extends Plugin {
             MediaStore.MediaColumns.DURATION,
             MediaStore.MediaColumns.ORIENTATION,
             MediaStore.MediaColumns.DATE_MODIFIED,
+            MediaStore.MediaColumns.DATA,
         };
         String selection = MediaStore.Files.FileColumns.MEDIA_TYPE + " IN (" +
             MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE + "," + MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO + ")";
@@ -202,6 +203,8 @@ public class MediaPlugin extends Plugin {
                     o.put("bucket", c.getString(8));
                     o.put("name", c.getString(9));
                     o.put("duration", c.isNull(10) ? 0 : c.getLong(10));
+                    // File path (readable with the media permission): lets the WebView stream videos inline.
+                    o.put("path", c.getString(13));
                     items.put(o);
                 }
             }
