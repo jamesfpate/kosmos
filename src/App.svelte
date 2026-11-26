@@ -53,6 +53,8 @@
   let bursts = $state(true)
   // Keeping a selection deletes the unselected photos of the burst / between the selected ones in the grid (setting).
   let autoTrash = $state(true)
+  // Grid: filing a selection deletes the unselected photos between the first and last pick (setting, off).
+  let gridAutoTrash = $state(false)
   // Order of the swipe queue and the grid (setting).
   let newestFirst = $state(false)
   const byOrder = (a: MediaItem, b: MediaItem) => (newestFirst ? b.taken - a.taken : a.taken - b.taken)
@@ -270,6 +272,7 @@
       bursts = (await meta.get<boolean>('bursts')) ?? groupGap !== 0
       if (groupGap === 0) groupGap = 5
       autoTrash = (await meta.get<boolean>('autoTrash')) ?? true
+      gridAutoTrash = (await meta.get<boolean>('gridAutoTrash')) ?? false
       checkDefault = (await meta.get<boolean>('burstChecked')) ?? true
       newestFirst = (await meta.get<boolean>('newestFirst')) ?? false
       gridFrac = (await meta.get<number>('gridFrac')) ?? 0.4
@@ -649,6 +652,11 @@
     await meta.set('burstChecked', on)
   }
 
+  async function setGridAutoTrash(on: boolean) {
+    gridAutoTrash = on
+    await meta.set('gridAutoTrash', on)
+  }
+
   async function setAutoTrash(on: boolean) {
     autoTrash = on
     await meta.set('autoTrash', on)
@@ -712,7 +720,7 @@
   const gapCount = $derived(selSpan.lo < 0 ? 0 : selSpan.hi - selSpan.lo + 1 - gridSel.size)
   // Deleted along with filing the selection (red border) when the setting is on.
   const gridDoomed = $derived(
-    autoTrash && selSpan.lo >= 0 ? backlog.slice(selSpan.lo, selSpan.hi + 1).filter((i) => !gridSel.has(i.id)) : [],
+    gridAutoTrash && selSpan.lo >= 0 ? backlog.slice(selSpan.lo, selSpan.hi + 1).filter((i) => !gridSel.has(i.id)) : [],
   )
   const gridDoomedIds = $derived(new Set(gridDoomed.map((i) => i.id)))
 
@@ -1254,15 +1262,26 @@
       </div>
       {/if}
 
-      <h3>Handle the unchecked ones too</h3>
+      {#if bursts}
+      <h3>Unchecked photos get the opposite</h3>
       <p class="muted">
-        Bursts: Keep 2 also deletes the rest, Delete 2 keeps the rest. Grid: filing a selection deletes the unselected
-        photos between your first and last pick (red border). Off: buttons act only on what you checked. Deletes go to
-        Trash for review first.
+        In a burst, Keep 3 also deletes the unchecked ones and Delete 3 keeps them, so one tap finishes the burst. Off:
+        the buttons act only on the checked photos and the rest wait for their own decision.
       </p>
       <div class="choices">
         <button class:on={autoTrash} onclick={() => setAutoTrash(true)}>On</button>
         <button class:on={!autoTrash} onclick={() => setAutoTrash(false)}>Off</button>
+      </div>
+      {/if}
+
+      <h3>Grid: delete the gaps</h3>
+      <p class="muted">
+        Filing a selection into an album also deletes the unselected photos between your first and last pick (shown with
+        a red border). Deletes go to Trash for review first.
+      </p>
+      <div class="choices">
+        <button class:on={gridAutoTrash} onclick={() => setGridAutoTrash(true)}>On</button>
+        <button class:on={!gridAutoTrash} onclick={() => setGridAutoTrash(false)}>Off</button>
       </div>
 
       <h3>Folders</h3>
