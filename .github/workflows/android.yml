@@ -1,0 +1,77 @@
+name: Android
+
+# Push to main: debug APK ("Kosmos dev", installs next to the release) as a workflow artifact.
+# Tag v*: signed release APK attached to a GitHub release, which Obtainium installs and updates.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            name="${GITHUB_REF_NAME#v}"
+            IFS=. read -r major minor patch <<< "$name"
+            code=$(( major * 10000 + minor * 100 + patch ))
+          else
+            name="0.0.0-dev.${GITHUB_RUN_NUMBER}+${GITHUB_SHA::7}"
+            code=$GITHUB_RUN_NUMBER
+          fi
+          echo "KOSMOS_VERSION_NAME=$name" >> "$GITHUB_ENV"
+          echo "KOSMOS_VERSION_CODE=$code" >> "$GITHUB_ENV"
+
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - run: npx cap sync android
+
+      - name: Debug APK
+        if: github.ref_type != 'tag'
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        if: github.ref_type != 'tag'
+        with:
+          name: kosmos-dev-${{ env.KOSMOS_VERSION_CODE }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Release APK
+        if: github.ref_type == 'tag'
+        working-directory: android
+        env:
+          KOSMOS_KEYSTORE_BASE64: ${{ secrets.KOSMOS_KEYSTORE_BASE64 }}
+          KOSMOS_KEYSTORE_PASSWORD: ${{ secrets.KOSMOS_KEYSTORE_PASSWORD }}
+          KOSMOS_KEY_ALIAS: ${{ secrets.KOSMOS_KEY_ALIAS }}
+        run: |
+          export KOSMOS_KEYSTORE_FILE="$RUNNER_TEMP/kosmos.jks"
+          echo "$KOSMOS_KEYSTORE_BASE64" | base64 -d > "$KOSMOS_KEYSTORE_FILE"
+          ./gradlew --no-daemon assembleRelease
+          mv app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/kosmos-$KOSMOS_VERSION_NAME.apk"
+
+      - uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
+        with:
+          files: ${{ runner.temp }}/kosmos-${{ env.KOSMOS_VERSION_NAME }}.apk
+          generate_release_notes: true
