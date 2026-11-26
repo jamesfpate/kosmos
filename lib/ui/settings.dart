@@ -371,6 +371,22 @@ class _ImmichScreenState extends State<ImmichScreen> {
               await s.saveImmich(enabled: on);
             },
           ),
+          const SizedBox(height: 12),
+          const Text('Upload on', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Choices(
+            options: const [(false, 'Any network'), (true, 'Wi-Fi only')],
+            value: s.immich.wifiOnly,
+            onPick: (v) => s.saveImmich(wifiOnly: v),
+          ),
+          const SizedBox(height: 12),
+          const Text('Videos', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Choices(
+            options: const [(true, 'Upload'), (false, 'Phone only')],
+            value: s.immich.videos,
+            onPick: (v) => s.saveImmich(videos: v),
+          ),
           const SizedBox(height: 16),
           const Text('Share albums with', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
@@ -396,7 +412,7 @@ class _ImmichScreenState extends State<ImmichScreen> {
           if (s.immich.enabled) ...[
             const SizedBox(height: 8),
             Text(
-              '${sync.running ? 'Uploading… ${sync.pending} to go' : (sync.pending > 0 ? '${sync.pending} waiting' : 'Everything kept is in Immich.')}${sync.done > 0 ? ' · ${sync.done} done this session' : ''}',
+              '${sync.running ? 'Uploading… ${sync.pending} to go' : sync.waitingWifi ? '${sync.pending} waiting for Wi-Fi' : (sync.pending > 0 ? '${sync.pending} waiting' : 'Everything kept is in Immich.')}${sync.done > 0 ? ' · ${sync.done} done this session' : ''}',
               style: const TextStyle(color: C.muted),
             ),
             if (sync.error.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(sync.error, style: const TextStyle(color: C.trash))),

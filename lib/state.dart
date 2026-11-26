@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
 import 'db.dart';
@@ -18,7 +19,10 @@ enum Dir { left, right }
 typedef UndoEntry = ({Item item, DecisionRecord? prev});
 
 class SyncStatus {
-  const SyncStatus({this.running = false, this.pending = 0, this.done = 0, this.error = ''});
+  const SyncStatus({this.running = false, this.pending = 0, this.done = 0, this.error = '', this.waitingWifi = false});
+
+  /// Wi-Fi only is on and the phone isn't on Wi-Fi: uploads start when it is.
+  final bool waitingWifi;
 
   final bool running;
 
@@ -996,6 +1000,25 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  StreamSubscription<List<ConnectivityResult>>? _net;
+
+  /// Starts a waiting sync when the phone joins Wi-Fi.
+  void _watchNetwork() {
+    _net ??= Connectivity().onConnectivityChanged.listen((r) {
+      if (sync.waitingWifi && _isWifi(r)) runSync();
+    });
+  }
+
+  bool _isWifi(List<ConnectivityResult> r) => r.contains(ConnectivityResult.wifi) || r.contains(ConnectivityResult.ethernet);
+
+  Future<bool> _onWifi() async {
+    try {
+      return _isWifi(await Connectivity().checkConnectivity());
+    } catch (_) {
+      return true;
+    }
+  }
+
   Future<int> shareAllAlbums() async {
     final api = ImmichApi(immich);
     var n = 0;
@@ -1011,11 +1034,17 @@ class AppState extends ChangeNotifier {
     return n;
   }
 
-  Future<void> saveImmich({String? server, String? key, bool? enabled, Map<String, String>? shareWith}) async {
+  Future<void> saveImmich(
+      {String? server, String? key, bool? enabled, Map<String, String>? shareWith, bool? wifiOnly, bool? videos}) async {
     immich = immich.copyWith(
-        server: server == null ? null : cleanServer(server), key: key?.trim(), enabled: enabled, shareWith: shareWith);
+        server: server == null ? null : cleanServer(server),
+        key: key?.trim(),
+        enabled: enabled,
+        shareWith: shareWith,
+        wifiOnly: wifiOnly,
+        videos: videos);
     await _set('immich', immich.toJson());
-    if (enabled == true) runSync();
+    if (enabled == true || wifiOnly != null || videos != null) runSync();
   }
 
   /// Uploads start a few seconds after the last decision, so quick culling isn't interrupted.
@@ -1026,13 +1055,24 @@ class AppState extends ChangeNotifier {
 
   List<Item> _pendingUploads(Map<String, UploadRecord> records) => items.where((i) {
         final d = decided[i.id];
-        return d != null && d.decision == Decision.keep && d.albumId != null && records[i.id]?.syncedAlbumId != d.albumId;
+        return d != null &&
+            d.decision == Decision.keep &&
+            d.albumId != null &&
+            (immich.videos || !i.isVideo) &&
+            records[i.id]?.syncedAlbumId != d.albumId;
       }).toList();
 
   /// Uploads kept photos, then adds them to their Immich album (same name) and tag (Albums/YYYY/MM/name). One run at
   /// a time; a call during a run schedules another pass.
   Future<void> runSync() async {
     if (!immich.enabled || !immich.ready || _db == null) return;
+    _watchNetwork();
+    if (immich.wifiOnly && !await _onWifi()) {
+      final records = {for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)};
+      sync = SyncStatus(pending: _pendingUploads(records).length, done: sync.done, waitingWifi: true);
+      changed();
+      return;
+    }
     if (_syncing) {
       _syncAgain = true;
       return;

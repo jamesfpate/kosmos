@@ -9,25 +9,49 @@ import 'models.dart';
 // Immich v3 API: POST /assets (multipart, streamed from the original file), albums, tags.
 
 class ImmichConfig {
-  const ImmichConfig({this.server = '', this.key = '', this.enabled = false, this.shareWith = const {}});
+  const ImmichConfig({
+    this.server = '',
+    this.key = '',
+    this.enabled = false,
+    this.shareWith = const {},
+    this.wifiOnly = false,
+    this.videos = true,
+  });
 
   final String server;
   final String key;
   final bool enabled;
+
+  /// Upload only on Wi-Fi (or ethernet); waits otherwise and starts when Wi-Fi comes back.
+  final bool wifiOnly;
+
+  /// Upload videos too (off: they stay on the phone only).
+  final bool videos;
 
   /// Immich users (id -> name) every album is shared with, as editors (they can add photos too).
   final Map<String, String> shareWith;
 
   bool get ready => server.isNotEmpty && key.isNotEmpty;
 
-  ImmichConfig copyWith({String? server, String? key, bool? enabled, Map<String, String>? shareWith}) => ImmichConfig(
+  ImmichConfig copyWith(
+          {String? server, String? key, bool? enabled, Map<String, String>? shareWith, bool? wifiOnly, bool? videos}) =>
+      ImmichConfig(
         server: server ?? this.server,
         key: key ?? this.key,
         enabled: enabled ?? this.enabled,
         shareWith: shareWith ?? this.shareWith,
+        wifiOnly: wifiOnly ?? this.wifiOnly,
+        videos: videos ?? this.videos,
       );
 
-  Map<String, Object?> toJson() => {'server': server, 'key': key, 'enabled': enabled, 'shareWith': shareWith};
+  Map<String, Object?> toJson() => {
+        'server': server,
+        'key': key,
+        'enabled': enabled,
+        'shareWith': shareWith,
+        'wifiOnly': wifiOnly,
+        'videos': videos,
+      };
 
   static ImmichConfig fromJson(Map<String, Object?>? j) => j == null
       ? const ImmichConfig()
@@ -36,6 +60,8 @@ class ImmichConfig {
           key: (j['key'] as String?) ?? '',
           enabled: j['enabled'] == true,
           shareWith: ((j['shareWith'] as Map?) ?? {}).cast<String, String>(),
+          wifiOnly: j['wifiOnly'] == true,
+          videos: j['videos'] != false,
         );
 }
 
