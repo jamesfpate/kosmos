@@ -719,6 +719,27 @@
       <button class:on={screen === 'cull'} onclick={openSingle} aria-label="Single photo">▢</button>
       <button class:on={screen === 'grid'} onclick={openGrid} aria-label="Grid">▦</button>
     </div>
+    <div class="title">
+      {#if screen === 'cull' && current}
+        <b>{fmt.format(current.taken)}</b>
+        <span class="muted">
+          {fmtTime.format(current.taken)} · {queue.length} left
+        </span>
+      {:else if screen === 'cull'}
+        <b>Kosmos</b>
+      {:else if screen === 'grid'}
+        <b>{gridSel.size ? `${gridSel.size} selected` : 'No album'}</b>
+        {#if gridSel.size}
+          <button class="link" onclick={() => (gridSel = new Set())}>Clear</button>
+        {:else}
+          <span class="muted">{backlog.length} photos</span>
+        {/if}
+      {:else if screen === 'settings'}
+        <b>Settings</b>
+      {:else if screen === 'trash'}
+        <b>Trash</b>
+      {/if}
+    </div>
     <span class="actions">
       <button
         class="pill"
@@ -792,15 +813,6 @@
     </section>
   {:else if screen === 'cull'}
     {@render topBar()}
-    <div class="sub">
-      {#if current}
-        <span class="when">
-          <b>{fmt.format(current.taken)}</b>
-          <span class="muted">{fmtTime.format(current.taken)} · {current.bucket ?? ''}</span>
-        </span>
-      {/if}
-      <span class="muted count">{isGroup ? `${group.length} in a row · ` : ''}{queue.length} left</span>
-    </div>
 
     <nav class="albums" bind:this={albumBar} aria-label="Albums">
       <span class="albums-label">Choose album{selected.size ? ` for ${selected.size}` : ''}</span>
@@ -926,7 +938,6 @@
     {/if}
   {:else if screen === 'settings'}
     {@render topBar()}
-    <div class="sub"><b>Settings</b></div>
     <section class="settings">
       <h3>Group photos taken within</h3>
       <p class="muted">Shots taken this close together are culled as one card.</p>
@@ -959,10 +970,6 @@
     </section>
   {:else if screen === 'grid'}
     {@render topBar()}
-    <div class="sub">
-      <b>{gridSel.size ? `${gridSel.size} selected` : `No album · ${backlog.length}`}</b>
-      {#if gridSel.size}<button class="link" onclick={() => (gridSel = new Set())}>Clear</button>{/if}
-    </div>
     <nav class="albums" aria-label="Albums">
       <span class="albums-label">{gridSel.size ? `Choose album for ${gridSel.size}` : 'Select photos to choose an album or delete'}</span>
       <div class="album-row">
@@ -1073,7 +1080,6 @@
     {/if}
   {:else if screen === 'trash'}
     {@render topBar()}
-    <div class="sub"><b>Trash · {pendingTrash.length}</b></div>
     <p class="muted hint">Tap a photo to keep it out of the delete.</p>
     <div class="grid">
       {#each pendingTrash as item (item.id)}
@@ -1157,12 +1163,28 @@
     color: #0b0b0f;
   }
 
-  .sub {
+  .title {
+    flex: 1;
+    min-width: 0;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    min-height: 36px;
+    font-size: 0.85rem;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  .title > * {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .title .link {
+    min-height: 0;
+    padding: 0;
+    font-size: 0.85rem;
   }
 
   .when {
