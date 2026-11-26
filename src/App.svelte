@@ -77,7 +77,14 @@
   /** Belongs in the swipe queue: not decided, not before the start point, not in a hidden folder. */
   const inCull = (i: MediaItem) => !decided.has(i.id) && i.taken >= (cutoff ?? 0) && shown(i)
 
+  // A burst being worked through stays together (removing a photo can break the time gap between the others).
+  let pinned = $state<Set<number> | null>(null)
+
   const group = $derived.by(() => {
+    if (pinned) {
+      const rest = queue.filter((i) => pinned!.has(i.id))
+      if (rest.length) return rest
+    }
     const g: MediaItem[] = []
     for (const item of queue) {
       const last = g.at(-1)
@@ -272,6 +279,7 @@
     selected = new Set()
     focus = 0
     chosenId = null
+    pinned = null
   }
 
   /** Swipe right keeps into the target album (or asks for one); left trashes the whole card. */
@@ -292,7 +300,9 @@
     const chosen = selected.size ? group.filter((i) => selected.has(i.id)) : current ? [current] : []
     if (!chosen.length) return
     const doomed = dir === 'right' ? burstDoomed : []
-    const rest = group.length - chosen.length - doomed.length
+    const done = new Set([...chosen, ...doomed].map((i) => i.id))
+    const remaining = group.filter((i) => !done.has(i.id))
+    const rest = remaining.length
     const keepTarget = chosenId
     const at = focus
     const now = Date.now()
@@ -311,6 +321,7 @@
     cardKey++
     if (rest > 0) {
       // Same burst continues: keep the album choice and show the photo that took this one's place.
+      pinned = new Set(remaining.map((i) => i.id))
       chosenId = keepTarget
       focus = Math.min(at, Math.max(0, group.length - 1))
     }
