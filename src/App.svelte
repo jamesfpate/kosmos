@@ -913,7 +913,7 @@
       <button class="pill" onclick={() => (gridSel = new Set())} disabled={!gridSel.size}>Clear</button>
     </header>
     <nav class="albums" aria-label="Albums">
-      <span class="albums-label">{gridSel.size ? `Put ${gridSel.size} into` : 'Select photos, then tap an album'}</span>
+      <span class="albums-label">{gridSel.size ? `Put ${gridSel.size} into` : 'Select photos to choose an album or delete'}</span>
       <div class="album-row">
         <div class="chips">
           {#each gridAlbums as album (album.id)}
@@ -974,8 +974,8 @@
     </div>
     {@render sizeSlider()}
     <footer>
+      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>Delete {gridSel.size || ''}</button>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
-      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>Trash {gridSel.size || ''}</button>
     </footer>
     {#if viewing}
       <div
