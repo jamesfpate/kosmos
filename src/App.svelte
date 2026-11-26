@@ -120,8 +120,24 @@
   function recentFor(t: number | undefined): Album[] {
     const list = albums.filter((a) => !a.monthly)
     if (t !== undefined) list.push({ ...monthChip(t), lastUsedAt: monthUsed })
-    return list.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+    // New, unused albums sort by when they were made.
+    return list.sort((a, b) => (b.lastUsedAt || b.createdAt) - (a.lastUsedAt || a.createdAt))
   }
+
+  const NEAR = 5 * DAY
+  // When the photos in each album were taken (for "is this album near the photo's date").
+  const albumTimes = $derived.by(() => {
+    const taken = new Map(items.map((i) => [i.id, i.taken]))
+    const out = new Map<string, number[]>()
+    for (const r of decided.values()) {
+      const t = r.albumId && taken.get(r.id)
+      if (!t) continue
+      const list = out.get(r.albumId!) ?? []
+      list.push(t)
+      out.set(r.albumId!, list)
+    }
+    return out
+  })
 
   /**
    * Default album: a dated album whose range covers the time; else the album used last if it has no dates (an
@@ -132,8 +148,13 @@
     const covering = albums
       .filter((a) => !a.monthly && a.start !== undefined && a.start <= t && (a.end === undefined || t <= a.end))
       .sort((a, b) => b.start! - a.start!)[0]
-    const last = recentFor(t)[0]
-    const undated = last && !last.monthly && last.start === undefined && last.lastUsedAt ? last : undefined
+    // The album last filed into (month albums count as one), if it's undated and already holds a photo from near
+    // this one's date.
+    const last = [...albums.filter((a) => !a.monthly), { ...monthChip(t), lastUsedAt: monthUsed }].sort(
+      (a, b) => b.lastUsedAt - a.lastUsedAt,
+    )[0]
+    const near = (a: Album) => (albumTimes.get(a.id) ?? []).some((x) => Math.abs(x - t) <= NEAR)
+    const undated = last && !last.monthly && last.start === undefined && last.lastUsedAt && near(last) ? last : undefined
     return covering ?? undated ?? monthChip(t)
   }
 
@@ -188,9 +209,16 @@
   // Nothing selected yet: suggest for the first photo in the grid (likely right); the selection takes over after.
   const gridBasis = $derived(gridOldest ?? backlog[0]?.taken)
   const gridSuggested = $derived(suggestFor(gridBasis))
+  // An album tapped in the grid (before or after selecting photos) overrides the suggestion.
+  let gridChosenId = $state<string | null>(null)
   const gridRecent = $derived(recentFor(gridBasis))
+  const gridTarget = $derived(
+    gridChosenId === MONTH_ALBUM && gridBasis !== undefined
+      ? monthChip(gridBasis)
+      : (gridRecent.find((a) => a.id === gridChosenId) ?? gridSuggested),
+  )
   const gridAlbums = $derived(
-    gridSuggested ? [gridSuggested, ...gridRecent.filter((a) => a.id !== gridSuggested.id)] : gridRecent,
+    gridTarget ? [gridTarget, ...gridRecent.filter((a) => a.id !== gridTarget.id)] : gridRecent,
   )
   const buckets = $derived.by(() => {
     const counts = new Map<string, number>()
@@ -429,7 +457,8 @@
     albums = [...albums, album]
     await albumStore.put(album)
     if (opened?.grid) {
-      if (opened.fileAfter) await fileGrid(album.id)
+      if (opened.fileAfter && gridSel.size) await fileGrid(album.id)
+      else gridChosenId = album.id
       return
     }
     chosenId = album.id
@@ -1060,15 +1089,17 @@
     <nav class="albums" aria-label="Albums">
       <span class="albums-label">{gridSel.size
           ? `Choose album for ${gridSel.size}${gridDoomed.length ? ` · deletes ${gridDoomed.length} in red` : ''}`
-          : 'Select photos to choose an album or delete'}</span>
+          : 'Pick an album, then select photos'}</span>
       <div class="album-row">
         <div class="chips">
           {#each gridAlbums as album (album.id)}
             <button
               class="chip"
-              class:target={album.id === gridSuggested?.id}
-              disabled={!gridSel.size}
-              onclick={() => fileGrid(album.monthly ? MONTH_ALBUM : album.id)}
+              class:target={album.id === gridTarget?.id}
+              onclick={() =>
+                gridSel.size
+                  ? fileGrid(album.monthly ? MONTH_ALBUM : album.id)
+                  : (gridChosenId = album.monthly ? MONTH_ALBUM : album.id)}
             >
               {album.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(album)}
             </button>
@@ -1076,11 +1107,9 @@
             <span class="muted none">No albums yet</span>
           {/each}
         </div>
-        {#if gridSel.size}
-          <button class="chip add" onclick={() => (sheet = { fileAfter: true, grid: true })} aria-label="New album">
-            +
-          </button>
-        {/if}
+        <button class="chip add" onclick={() => (sheet = { fileAfter: gridSel.size > 0, grid: true })} aria-label="New album">
+          +
+        </button>
       </div>
     </nav>
     <div class="backlog" use:pinch>
@@ -1126,10 +1155,10 @@
       <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 8H3M7 4L3 8l4 4" /></svg>Delete {gridSel.size || ''}</button>
       <button
         class="put"
-        onclick={() => gridSuggested && fileGrid(gridSuggested.monthly ? MONTH_ALBUM : gridSuggested.id)}
-        disabled={!gridSel.size || !gridSuggested}
+        onclick={() => gridTarget && fileGrid(gridTarget.monthly ? MONTH_ALBUM : gridTarget.id)}
+        disabled={!gridSel.size || !gridTarget}
       >
-        <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{gridSuggested ? (gridSuggested.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(gridSuggested)) : 'Album'}</span>
+        <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{gridTarget ? (gridTarget.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(gridTarget)) : 'Album'}</span>
       </button>
     </footer>
     {#if viewing}
@@ -1165,8 +1194,8 @@
         </footer>
       </div>
     {/if}
-    {#if sheet && gridOldest !== undefined}
-      <AlbumSheet photoDate={gridOldest} oncreate={createAlbum} oncancel={() => (sheet = null)} />
+    {#if sheet && gridBasis !== undefined}
+      <AlbumSheet photoDate={gridBasis} oncreate={createAlbum} oncancel={() => (sheet = null)} />
     {/if}
   {:else if screen === 'trash'}
     {@render topBar()}

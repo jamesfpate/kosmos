@@ -54,7 +54,8 @@
       start,
       end: end === undefined ? undefined : end + DAY - 1,
       createdAt: now,
-      lastUsedAt: now,
+      // Not "used" until a photo goes in, so creating an album doesn't change the default.
+      lastUsedAt: 0,
     })
   }
 </script>
