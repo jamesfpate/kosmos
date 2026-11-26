@@ -212,6 +212,8 @@
 
   async function reload() {
     const [{ items: all }, records] = await Promise.all([Media.list(), decisions.all()])
+    // The native query sorts by DATE_TAKEN; items without one get a fallback date, so re-sort by that.
+    all.sort((x, y) => x.taken - y.taken)
     const map = new Map(records.map((r) => [r.id, r]))
     // An item marked trashed that is still listed was restored from the system trash: review it again.
     for (const item of all) {

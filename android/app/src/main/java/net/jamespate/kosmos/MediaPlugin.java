@@ -31,9 +31,12 @@ import com.getcapacitor.annotation.PermissionCallback;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * MediaStore access for the web app: list photos/videos, render previews into the cache dir (loaded by the
@@ -123,6 +126,40 @@ public class MediaPlugin extends Plugin {
             video ? MediaStore.Video.Media.EXTERNAL_CONTENT_URI : MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id);
     }
 
+    // YYYYMMDD, optionally followed by _HHMMSS / -HHMMSS (PXL_20241005_123456789, IMG-20240827-WA0000, Screenshot_20240101-101010).
+    private static final Pattern NAME_DATE = Pattern.compile("(20\\d{2})(\\d{2})(\\d{2})(?:[_-](\\d{2})(\\d{2})(\\d{2}))?");
+
+    /**
+     * When the photo was taken: DATE_TAKEN (EXIF), else a date in the file name (WhatsApp and many apps strip EXIF),
+     * else the earlier of modified/added (added alone is the day the file reached this phone).
+     */
+    private static long takenOf(Cursor c) {
+        if (!c.isNull(3) && c.getLong(3) > 0) return c.getLong(3);
+        String name = c.getString(9);
+        if (name != null) {
+            Matcher m = NAME_DATE.matcher(name);
+            if (m.find()) {
+                try {
+                    int mo = Integer.parseInt(m.group(2)), d = Integer.parseInt(m.group(3));
+                    if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+                        Calendar cal = Calendar.getInstance();
+                        cal.clear();
+                        cal.set(Integer.parseInt(m.group(1)), mo - 1, d,
+                            m.group(4) == null ? 12 : Integer.parseInt(m.group(4)),
+                            m.group(5) == null ? 0 : Integer.parseInt(m.group(5)),
+                            m.group(6) == null ? 0 : Integer.parseInt(m.group(6)));
+                        long t = cal.getTimeInMillis();
+                        if (t <= System.currentTimeMillis() + 86_400_000L) return t;
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        long added = c.getLong(4) * 1000L;
+        long modified = c.isNull(12) ? 0 : c.getLong(12) * 1000L;
+        return modified > 0 && modified < added ? modified : added;
+    }
+
     /** Every image and video on the device (trashed items are excluded by MediaStore), oldest first. */
     @PluginMethod
     public void list(PluginCall call) {
@@ -139,6 +176,7 @@ public class MediaPlugin extends Plugin {
             MediaStore.MediaColumns.DISPLAY_NAME,
             MediaStore.MediaColumns.DURATION,
             MediaStore.MediaColumns.ORIENTATION,
+            MediaStore.MediaColumns.DATE_MODIFIED,
         };
         String selection = MediaStore.Files.FileColumns.MEDIA_TYPE + " IN (" +
             MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE + "," + MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO + ")";
@@ -149,7 +187,7 @@ public class MediaPlugin extends Plugin {
             if (c != null) {
                 while (c.moveToNext()) {
                     boolean video = c.getInt(1) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO;
-                    long taken = c.isNull(3) || c.getLong(3) == 0 ? c.getLong(4) * 1000L : c.getLong(3);
+                    long taken = takenOf(c);
                     JSObject o = new JSObject();
                     o.put("id", c.getLong(0));
                     o.put("type", video ? "video" : "image");
