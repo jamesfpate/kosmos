@@ -46,6 +46,9 @@
   let groupGap = $state(5)
   // Keeping a selection deletes the unselected photos of the burst / between the selected ones in the grid (setting).
   let autoTrash = $state(true)
+  // Order of the swipe queue and the grid (setting).
+  let newestFirst = $state(false)
+  const byOrder = (a: MediaItem, b: MediaItem) => (newestFirst ? b.taken - a.taken : a.taken - b.taken)
   // Share of the card the group grid takes (drag the handle to change; remembered).
   let gridFrac = $state(0.4)
   // Album picked from the bar for the card on screen; otherwise the suggestion is used.
@@ -78,7 +81,7 @@
     const g: MediaItem[] = []
     for (const item of queue) {
       const last = g.at(-1)
-      if (last && (groupGap === 0 || item.taken < last.taken || item.taken - last.taken > groupGap * 1000 || g.length >= GROUP_MAX))
+      if (last && (groupGap === 0 || Math.abs(item.taken - last.taken) > groupGap * 1000 || g.length >= GROUP_MAX))
         break
       g.push(item)
     }
@@ -150,7 +153,7 @@
         const d = decided.get(i.id)
         return !d || (d.decision === 'keep' && !d.albumId)
       })
-      .sort((a, b) => b.taken - a.taken),
+      .sort(byOrder),
   )
   const months = $derived.by(() => {
     const out: { key: string; items: MediaItem[] }[] = []
@@ -206,6 +209,7 @@
       cutoff = await meta.get<number>('cutoff')
       groupGap = (await meta.get<number>('groupGap')) ?? 5
       autoTrash = (await meta.get<boolean>('autoTrash')) ?? true
+      newestFirst = (await meta.get<boolean>('newestFirst')) ?? false
       gridFrac = (await meta.get<number>('gridFrac')) ?? 0.4
       thumbH = (await meta.get<number>('thumbH')) ?? 150
       hidden = new Set((await meta.get<string[]>('hiddenBuckets')) ?? [])
@@ -226,7 +230,7 @@
   async function reload() {
     const [{ items: all }, records] = await Promise.all([Media.list(), decisions.all()])
     // The native query sorts by DATE_TAKEN; items without one get a fallback date, so re-sort by that.
-    all.sort((x, y) => x.taken - y.taken)
+    all.sort(byOrder)
     const map = new Map(records.map((r) => [r.id, r]))
     // An item marked trashed that is still listed was restored from the system trash: review it again.
     for (const item of all) {
@@ -239,10 +243,11 @@
     decided = map
     const listed = new Set(all.map((i) => i.id))
     const queued = new Set(queue.map((i) => i.id))
-    // Keep the current order (including "Later" moves); new items join at the end in date order.
+    // Keep the current order (including "Later" moves). New photos join in order: at the end oldest-first, at the
+    // front newest-first.
     const kept = queue.filter((i) => listed.has(i.id) && inCull(i))
     const fresh = all.filter((i) => !queued.has(i.id) && inCull(i))
-    queue = [...kept, ...fresh]
+    queue = newestFirst && kept.length ? [...fresh, ...kept] : [...kept, ...fresh]
     for (const next of queue.slice(0, 3)) previewUrl(next).catch(() => {})
   }
 
@@ -467,6 +472,13 @@
     handle.addEventListener('pointermove', onMove)
     handle.addEventListener('pointerup', onUp)
     handle.addEventListener('pointercancel', onUp)
+  }
+
+  async function setOrder(newest: boolean) {
+    newestFirst = newest
+    queue = [...queue].sort(byOrder)
+    nextCard()
+    await meta.set('newestFirst', newest)
   }
 
   async function setAutoTrash(on: boolean) {
@@ -1016,6 +1028,13 @@
             <span class="muted">{count}</span>
           </label>
         {/each}
+      </div>
+
+      <h3>Order</h3>
+      <p class="muted">For swiping and the grid.</p>
+      <div class="choices">
+        <button class:on={!newestFirst} onclick={() => setOrder(false)}>Oldest first</button>
+        <button class:on={newestFirst} onclick={() => setOrder(true)}>Newest first</button>
       </div>
 
       <h3>Start point</h3>
