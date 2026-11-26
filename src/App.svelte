@@ -44,6 +44,8 @@
   let focus = $state(0)
   // Photos taken within this many seconds of the previous one are culled together as one card (setting).
   let groupGap = $state(5)
+  // Keeping a selection deletes the unselected photos of the burst / between the selected ones in the grid (setting).
+  let autoTrash = $state(true)
   // Share of the card the group grid takes (drag the handle to change; remembered).
   let gridFrac = $state(0.4)
   // Album picked from the bar for the card on screen; otherwise the suggestion is used.
@@ -136,6 +138,7 @@
   const keepLabel = $derived(
     `${selected.size ? `Keep ${keepCount}` : 'Keep'} → ${target ? albumTitle(target) : 'new album'}`,
   )
+  const burstDoomed = $derived(autoTrash && selected.size ? group.filter((i) => !selected.has(i.id)) : [])
   const trashLabel = $derived(selected.size ? `Delete ${selected.size}` : 'Delete')
 
 
@@ -202,6 +205,7 @@
       }
       cutoff = await meta.get<number>('cutoff')
       groupGap = (await meta.get<number>('groupGap')) ?? 5
+      autoTrash = (await meta.get<boolean>('autoTrash')) ?? true
       gridFrac = (await meta.get<number>('gridFrac')) ?? 0.4
       thumbH = (await meta.get<number>('thumbH')) ?? 150
       hidden = new Set((await meta.get<string[]>('hiddenBuckets')) ?? [])
@@ -282,7 +286,8 @@
   async function file(dir: Direction, albumId?: string) {
     const chosen = selected.size ? group.filter((i) => selected.has(i.id)) : current ? [current] : []
     if (!chosen.length) return
-    const rest = group.length - chosen.length
+    const doomed = dir === 'right' ? burstDoomed : []
+    const rest = group.length - chosen.length - doomed.length
     const keepTarget = chosenId
     const at = focus
     const now = Date.now()
@@ -290,14 +295,14 @@
     for (const item of chosen) {
       ids.set(item.id, dir === 'left' ? undefined : albumId === MONTH_ALBUM ? (await monthAlbumFor(item.taken)).id : albumId)
     }
-    const records = chosen.map((item): DecisionRecord => {
+    const records = [...chosen, ...doomed].map((item): DecisionRecord => {
       const id = ids.get(item.id)
       return id
         ? { id: item.id, decision: 'keep', decidedAt: now, albumId: id }
         : { id: item.id, decision: 'pending_trash', decidedAt: now }
     })
     nextCard()
-    await commit(chosen, records)
+    await commit([...chosen, ...doomed], records)
     cardKey++
     if (rest > 0) {
       // Same burst continues: keep the album choice and show the photo that took this one's place.
@@ -310,14 +315,15 @@
   async function fileGrid(albumId?: string) {
     const chosen = gridChosen
     if (!chosen.length) return
+    const doomed = albumId ? gridDoomed : []
     const now = Date.now()
     gridSel = new Set()
     // Month album: each photo goes into its own month's.
     const ids = new Map<number, string | undefined>()
     for (const item of chosen) ids.set(item.id, albumId === MONTH_ALBUM ? (await monthAlbumFor(item.taken)).id : albumId)
     await commit(
-      chosen,
-      chosen.map((item): DecisionRecord => {
+      [...chosen, ...doomed],
+      [...chosen, ...doomed].map((item): DecisionRecord => {
         const id = ids.get(item.id)
         return id
           ? { id: item.id, decision: 'keep', decidedAt: now, albumId: id }
@@ -463,6 +469,11 @@
     handle.addEventListener('pointercancel', onUp)
   }
 
+  async function setAutoTrash(on: boolean) {
+    autoTrash = on
+    await meta.set('autoTrash', on)
+  }
+
   async function setGroupGap(seconds: number) {
     groupGap = seconds
     nextCard()
@@ -513,6 +524,11 @@
   })
   // Unselected photos between the first and last selected one.
   const gapCount = $derived(selSpan.lo < 0 ? 0 : selSpan.hi - selSpan.lo + 1 - gridSel.size)
+  // Deleted along with filing the selection (red border) when the setting is on.
+  const gridDoomed = $derived(
+    autoTrash && selSpan.lo >= 0 ? backlog.slice(selSpan.lo, selSpan.hi + 1).filter((i) => !gridSel.has(i.id)) : [],
+  )
+  const gridDoomedIds = $derived(new Set(gridDoomed.map((i) => i.id)))
 
   /** Range select: tap the first and last photo, then this selects everything between them. */
   function selectBetween() {
@@ -911,6 +927,7 @@
                     style:height={`${row.h}px`}
                     class:focused={i === focus}
                     class:kept={selected.has(item.id)}
+                    class:doomed={autoTrash && selected.size > 0 && !selected.has(item.id)}
                     onclick={() => {
                       focus = i
                       toggleKeep(item.id)
@@ -948,7 +965,7 @@
       {@render sizeSlider()}
       <p class="muted hint">
         {selected.size
-          ? `${selected.size} selected · swipe or tap an album to file them, left to delete`
+          ? `${selected.size} selected · ${burstDoomed.length ? `keeping them deletes the other ${burstDoomed.length}` : 'swipe or tap an album to file them, left to delete'}`
           : 'Swipe files the large photo · tap thumbnails to select several'}
       </p>
     {/if}
@@ -979,6 +996,16 @@
         {/each}
       </div>
 
+      <h3>Delete the unselected ones</h3>
+      <p class="muted">
+        Keeping selected photos also deletes the unselected photos of a burst, and in the grid the unselected ones between
+        your first and last pick (shown with a red border). They go to Trash for review first.
+      </p>
+      <div class="choices">
+        <button class:on={autoTrash} onclick={() => setAutoTrash(true)}>On</button>
+        <button class:on={!autoTrash} onclick={() => setAutoTrash(false)}>Off</button>
+      </div>
+
       <h3>Folders</h3>
       <p class="muted">Unticked folders are skipped when culling and in the grid.</p>
       <div class="folders">
@@ -1001,7 +1028,9 @@
   {:else if screen === 'grid'}
     {@render topBar()}
     <nav class="albums" aria-label="Albums">
-      <span class="albums-label">{gridSel.size ? `Choose album for ${gridSel.size}` : 'Select photos to choose an album or delete'}</span>
+      <span class="albums-label">{gridSel.size
+          ? `Choose album for ${gridSel.size}${gridDoomed.length ? ` · deletes ${gridDoomed.length} in red` : ''}`
+          : 'Select photos to choose an album or delete'}</span>
       <div class="album-row">
         <div class="chips">
           {#each gridAlbums as album (album.id)}
@@ -1042,6 +1071,7 @@
               style:width={`${aspect(item) * row.h}px`}
               style:height={`${row.h}px`}
               class:kept={gridSel.has(item.id)}
+              class:doomed={gridDoomedIds.has(item.id)}
               use:hold={item.id}
               onclick={() => (held ? (held = false) : toggleGrid(item.id))}
             >
@@ -1427,6 +1457,19 @@
   .cell.focused {
     outline: 2px solid var(--text);
     outline-offset: -2px;
+  }
+
+  .cell.doomed :global(img) {
+    opacity: 0.55;
+  }
+
+  /* Drawn over the photo so the dimming doesn't wash it out. */
+  .cell.doomed::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 3px solid var(--trash);
+    pointer-events: none;
   }
 
   .cell.kept,
