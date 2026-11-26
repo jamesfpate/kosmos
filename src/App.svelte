@@ -499,6 +499,28 @@
     screen = screen === s ? mode : s
   }
 
+  /** Grid order positions of the first and last selected photo. */
+  const selSpan = $derived.by(() => {
+    let lo = -1
+    let hi = -1
+    backlog.forEach((item, i) => {
+      if (gridSel.has(item.id)) {
+        if (lo < 0) lo = i
+        hi = i
+      }
+    })
+    return { lo, hi }
+  })
+  // Unselected photos between the first and last selected one.
+  const gapCount = $derived(selSpan.lo < 0 ? 0 : selSpan.hi - selSpan.lo + 1 - gridSel.size)
+
+  /** Range select: tap the first and last photo, then this selects everything between them. */
+  function selectBetween() {
+    const next = new Set(gridSel)
+    for (const item of backlog.slice(selSpan.lo, selSpan.hi + 1)) next.add(item.id)
+    gridSel = next
+  }
+
   function toggleGrid(id: number) {
     const next = new Set(gridSel)
     if (next.has(id)) next.delete(id)
@@ -735,7 +757,10 @@
       {:else if screen === 'grid'}
         <b>{gridSel.size ? `${gridSel.size} selected` : 'No album'}</b>
         {#if gridSel.size}
-          <button class="link" onclick={() => (gridSel = new Set())}>Clear</button>
+          <span class="title-links">
+            {#if gapCount}<button class="link" onclick={selectBetween} aria-label="Select the photos between">↔ Fill {gapCount}</button> ·{/if}
+            <button class="link" onclick={() => (gridSel = new Set())}>Clear</button>
+          </span>
         {:else}
           <span class="muted">{backlog.length} photos</span>
         {/if}
@@ -1184,6 +1209,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .title-links {
+    color: var(--muted);
   }
 
   .title .link {
