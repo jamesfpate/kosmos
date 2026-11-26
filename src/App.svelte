@@ -773,7 +773,7 @@
     </header>
 
     <nav class="albums" bind:this={albumBar} aria-label="Albums">
-      <span class="albums-label">{selected.size ? `Put ${selected.size} into` : 'Swipe right into'}</span>
+      <span class="albums-label">Choose album{selected.size ? ` for ${selected.size}` : ''}</span>
       <div class="chips">
         {#each barAlbums as album (album.id)}
           <button
@@ -937,7 +937,7 @@
       <button class="pill" onclick={() => (gridSel = new Set())} disabled={!gridSel.size}>Clear</button>
     </header>
     <nav class="albums" aria-label="Albums">
-      <span class="albums-label">{gridSel.size ? `Put ${gridSel.size} into` : 'Select photos to choose an album or delete'}</span>
+      <span class="albums-label">{gridSel.size ? `Choose album for ${gridSel.size}` : 'Select photos to choose an album or delete'}</span>
       <div class="album-row">
         <div class="chips">
           {#each gridAlbums as album (album.id)}
