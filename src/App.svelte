@@ -111,13 +111,18 @@
     return list.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
   }
 
-  /** A dated album whose range covers the time wins; otherwise that month's album. */
+  /**
+   * Default album: a dated album whose range covers the time; else the album used last if it has no dates (an
+   * ongoing theme like "Kids school"); else that month's album.
+   */
   function suggestFor(t: number | undefined): Album | undefined {
     if (t === undefined) return undefined
     const covering = albums
       .filter((a) => !a.monthly && a.start !== undefined && a.start <= t && (a.end === undefined || t <= a.end))
       .sort((a, b) => b.start! - a.start!)[0]
-    return covering ?? monthChip(t)
+    const last = recentFor(t)[0]
+    const undated = last && !last.monthly && last.start === undefined && last.lastUsedAt ? last : undefined
+    return covering ?? undated ?? monthChip(t)
   }
 
   const recent = $derived(recentFor(group[0]?.taken))
