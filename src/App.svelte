@@ -1262,7 +1262,7 @@
       </div>
 
       <h3>Order</h3>
-      <p class="muted">For swiping and the grid.</p>
+      <p class="muted">Which photos come first, everywhere: swiping one by one, bursts and the grid.</p>
       <div class="choices">
         <button class:on={!newestFirst} onclick={() => setOrder(false)}>Oldest first</button>
         <button class:on={newestFirst} onclick={() => setOrder(true)}>Newest first</button>
@@ -1701,9 +1701,9 @@
     justify-content: center;
   }
 
-  /* Checked / selected (accent, not green: a check isn't "keep", the buttons decide). */
+  /* Checked / selected (blue, not green: a check isn't "keep", the buttons decide). */
   .photo.kept :global(img) {
-    outline: 4px solid var(--accent);
+    outline: 4px solid var(--select);
     outline-offset: -4px;
   }
 
@@ -1716,7 +1716,7 @@
     display: grid;
     place-items: center;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--select);
     color: #0b0b0f;
     font-weight: 700;
   }
@@ -1825,7 +1825,7 @@
   }
 
   .cell.kept {
-    outline: 3px solid var(--accent);
+    outline: 3px solid var(--select);
     outline-offset: -3px;
   }
 
@@ -2080,8 +2080,8 @@
   }
 
   .viewer button.selected {
-    background: var(--accent);
-    border-color: var(--accent);
+    background: var(--select);
+    border-color: var(--select);
     color: #0b0b0f;
     font-weight: 600;
   }

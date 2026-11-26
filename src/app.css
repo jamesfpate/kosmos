@@ -8,6 +8,8 @@
   --accent: #b9a6ff;
   --keep: #4ade80;
   --trash: #f87171;
+  /* Checked / selected photos (not green: a check isn't "keep") */
+  --select: #60a5fa;
   font-family: system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
