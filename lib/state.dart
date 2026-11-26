@@ -81,6 +81,8 @@ class AppState extends ChangeNotifier {
   Set<String>? pinned;
 
   // Grid.
+  /// What the grid shows: 'unreviewed' (no album yet), 'all' (everything kept or unreviewed), or an album id.
+  String gridView = 'unreviewed';
   Set<String> gridSel = {};
   String? gridChosenId;
 
@@ -527,18 +529,47 @@ class AppState extends ChangeNotifier {
   int _backlogRev = -1;
   List<Item> _backlog = [];
 
+  bool _unreviewed(Item i) {
+    final d = decided[i.id];
+    return d == null || (d.decision == Decision.keep && d.albumId == null);
+  }
+
   /// Photos that still need an album: undecided (any date, e.g. before the start point) or kept without one.
+  int get unreviewedCount => _cached('unreviewed', () => items.where((i) => shown(i) && _unreviewed(i)).length);
+
+  /// The grid's photos, per [gridView]: unreviewed, all (kept or unreviewed; not deleted), or one album.
   List<Item> get backlog {
     if (_backlogRev != _rev) {
       _backlog = items.where((i) {
         if (!shown(i)) return false;
         final d = decided[i.id];
-        return d == null || (d.decision == Decision.keep && d.albumId == null);
+        return switch (gridView) {
+          'unreviewed' => _unreviewed(i),
+          'all' => d == null || d.decision == Decision.keep,
+          _ => d?.decision == Decision.keep && d?.albumId == gridView,
+        };
       }).toList();
       _backlogRev = _rev;
     }
     return _backlog;
   }
+
+  void setGridView(String v) {
+    gridView = v;
+    gridSel = {};
+    changed();
+  }
+
+  /// Photos per album (for the album picker in the grid).
+  Map<String, int> get albumCounts => _cached('albumCounts', () {
+        final out = <String, int>{};
+        for (final r in decided.values) {
+          if (r.decision == Decision.keep && r.albumId != null && byId.containsKey(r.id)) {
+            out[r.albumId!] = (out[r.albumId!] ?? 0) + 1;
+          }
+        }
+        return out;
+      });
 
   List<Item> get gridChosen => [for (final i in backlog) if (gridSel.contains(i.id)) i];
 
@@ -587,7 +618,8 @@ class AppState extends ChangeNotifier {
   /// Deleted along with filing the selection (red border) when that setting is on.
   Set<String> get gridDoomed {
     final s = selSpan;
-    if (!gridAutoTrash || s.lo < 0) return {};
+    // Only when filing unreviewed photos; browsing All or an album never deletes the photos in between.
+    if (!gridAutoTrash || s.lo < 0 || gridView != 'unreviewed') return {};
     return {for (final i in backlog.sublist(s.lo, s.hi + 1)) if (!gridSel.contains(i.id)) i.id};
   }
 
@@ -897,6 +929,21 @@ class AppState extends ChangeNotifier {
         final byAlbum = <String, List<UploadRecord>>{};
         for (final item in todo) {
           byAlbum.putIfAbsent(decided[item.id]!.albumId!, () => []).add(records[item.id]!);
+        }
+        // Photos moved to another album in Winnow: take them out of the old Immich album and tag first.
+        final moved = <String, List<String>>{};
+        for (final item in todo) {
+          final r = records[item.id]!;
+          final old = r.syncedAlbumId;
+          if (old != null && old != decided[item.id]!.albumId) moved.putIfAbsent(old, () => []).add(r.assetId);
+        }
+        for (final entry in moved.entries) {
+          final old = albums.where((a) => a.id == entry.key).firstOrNull;
+          if (old == null) continue;
+          if (old.immichAlbumId != null) {
+            await api.call('DELETE', '/albums/${old.immichAlbumId}/assets', {'ids': entry.value});
+          }
+          await api.call('DELETE', '/tags/${await api.ensureTag(albumTag(old))}/assets', {'ids': entry.value});
         }
         for (final entry in byAlbum.entries) {
           final album = albums.where((a) => a.id == entry.key).firstOrNull;

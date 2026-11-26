@@ -77,12 +77,14 @@ class _GridScreenState extends State<GridScreen> {
       TopBar(
         s,
         title: Logo(busy: s.sync.running),
-        subtitle: Text(syncStatus(s) ?? '${s.backlog.length} unreviewed'),
+        subtitle: Text(syncStatus(s) ?? '${s.unreviewedCount} unreviewed'),
       ),
+      _viewBar(context),
+      const SizedBox(height: 6),
       Align(
         alignment: Alignment.centerLeft,
         child: Label(sel.isEmpty
-            ? 'Pick an album, then select photos'
+            ? (s.gridView == 'unreviewed' ? 'Pick an album, then select photos' : 'Select photos to move or delete them')
             : 'Choose album for ${sel.length}${doomed.isNotEmpty ? ' · deletes ${doomed.length} in red' : ''}'),
       ),
       const SizedBox(height: 4),
@@ -131,7 +133,9 @@ class _GridScreenState extends State<GridScreen> {
       ),
       Expanded(
         child: s.backlog.isEmpty
-            ? const Center(child: Text('Everything has an album', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)))
+            ? Center(
+                child: Text(s.gridView == 'unreviewed' ? 'Everything has an album' : 'Nothing here',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)))
             : Listener(
                 onPointerDown: (e) {
                   _pointers[e.pointer] = e.position;
@@ -187,6 +191,56 @@ class _GridScreenState extends State<GridScreen> {
         ),
       ]),
     ]);
+  }
+
+  /// Which photos the grid shows: Unreviewed, All, or one album (an explorer; selecting + an album moves them).
+  Widget _viewBar(BuildContext context) {
+    final view = s.gridView;
+    final album = s.albums.where((a) => a.id == view).firstOrNull;
+    Widget chip(String label, bool on, VoidCallback tap) => Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: ChoiceChip(
+            label: Text(label),
+            selected: on,
+            onSelected: (_) => tap(),
+            selectedColor: C.accent,
+            backgroundColor: C.surface,
+            showCheckmark: false,
+            visualDensity: VisualDensity.compact,
+            labelStyle: TextStyle(color: on ? C.bg : C.text, fontWeight: on ? FontWeight.w600 : null),
+            side: BorderSide(color: on ? C.accent : C.line),
+          ),
+        );
+    return SizedBox(
+      height: 40,
+      child: ListView(scrollDirection: Axis.horizontal, children: [
+        chip('Unreviewed ${s.unreviewedCount}', view == 'unreviewed', () => s.setGridView('unreviewed')),
+        chip('All', view == 'all', () => s.setGridView('all')),
+        chip(album == null ? 'Albums ▾' : '${albumTitle(album)} ▾', album != null, () => _pickAlbum(context)),
+      ]),
+    );
+  }
+
+  Future<void> _pickAlbum(BuildContext context) async {
+    final counts = s.albumCounts;
+    final list = [...s.albums.where((a) => (counts[a.id] ?? 0) > 0)]..sort((a, b) => albumTitle(b).compareTo(albumTitle(a)));
+    final id = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: C.surface,
+      builder: (c) => SafeArea(
+        child: list.isEmpty
+            ? const Padding(padding: EdgeInsets.all(24), child: Text('No albums with photos yet.'))
+            : ListView(shrinkWrap: true, children: [
+                for (final a in list)
+                  ListTile(
+                    title: Text(albumTitle(a)),
+                    trailing: Text('${counts[a.id]}', style: const TextStyle(color: C.muted)),
+                    onTap: () => Navigator.pop(c, a.id),
+                  ),
+              ]),
+      ),
+    );
+    if (id != null) s.setGridView(id);
   }
 
   void _lift(int pointer) {

@@ -46,6 +46,7 @@ const immichPermissions = [
   'album.create',
   'album.update',
   'albumAsset.create',
+  'albumAsset.delete',
   'tag.create',
   'tag.asset',
 ];
