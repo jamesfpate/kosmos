@@ -18,7 +18,7 @@
   const version = __APP_VERSION__
   const DAY = 24 * 60 * 60 * 1000
   const GROUP_MAX = 40
-  const GAP_CHOICES = [0, 2, 5, 10, 30, 60] // seconds; 0 = never group
+  const GAP_CHOICES = [2, 5, 10, 30, 60] // seconds
 
   const MONTH_ALBUM = 'month' // chip / drop target id for the month's catch-all album (until it exists)
   const GRID_STEP = 400 // cells rendered per scroll step in the grid
@@ -45,6 +45,8 @@
   let focus = $state(0)
   // Photos taken within this many seconds of the previous one are culled together as one card (setting).
   let groupGap = $state(5)
+  // Review photos taken close together as one burst card (setting).
+  let bursts = $state(true)
   // Keeping a selection deletes the unselected photos of the burst / between the selected ones in the grid (setting).
   let autoTrash = $state(true)
   // Order of the swipe queue and the grid (setting).
@@ -92,7 +94,7 @@
     const g: MediaItem[] = []
     for (const item of queue) {
       const last = g.at(-1)
-      if (last && (groupGap === 0 || Math.abs(item.taken - last.taken) > groupGap * 1000 || g.length >= GROUP_MAX))
+      if (last && (!bursts || groupGap === 0 || Math.abs(item.taken - last.taken) > groupGap * 1000 || g.length >= GROUP_MAX))
         break
       g.push(item)
     }
@@ -254,6 +256,9 @@
       }
       cutoff = await meta.get<number>('cutoff')
       groupGap = (await meta.get<number>('groupGap')) ?? 5
+      // Older versions stored "Off" as a gap of 0.
+      bursts = (await meta.get<boolean>('bursts')) ?? groupGap !== 0
+      if (groupGap === 0) groupGap = 5
       autoTrash = (await meta.get<boolean>('autoTrash')) ?? true
       newestFirst = (await meta.get<boolean>('newestFirst')) ?? false
       gridFrac = (await meta.get<number>('gridFrac')) ?? 0.4
@@ -537,6 +542,12 @@
   async function setAutoTrash(on: boolean) {
     autoTrash = on
     await meta.set('autoTrash', on)
+  }
+
+  async function setBursts(on: boolean) {
+    bursts = on
+    nextCard()
+    await meta.set('bursts', on)
   }
 
   async function setGroupGap(seconds: number) {
@@ -1080,15 +1091,24 @@
   {:else if screen === 'settings'}
     {@render topBar()}
     <section class="settings">
-      <h3>Group photos taken within</h3>
-      <p class="muted">Shots taken this close together are culled as one card.</p>
+      <h3>Review bursts together</h3>
+      <p class="muted">Photos taken in quick succession show as one card: keep the best, remove the rest.</p>
+      <div class="choices">
+        <button class:on={bursts} onclick={() => setBursts(true)}>On</button>
+        <button class:on={!bursts} onclick={() => setBursts(false)}>Off</button>
+      </div>
+
+      {#if bursts}
+      <h3>Burst gap</h3>
+      <p class="muted">Photos taken within this time of the previous one count as the same burst.</p>
       <div class="choices">
         {#each GAP_CHOICES as seconds}
           <button class:on={groupGap === seconds} onclick={() => setGroupGap(seconds)}>
-            {seconds === 0 ? 'Off' : `${seconds}s`}
+            {seconds}s
           </button>
         {/each}
       </div>
+      {/if}
 
       <h3>Delete the unselected ones</h3>
       <p class="muted">
