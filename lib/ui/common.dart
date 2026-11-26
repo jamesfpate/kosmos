@@ -179,11 +179,12 @@ class Btn extends StatelessWidget {
           onTap: onTap,
           child: Container(
             constraints: const BoxConstraints(minHeight: 48),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             alignment: Alignment.center,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Row(mainAxisSize: MainAxisSize.min, children: [
-                if (icon != null) ...[Icon(icon, size: 18, color: fg), const SizedBox(width: 5)],
+                if (icon != null) ...[Icon(icon, size: 18, color: fg), if (label.isNotEmpty) const SizedBox(width: 4)],
+                if (label.isNotEmpty)
                 Flexible(
                   child: Text(label,
                       maxLines: 1,
@@ -300,10 +301,13 @@ class PhotoThumb extends StatelessWidget {
 
 /// Large view of a photo, or an inline video player once [play] is set.
 class Preview extends StatefulWidget {
-  const Preview(this.item, {super.key, this.play = false, this.onStop});
+  const Preview(this.item, {super.key, this.play = false, this.onStop, this.selected = false});
 
   final Item item;
   final bool play;
+
+  /// Checked in a burst: blue border around the photo itself, with the check.
+  final bool selected;
   final VoidCallback? onStop;
 
   @override
@@ -366,18 +370,32 @@ class _PreviewState extends State<Preview> {
         VideoProgressIndicator(v, allowScrubbing: true, padding: const EdgeInsets.symmetric(vertical: 8)),
       ]);
     }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: AssetEntityImage(
-        widget.item.entity,
-        isOriginal: false,
-        thumbnailSize: const ThumbnailSize(1600, 1600),
-        fit: BoxFit.contain,
-        gaplessPlayback: true,
-        errorBuilder: (_, e, _) => Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text("Can't show ${widget.item.name}\n$e", textAlign: TextAlign.center, style: const TextStyle(color: C.muted)),
-        ),
+    // Sized to the photo's own shape, so the border and check sit on the photo, not the empty space around it.
+    return Center(
+      child: AspectRatio(
+        aspectRatio: widget.item.aspect,
+        child: Stack(fit: StackFit.expand, children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: AssetEntityImage(
+              widget.item.entity,
+              isOriginal: false,
+              thumbnailSize: const ThumbnailSize(1600, 1600),
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (_, e, _) => Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text("Can't show ${widget.item.name}\n$e", textAlign: TextAlign.center, style: const TextStyle(color: C.muted)),
+              ),
+            ),
+          ),
+          if (widget.selected) ...[
+            DecoratedBox(
+              decoration: BoxDecoration(border: Border.all(color: C.select, width: 4), borderRadius: BorderRadius.circular(12)),
+            ),
+            const Positioned(top: 10, left: 10, child: CheckBadge(size: 36)),
+          ],
+        ]),
       ),
     );
   }

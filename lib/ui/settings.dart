@@ -169,7 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               secondary: Text('$count', style: const TextStyle(color: C.muted)),
             ),
           _h3('Start point'),
-          _p('${s.cutoff == null ? 'Culling everything.' : 'Culling photos from ${dayOf(s.cutoff!)}.'} Photos already reviewed stay reviewed.'),
+          _p('${s.cutoff == null || s.cutoff == 0 ? 'Culling everything.' : 'Culling photos from ${dayOf(s.cutoff!)}.'} Photos already reviewed stay reviewed.'),
           Btn('Change start point', onTap: s.changeStart),
           _h2('single', 'Single photo'),
           _h3('Review bursts together'),

@@ -159,7 +159,7 @@ class _GridScreenState extends State<GridScreen> {
       ),
       SizeSlider(s),
       Row(children: [
-        Expanded(flex: 8, child: Btn('Undo', icon: Icons.undo, onTap: s.undoStack.isEmpty ? null : s.undo)),
+        Expanded(flex: 6, child: Btn('', icon: Icons.undo, onTap: s.undoStack.isEmpty ? null : s.undo)),
         const SizedBox(width: 6),
         Expanded(
           flex: 10,

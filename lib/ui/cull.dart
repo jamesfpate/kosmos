@@ -142,15 +142,11 @@ class _CullScreenState extends State<CullScreen> {
     final sel = s.selected;
     final large = Stack(alignment: Alignment.center, children: [
       Positioned.fill(
-        child: Container(
-          decoration: s.isGroup && sel.contains(cur.id)
-              ? BoxDecoration(border: Border.all(color: C.select, width: 4), borderRadius: BorderRadius.circular(14))
-              : null,
-          alignment: Alignment.center,
-          child: Preview(cur, play: playing == cur.id, onStop: () => setState(() => playing = null)),
-        ),
+        child: Preview(cur,
+            play: playing == cur.id,
+            onStop: () => setState(() => playing = null),
+            selected: s.isGroup && sel.contains(cur.id)),
       ),
-      if (s.isGroup && sel.contains(cur.id)) const Positioned(top: 10, left: 10, child: CheckBadge(size: 36)),
       if (cur.isVideo && playing != cur.id)
         Positioned(
           bottom: 14,
@@ -229,7 +225,7 @@ class _CullScreenState extends State<CullScreen> {
     final target = s.target;
     final rest = s.burstRest;
     return Row(children: [
-      Expanded(flex: 8, child: Btn('Undo', icon: Icons.undo, onTap: s.undoStack.isEmpty ? null : s.undo)),
+      Expanded(flex: 6, child: Btn('', icon: Icons.undo, onTap: s.undoStack.isEmpty ? null : s.undo)),
       const SizedBox(width: 6),
       if (s.isGroup) ...[
         Expanded(
@@ -245,18 +241,18 @@ class _CullScreenState extends State<CullScreen> {
         ),
       ] else ...[
         Expanded(
-          flex: 10,
+          flex: 13,
           child: Btn('Delete', icon: Icons.arrow_back, color: C.trash, onTap: cur == null ? null : () => card.currentState?.fling(Dir.left)),
         ),
         const SizedBox(width: 6),
         Expanded(
-          flex: 20,
+          flex: 16,
           child: Btn(target == null ? 'New album' : albumTitle(target),
               icon: Icons.arrow_forward, bold: true, color: C.bg, bg: C.keep, onTap: cur == null ? null : () => card.currentState?.fling(Dir.right)),
         ),
       ],
       const SizedBox(width: 6),
-      Expanded(flex: 8, child: Btn('Later', onTap: s.queue.length <= g.length ? null : s.later)),
+      Expanded(flex: 7, child: Btn('Later', onTap: s.queue.length <= g.length ? null : s.later)),
     ]);
   }
 }
