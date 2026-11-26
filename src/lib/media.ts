@@ -31,13 +31,43 @@ interface MediaPlugin {
   trash(opts: { items: { id: number; type: MediaType }[] }): Promise<{ confirmed: boolean }>
 }
 
-// Browser fallback for `npm run dev`: no photos, everything allowed.
+// Browser fallback for `npm run dev`: everything allowed; `?mock` adds fake photos (singles and bursts) to test layout.
+function mockItems(): MediaItem[] {
+  const out: MediaItem[] = []
+  let t = Date.now() - 40 * 24 * 60 * 60 * 1000
+  for (let i = 0; i < 120; i++) {
+    t += i % 7 < 4 ? 2000 : 3 * 60 * 60 * 1000
+    const portrait = i % 3 !== 0
+    out.push({
+      id: i + 1,
+      type: i % 11 === 5 ? 'video' : 'image',
+      mime: 'image/jpeg',
+      taken: t,
+      width: portrait ? 3000 : 4000,
+      height: portrait ? 4000 : 3000,
+      size: 1,
+      bucket: i % 5 === 0 ? 'WhatsApp Images' : 'Camera',
+      name: `PXL_${i + 1}.jpg`,
+      duration: i % 11 === 5 ? 12000 : 0,
+    })
+  }
+  return out
+}
+
+function mockPreview(id: number): string {
+  const portrait = (id - 1) % 3 !== 0
+  const [w, h] = portrait ? [300, 400] : [400, 300]
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="hsl(${(id * 47) % 360} 55% 45%)"/><text x="50%" y="50%" font-size="64" text-anchor="middle" fill="white">${id}</text></svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
+const mock = typeof location !== 'undefined' && location.search.includes('mock')
 const web: MediaPlugin = {
   getAccess: async () => ({ access: 'granted' }),
   requestAccess: async () => ({ access: 'granted' }),
   openSettings: async () => {},
-  list: async () => ({ items: [] }),
-  preview: async () => ({ path: '' }),
+  list: async () => ({ items: mock ? mockItems() : [] }),
+  preview: async ({ id }) => ({ path: mock ? mockPreview(id) : '' }),
   open: async () => {},
   trash: async () => ({ confirmed: true }),
 }
