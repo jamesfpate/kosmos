@@ -130,7 +130,7 @@
   const keepLabel = $derived(
     `${selected.size ? `Keep ${keepCount}` : 'Keep'} → ${target ? albumTitle(target) : 'new album'}`,
   )
-  const trashLabel = $derived(selected.size ? `Trash ${selected.size}` : 'Trash')
+  const trashLabel = $derived(selected.size ? `Delete ${selected.size}` : 'Delete')
 
 
   /** Photos that still need an album: undecided (any date, e.g. before the start point) or kept without one. */
@@ -876,19 +876,19 @@
       {@render sizeSlider()}
       <p class="muted hint">
         {selected.size
-          ? `${selected.size} selected · swipe or tap an album to file them, left to trash`
+          ? `${selected.size} selected · swipe or tap an album to file them, left to delete`
           : 'Swipe files the large photo · tap thumbnails to select several'}
       </p>
     {/if}
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
       <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>
-        Trash{selected.size ? ` ${selected.size}` : ''}
-      </button>
-      <button class="keep" onclick={() => card?.fling('right')} disabled={!current}>
-        Keep{selected.size ? ` ${selected.size}` : ''}
+        Delete{selected.size ? ` ${selected.size}` : ''}
       </button>
       <button onclick={later} disabled={queue.length <= group.length}>Later</button>
+      <button class="put" onclick={() => card?.fling('right')} disabled={!current}>
+        → {target ? albumTitle(target) : 'New album'}
+      </button>
     </footer>
 
     {#if sheet && current}
@@ -998,8 +998,15 @@
     </div>
     {@render sizeSlider()}
     <footer>
-      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>Delete {gridSel.size || ''}</button>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
+      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>Delete {gridSel.size || ''}</button>
+      <button
+        class="put"
+        onclick={() => gridSuggested && fileGrid(gridSuggested.monthly ? MONTH_ALBUM : gridSuggested.id)}
+        disabled={!gridSel.size || !gridSuggested}
+      >
+        → {gridSuggested ? (gridSuggested.monthly && gridMonthsChosen.size > 1 ? 'Month' : albumTitle(gridSuggested)) : 'Album'}
+      </button>
     </footer>
     {#if viewing}
       <div
@@ -1340,6 +1347,8 @@
 
   footer button {
     flex: 1;
+    padding: 0 8px;
+    white-space: nowrap;
   }
 
   button {
@@ -1378,9 +1387,20 @@
     color: var(--trash);
   }
 
-  button.keep {
-    color: var(--keep);
+  footer button.put {
+    flex: 2.4;
+    padding: 0 10px;
+    font-size: 0.95rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--keep);
+    border-color: var(--keep);
+    color: #0b0b0f;
+    font-weight: 600;
   }
+
 
   .pill {
     min-height: 40px;
