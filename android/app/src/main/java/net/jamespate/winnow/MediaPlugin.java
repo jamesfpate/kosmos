@@ -35,6 +35,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -52,8 +54,16 @@ import java.util.regex.Pattern;
 @CapacitorPlugin(
     name = "Media",
     permissions = {
-        @Permission(alias = "media", strings = { Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO }),
-        @Permission(alias = "legacy", strings = { Manifest.permission.READ_EXTERNAL_STORAGE })
+        @Permission(
+            alias = "media",
+            strings = {
+                Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.ACCESS_MEDIA_LOCATION
+            }
+        ),
+        @Permission(
+            alias = "legacy",
+            strings = { Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.ACCESS_MEDIA_LOCATION }
+        )
     }
 )
 public class MediaPlugin extends Plugin {
@@ -61,6 +71,7 @@ public class MediaPlugin extends Plugin {
     private static final String USER_SELECTED = "android.permission.READ_MEDIA_VISUAL_USER_SELECTED";
 
     private final ExecutorService previews = Executors.newFixedThreadPool(3);
+    private final ExecutorService uploads = Executors.newSingleThreadExecutor();
     private ActivityResultLauncher<IntentSenderRequest> trashLauncher;
     private PluginCall pendingTrash;
     private ActivityResultLauncher<String[]> openLauncher;
@@ -362,6 +373,85 @@ public class MediaPlugin extends Plugin {
         } catch (Exception e) {
             call.reject("no app can open this: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Uploads the original file to Immich (POST {server}/api/assets, multipart, streamed so large videos never sit in
+     * memory). Photos are read with setRequireOriginal so their GPS location is kept. Resolves { id, status } where
+     * status is "created" or "duplicate".
+     */
+    @PluginMethod
+    public void upload(PluginCall call) {
+        Long id = idOf(call);
+        boolean video = "video".equals(call.getString("type"));
+        String server = call.getString("server");
+        String key = call.getString("key");
+        if (id == null || server == null || key == null) {
+            call.reject("id, server and key are required");
+            return;
+        }
+        String mime = call.getString("mime", video ? "video/mp4" : "image/jpeg");
+        String name = call.getString("name", id + (video ? ".mp4" : ".jpg"));
+        String created = call.getString("created");
+        String modified = call.getString("modified", created);
+        Object durationArg = call.getData().opt("duration");
+        long duration = durationArg instanceof Number ? ((Number) durationArg).longValue() : 0;
+        uploads.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                Uri uri = itemUri(id, video);
+                if (getPermissionState(alias()) == PermissionState.GRANTED) uri = MediaStore.setRequireOriginal(uri);
+                String boundary = "winnow" + System.nanoTime();
+                conn = (HttpURLConnection) new URL(server.replaceAll("/+$", "") + "/api/assets").openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(30_000);
+                conn.setReadTimeout(300_000);
+                conn.setChunkedStreamingMode(64 * 1024);
+                conn.setRequestProperty("x-api-key", key);
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+                try (OutputStream out = conn.getOutputStream();
+                     InputStream in = getContext().getContentResolver().openInputStream(uri)) {
+                    if (in == null) throw new java.io.IOException("could not open the file");
+                    field(out, boundary, "fileCreatedAt", created);
+                    field(out, boundary, "fileModifiedAt", modified);
+                    field(out, boundary, "filename", name);
+                    if (video && duration > 0) field(out, boundary, "duration", String.valueOf(duration));
+                    out.write(("--" + boundary + "\r\n" +
+                        "Content-Disposition: form-data; name=\"assetData\"; filename=\"" + name.replace("\"", "") + "\"\r\n" +
+                        "Content-Type: " + mime + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+                    byte[] buf = new byte[64 * 1024];
+                    int n;
+                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                    out.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+                }
+                int code = conn.getResponseCode();
+                InputStream body = code < 400 ? conn.getInputStream() : conn.getErrorStream();
+                String text = body == null ? "" : new String(readAll(body), StandardCharsets.UTF_8);
+                if (code >= 400) {
+                    call.reject("Immich " + code + ": " + text.substring(0, Math.min(300, text.length())));
+                    return;
+                }
+                org.json.JSONObject json = new org.json.JSONObject(text);
+                JSObject ret = new JSObject();
+                ret.put("id", json.getString("id"));
+                ret.put("status", json.optString("status", "created"));
+                call.resolve(ret);
+            } catch (Exception e) {
+                android.util.Log.e("Winnow", "upload " + id + " failed", e);
+                call.reject("upload failed: " + e.getMessage(), e);
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
+    private static void field(OutputStream out, String boundary, String name, String value) throws java.io.IOException {
+        if (value == null) return;
+        out.write(("--" + boundary + "\r\n" +
+            "Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n" +
+            value + "\r\n").getBytes(StandardCharsets.UTF_8));
     }
 
     /** Moves items to the system trash after one system confirm dialog. Resolves { confirmed }. */

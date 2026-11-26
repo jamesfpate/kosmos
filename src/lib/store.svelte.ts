@@ -22,6 +22,17 @@ export interface Album {
   lastUsedAt: number
   /** The month's catch-all album, named just "YYYY-MM" (empty name; created on first use). */
   monthly?: boolean
+  /** The matching Immich album, once created or found. */
+  immichAlbumId?: string
+}
+
+/** A photo uploaded to Immich, and which Winnow album it was last filed into there. */
+export interface UploadRecord {
+  id: number
+  assetId: string
+  uploadedAt: number
+  /** Winnow album whose Immich album and tag the asset was added to (unset until that's done). */
+  syncedAlbumId?: string
 }
 
 export function albumTitle(a: Pick<Album, 'name' | 'start'>): string {
@@ -50,12 +61,13 @@ let dbp: Promise<IDBDatabase> | undefined
 
 function db(): Promise<IDBDatabase> {
   dbp ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 2)
+    const req = indexedDB.open(DB, 3)
     req.onupgradeneeded = () => {
       const d = req.result
       if (!d.objectStoreNames.contains('decisions')) d.createObjectStore('decisions', { keyPath: 'id' })
       if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta')
       if (!d.objectStoreNames.contains('albums')) d.createObjectStore('albums', { keyPath: 'id' })
+      if (!d.objectStoreNames.contains('uploads')) d.createObjectStore('uploads', { keyPath: 'id' })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -83,6 +95,11 @@ export const decisions = {
 export const albums = {
   all: () => run<Album[]>('albums', 'readonly', (s) => s.getAll()),
   put: (a: Album) => run('albums', 'readwrite', (s) => s.put($state.snapshot(a))),
+}
+
+export const uploads = {
+  all: () => run<UploadRecord[]>('uploads', 'readonly', (s) => s.getAll()),
+  put: (r: UploadRecord) => run('uploads', 'readwrite', (s) => s.put($state.snapshot(r))),
 }
 
 export const meta = {

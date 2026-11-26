@@ -16,6 +16,7 @@
   import Thumb from './lib/Thumb.svelte'
   import Preview from './lib/Preview.svelte'
   import AlbumSheet from './lib/AlbumSheet.svelte'
+  import { cleanServer, PERMISSIONS, syncImmich, testConnection, type ImmichConfig, type SyncStatus } from './lib/immich'
 
   const version = __APP_VERSION__
   const DAY = 24 * 60 * 60 * 1000
@@ -25,7 +26,7 @@
   const MONTH_ALBUM = 'month' // chip / drop target id for the month's catch-all album (until it exists)
   const GRID_STEP = 400 // cells rendered per scroll step in the grid
 
-  type Screen = 'loading' | 'access' | 'start' | 'cull' | 'grid' | 'trash' | 'settings' | 'error'
+  type Screen = 'loading' | 'access' | 'start' | 'cull' | 'grid' | 'trash' | 'settings' | 'immich' | 'error'
   type UndoEntry = { item: MediaItem; prev?: DecisionRecord }
 
   let screen = $state<Screen>('loading')
@@ -241,7 +242,11 @@
   onMount(() => {
     init()
     // Coming back to the app (e.g. after taking photos): pick up new items.
-    const onVisible = () => document.visibilityState === 'visible' && screen === 'cull' && reload()
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      if (screen === 'cull') reload()
+      runSync()
+    }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   })
@@ -264,8 +269,10 @@
       thumbH = (await meta.get<number>('thumbH')) ?? 150
       hidden = new Set((await meta.get<string[]>('hiddenBuckets')) ?? [])
       albums = await albumStore.all()
+      immich = (await meta.get<ImmichConfig>('immich')) ?? immich
       await reload()
       screen = cutoff === undefined ? 'start' : 'cull'
+      runSync()
     } catch (e) {
       error = String(e)
       screen = 'error'
@@ -451,6 +458,7 @@
       }
     }
     for (const r of records) await decisions.put(r)
+    scheduleSync()
   }
 
   function toggleKeep(id: number) {
@@ -549,6 +557,44 @@
     handle.addEventListener('pointermove', onMove)
     handle.addEventListener('pointerup', onUp)
     handle.addEventListener('pointercancel', onUp)
+  }
+
+  // Immich integration (Settings → Integrations → Immich).
+  let immich = $state<ImmichConfig>({ server: '', key: '', enabled: false })
+  let sync = $state<SyncStatus>({ running: false, pending: 0, done: 0, error: '' })
+  let immichMsg = $state('')
+  let syncTimer: ReturnType<typeof setTimeout> | undefined
+
+  function runSync() {
+    syncImmich({
+      cfg: immich,
+      items,
+      decided,
+      albums,
+      saveAlbum: (a) => albumStore.put(a),
+      onStatus: (st) => (sync = st),
+    })
+  }
+
+  /** Uploads start a few seconds after the last decision, so quick culling isn't interrupted. */
+  function scheduleSync() {
+    clearTimeout(syncTimer)
+    syncTimer = setTimeout(runSync, 3000)
+  }
+
+  async function saveImmich(patch: Partial<ImmichConfig>) {
+    immich = { ...immich, ...patch, server: cleanServer(patch.server ?? immich.server) }
+    await meta.set('immich', $state.snapshot(immich))
+  }
+
+  async function checkImmich() {
+    immichMsg = 'Checking…'
+    try {
+      const { name, missing } = await testConnection(immich)
+      immichMsg = missing.length ? `Key "${name}" is missing: ${missing.join(', ')}` : `Connected · key "${name}" has what it needs`
+    } catch (e) {
+      immichMsg = `Can't connect: ${e instanceof Error ? e.message : e}`
+    }
   }
 
   let backupMsg = $state('')
@@ -909,11 +955,19 @@
         {/if}
       {:else if screen === 'settings'}
         <b>Settings</b>
+      {:else if screen === 'immich'}
+        <b>Immich</b>
+        <span class="muted">{immich.enabled ? 'Uploading kept photos' : 'Off'}</span>
       {:else if screen === 'trash'}
         <b>Trash</b>
       {/if}
     </div>
     <span class="actions">
+      {#if immich.enabled && (sync.pending || sync.running || sync.error)}
+        <button class="pill" class:error={!!sync.error} onclick={() => (screen = 'immich')} aria-label="Uploads">
+          ⇡ {sync.error ? '!' : sync.pending}
+        </button>
+      {/if}
       <button
         class="pill"
         class:on={screen === 'trash'}
@@ -923,7 +977,12 @@
       >
         🗑 {pendingTrash.length}
       </button>
-      <button class="pill" class:on={screen === 'settings'} onclick={() => toggleScreen('settings')} aria-label="Settings">
+      <button
+        class="pill"
+        class:on={screen === 'settings' || screen === 'immich'}
+        onclick={() => (screen === 'immich' ? (screen = 'settings') : toggleScreen('settings'))}
+        aria-label="Settings"
+      >
         ⚙
       </button>
     </span>
@@ -1181,6 +1240,17 @@
       </p>
       <button onclick={changeStart}>Change start point</button>
 
+      <h3>Integrations</h3>
+      <p class="muted">Upload kept photos with their albums.</p>
+      <button class="row-link" onclick={() => (screen = 'immich')}>
+        <span>Immich</span>
+        <span class="muted">{immich.enabled ? (sync.error ? 'Error' : sync.pending ? `${sync.pending} to upload` : 'Up to date') : 'Off'} ›</span>
+      </button>
+      <button class="row-link" disabled>
+        <span>Google Photos</span>
+        <span class="muted">Coming later</span>
+      </button>
+
       <h3>Backup</h3>
       <p class="muted">Your decisions and albums live only on this phone. Export them to Downloads, import them after a reinstall.</p>
       <div class="choices">
@@ -1188,6 +1258,55 @@
         <button onclick={importData}>Import data</button>
       </div>
       {#if backupMsg}<p class="muted">{backupMsg}</p>{/if}
+    </section>
+  {:else if screen === 'immich'}
+    {@render topBar()}
+    <section class="settings">
+      <p class="muted">
+        Kept photos go to your Immich server with their original files and dates, into an album of the same name, tagged
+        Albums/YYYY/MM/name. Deleted photos are never uploaded. Leave Immich's own app backup off so photos don't arrive twice.
+      </p>
+
+      <h3>Server</h3>
+      <input
+        class="text"
+        type="url"
+        inputmode="url"
+        placeholder="https://photos.example.com"
+        value={immich.server}
+        onchange={(e) => saveImmich({ server: e.currentTarget.value })}
+      />
+
+      <h3>API key</h3>
+      <p class="muted">In Immich: Account settings → API keys → New. Permissions: {PERMISSIONS.join(', ')}.</p>
+      <input
+        class="text"
+        type="password"
+        autocomplete="off"
+        placeholder="Paste the key"
+        value={immich.key}
+        onchange={(e) => saveImmich({ key: e.currentTarget.value.trim() })}
+      />
+      <div class="choices">
+        <button onclick={checkImmich} disabled={!immich.server || !immich.key}>Test connection</button>
+      </div>
+      {#if immichMsg}<p class="muted">{immichMsg}</p>{/if}
+
+      <h3>Upload</h3>
+      <div class="choices">
+        <button class:on={immich.enabled} disabled={!immich.server || !immich.key} onclick={() => saveImmich({ enabled: true }).then(runSync)}>
+          On
+        </button>
+        <button class:on={!immich.enabled} onclick={() => saveImmich({ enabled: false })}>Off</button>
+      </div>
+      {#if immich.enabled}
+        <p class="muted">
+          {sync.running ? `Uploading… ${sync.pending} to go` : sync.pending ? `${sync.pending} waiting` : 'Everything kept is in Immich.'}
+          {#if sync.done}· {sync.done} done this session{/if}
+        </p>
+        {#if sync.error}<p class="warn">{sync.error}</p>{/if}
+        <div class="choices"><button onclick={runSync} disabled={sync.running}>Upload now</button></div>
+      {/if}
     </section>
   {:else if screen === 'grid'}
     {@render topBar()}
@@ -1944,6 +2063,32 @@
 
   .folder span:first-of-type {
     flex: 1;
+  }
+
+  .row-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  input.text {
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .warn {
+    color: var(--trash);
+    overflow-wrap: anywhere;
+  }
+
+  .pill.error {
+    color: var(--trash);
   }
 
   .version {

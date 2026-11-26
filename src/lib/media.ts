@@ -32,6 +32,17 @@ interface MediaPlugin {
   preview(opts: { id: number; type: MediaType; size?: number }): Promise<{ path: string }>
   open(opts: { id: number; type: MediaType; mime?: string }): Promise<void>
   trash(opts: { items: { id: number; type: MediaType }[] }): Promise<{ confirmed: boolean }>
+  upload(opts: {
+    id: number
+    type: MediaType
+    mime: string
+    name: string
+    server: string
+    key: string
+    created: string
+    modified: string
+    duration?: number
+  }): Promise<{ id: string; status: 'created' | 'duplicate' }>
   saveFile(opts: { name: string; text: string }): Promise<{ name: string }>
   openFile(): Promise<{ text?: string; cancelled?: boolean }>
 }
@@ -75,6 +86,9 @@ const web: MediaPlugin = {
   preview: async ({ id }) => ({ path: mock ? mockPreview(id) : '' }),
   open: async () => {},
   trash: async () => ({ confirmed: true }),
+  upload: async () => {
+    throw new Error('Uploads only work in the Android app')
+  },
   saveFile: async ({ name, text }) => {
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }))

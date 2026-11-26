@@ -44,4 +44,6 @@
     <!-- Declared so Winnow can tell "selected photos only" (Android 14+) apart and ask for "Allow all" -->
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Without it Android strips GPS from the photos the app reads (uploads would lose their location) -->
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
 </manifest>
