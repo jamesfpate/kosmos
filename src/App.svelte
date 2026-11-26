@@ -955,10 +955,10 @@
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
       <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>
-        ← Delete{selected.size ? ` ${selected.size}` : ''}
+        <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 8H3M7 4L3 8l4 4" /></svg>Delete{selected.size ? ` ${selected.size}` : ''}
       </button>
       <button class="put" onclick={() => card?.fling('right')} disabled={!current}>
-        → {target ? albumTitle(target) : 'New album'}
+        <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{target ? albumTitle(target) : 'New album'}</span>
       </button>
       <button onclick={later} disabled={queue.length <= group.length}>Later</button>
     </footer>
@@ -1063,13 +1063,13 @@
     {@render sizeSlider()}
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
-      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>← Delete {gridSel.size || ''}</button>
+      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 8H3M7 4L3 8l4 4" /></svg>Delete {gridSel.size || ''}</button>
       <button
         class="put"
         onclick={() => gridSuggested && fileGrid(gridSuggested.monthly ? MONTH_ALBUM : gridSuggested.id)}
         disabled={!gridSel.size || !gridSuggested}
       >
-        → {gridSuggested ? (gridSuggested.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(gridSuggested)) : 'Album'}
+        <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{gridSuggested ? (gridSuggested.monthly && gridMonthsChosen.size > 1 ? `By month (${gridMonthsChosen.size})` : albumTitle(gridSuggested)) : 'Album'}</span>
       </button>
     </footer>
     {#if viewing}
@@ -1497,6 +1497,31 @@
 
   button.trash {
     color: var(--trash);
+  }
+
+  /* Arrows are SVG so they centre the same in every font. */
+  footer button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .arrow {
+    flex: none;
+    width: 1.05em;
+    height: 1.05em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  footer .label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   footer button.put {
