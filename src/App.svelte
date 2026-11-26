@@ -5,6 +5,7 @@
     albums as albumStore,
     albumTitle,
     decisions,
+    monthPrefix,
     meta,
     type Album,
     type DecisionRecord,
@@ -19,7 +20,9 @@
   const GROUP_MAX = 40
   const GAP_CHOICES = [0, 2, 5, 10, 30, 60] // seconds; 0 = never group
 
-  type Screen = 'loading' | 'access' | 'start' | 'cull' | 'trash' | 'settings' | 'error'
+  const GRID_STEP = 400 // cells rendered per scroll step in the grid
+
+  type Screen = 'loading' | 'access' | 'start' | 'cull' | 'grid' | 'trash' | 'settings' | 'error'
   type UndoEntry = { item: MediaItem; prev?: DecisionRecord }
 
   let screen = $state<Screen>('loading')
@@ -43,8 +46,17 @@
   // Album picked from the bar for the card on screen; otherwise the suggestion is used.
   let chosenId = $state<string | null>(null)
   let hover = $state<string | null>(null)
-  let sheet = $state<{ fileAfter: boolean } | null>(null)
+  let sheet = $state<{ fileAfter: boolean; grid?: boolean } | null>(null)
   let albumBar = $state<HTMLElement>()
+  // Folders (MediaStore buckets) left out of culling and the grid, e.g. WhatsApp Images (setting).
+  let hidden = $state(new Set<string>())
+  let gridSel = $state(new Set<number>())
+  let gridLimit = $state(GRID_STEP)
+
+  const bucketOf = (i: MediaItem) => i.bucket ?? ''
+  const shown = (i: MediaItem) => !hidden.has(bucketOf(i))
+  /** Belongs in the swipe queue: not decided, not before the start point, not in a hidden folder. */
+  const inCull = (i: MediaItem) => !decided.has(i.id) && i.taken >= (cutoff ?? 0) && shown(i)
 
   const group = $derived.by(() => {
     const g: MediaItem[] = []
@@ -61,16 +73,16 @@
   const pendingTrash = $derived(items.filter((i) => decided.get(i.id)?.decision === 'pending_trash'))
   const recent = $derived([...albums].sort((a, b) => b.lastUsedAt - a.lastUsedAt))
 
-  /** A dated album whose range covers the photo wins; otherwise the album used last. */
-  const suggested = $derived.by(() => {
-    const first = group[0]
-    if (!first) return undefined
-    const t = first.taken
+  /** A dated album whose range covers the time wins; otherwise the album used last. */
+  function suggestFor(t: number | undefined): Album | undefined {
+    if (t === undefined) return undefined
     const covering = albums
       .filter((a) => a.start !== undefined && a.start <= t && (a.end === undefined || t <= a.end))
       .sort((a, b) => b.start! - a.start!)[0]
     return covering ?? recent[0]
-  })
+  }
+
+  const suggested = $derived(suggestFor(group[0]?.taken))
   const target = $derived(albums.find((a) => a.id === chosenId) ?? suggested)
   const barAlbums = $derived(target ? [target, ...recent.filter((a) => a.id !== target.id)] : recent)
   const keepCount = $derived(isGroup && selected.size ? selected.size : group.length)
@@ -78,6 +90,48 @@
     `${isGroup ? `Keep ${keepCount}` : 'Keep'} → ${target ? albumTitle(target) : 'new album'}`,
   )
   const trashLabel = $derived(isGroup ? `Trash all ${group.length}` : 'Trash')
+
+  /** Photos that still need an album: undecided (any date, e.g. before the start point) or kept without one. */
+  const backlog = $derived(
+    items
+      .filter((i) => {
+        if (!shown(i)) return false
+        const d = decided.get(i.id)
+        return !d || (d.decision === 'keep' && !d.albumId)
+      })
+      .sort((a, b) => b.taken - a.taken),
+  )
+  const months = $derived.by(() => {
+    const out: { key: string; items: MediaItem[] }[] = []
+    for (const item of backlog) {
+      const key = monthPrefix(item.taken)
+      if (out.at(-1)?.key !== key) out.push({ key, items: [] })
+      out.at(-1)!.items.push(item)
+    }
+    return out
+  })
+  /** Whole months, until about gridLimit cells (more are added on scroll). */
+  const gridMonths = $derived.by(() => {
+    let n = 0
+    const out: typeof months = []
+    for (const m of months) {
+      if (n >= gridLimit) break
+      out.push(m)
+      n += m.items.length
+    }
+    return out
+  })
+  const gridChosen = $derived(backlog.filter((i) => gridSel.has(i.id)))
+  const gridOldest = $derived(gridChosen.reduce<number | undefined>((t, i) => (t === undefined || i.taken < t ? i.taken : t), undefined))
+  const gridSuggested = $derived(suggestFor(gridOldest))
+  const gridAlbums = $derived(
+    gridSuggested ? [gridSuggested, ...recent.filter((a) => a.id !== gridSuggested.id)] : recent,
+  )
+  const buckets = $derived.by(() => {
+    const counts = new Map<string, number>()
+    for (const i of items) counts.set(bucketOf(i), (counts.get(bucketOf(i)) ?? 0) + 1)
+    return [...counts].sort((a, b) => b[1] - a[1])
+  })
 
   onMount(() => {
     init()
@@ -97,6 +151,7 @@
       cutoff = await meta.get<number>('cutoff')
       groupGap = (await meta.get<number>('groupGap')) ?? 5
       gridFrac = (await meta.get<number>('gridFrac')) ?? 0.4
+      hidden = new Set((await meta.get<string[]>('hiddenBuckets')) ?? [])
       albums = await albumStore.all()
       await reload()
       screen = cutoff === undefined ? 'start' : 'cull'
@@ -126,8 +181,8 @@
     const listed = new Set(all.map((i) => i.id))
     const queued = new Set(queue.map((i) => i.id))
     // Keep the current order (including "Later" moves); new items join at the end in date order.
-    const kept = queue.filter((i) => listed.has(i.id) && !map.has(i.id))
-    const fresh = all.filter((i) => !map.has(i.id) && !queued.has(i.id) && i.taken >= (cutoff ?? 0))
+    const kept = queue.filter((i) => listed.has(i.id) && inCull(i))
+    const fresh = all.filter((i) => !queued.has(i.id) && inCull(i))
     queue = [...kept, ...fresh]
     for (const next of queue.slice(0, 3)) previewUrl(next).catch(() => {})
   }
@@ -174,13 +229,35 @@
         ? { id: item.id, decision: 'keep', decidedAt: now, albumId }
         : { id: item.id, decision: 'pending_trash', decidedAt: now }
     })
+    nextCard()
+    await commit(cardItems, records, albumId)
+  }
+
+  /** Grid: files the selected photos into an album, or marks them for trash without one. */
+  async function fileGrid(albumId?: string) {
+    const chosen = gridChosen
+    if (!chosen.length) return
+    const now = Date.now()
+    gridSel = new Set()
+    await commit(
+      chosen,
+      chosen.map((item): DecisionRecord =>
+        albumId
+          ? { id: item.id, decision: 'keep', decidedAt: now, albumId }
+          : { id: item.id, decision: 'pending_trash', decidedAt: now },
+      ),
+      albumId,
+    )
+  }
+
+  async function commit(cardItems: MediaItem[], records: DecisionRecord[], albumId?: string) {
+    const now = Date.now()
     undoStack = [...undoStack.slice(-49), cardItems.map((item) => ({ item, prev: decided.get(item.id) }))]
     const next = new Map(decided)
     for (const r of records) next.set(r.id, r)
     decided = next
     const done = new Set(cardItems.map((i) => i.id))
     queue = queue.filter((i) => !done.has(i.id))
-    nextCard()
     for (const n of queue.slice(0, 3)) previewUrl(n).catch(() => {})
     if (albumId) {
       const album = albums.find((a) => a.id === albumId)
@@ -228,12 +305,16 @@
   }
 
   async function createAlbum(album: Album) {
-    const fileAfter = sheet?.fileAfter
+    const opened = sheet
     sheet = null
     albums = [...albums, album]
     await albumStore.put(album)
+    if (opened?.grid) {
+      if (opened.fileAfter) await fileGrid(album.id)
+      return
+    }
     chosenId = album.id
-    if (fileAfter) card?.fling('right')
+    if (opened?.fileAfter) card?.fling('right')
   }
 
   async function undo() {
@@ -251,10 +332,11 @@
       }
     }
     decided = next
-    const back = new Set(last.map((e) => e.item.id))
-    queue = [...last.map((e) => e.item), ...queue.filter((i) => !back.has(i.id))]
+    // Undecided again and in range: back to the front of the queue (grid-filed backlog photos return to the grid).
+    const again = last.map((e) => e.item).filter(inCull)
+    const back = new Set(again.map((i) => i.id))
+    queue = [...again, ...queue.filter((i) => !back.has(i.id))]
     nextCard()
-    screen = 'cull'
   }
 
   function later() {
@@ -289,6 +371,50 @@
     await meta.set('groupGap', seconds)
   }
 
+  async function toggleFolder(bucket: string) {
+    const next = new Set(hidden)
+    if (next.has(bucket)) next.delete(bucket)
+    else next.add(bucket)
+    hidden = next
+    queue = queue.filter(shown)
+    nextCard()
+    await meta.set('hiddenBuckets', [...next])
+    await reload()
+  }
+
+  function openGrid() {
+    gridSel = new Set()
+    gridLimit = GRID_STEP
+    screen = 'grid'
+  }
+
+  function toggleGrid(id: number) {
+    const next = new Set(gridSel)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    gridSel = next
+  }
+
+  /** Selects the whole month, or clears it when it's already fully selected. */
+  function toggleMonth(list: MediaItem[]) {
+    const next = new Set(gridSel)
+    const all = list.every((i) => next.has(i.id))
+    for (const i of list) {
+      if (all) next.delete(i.id)
+      else next.add(i.id)
+    }
+    gridSel = next
+  }
+
+  /** Grows the grid when the sentinel at its end scrolls into view. */
+  function more(node: HTMLElement) {
+    const io = new IntersectionObserver(([e]) => e.isIntersecting && (gridLimit += GRID_STEP), { rootMargin: '800px 0px' })
+    io.observe(node)
+    return { destroy: () => io.disconnect() }
+  }
+
+  const fmtMonth = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' })
+
   function changeStart() {
     queue = []
     screen = 'start'
@@ -309,7 +435,7 @@
       await decisions.remove(item.id)
     }
     decided = next
-    queue = [...back, ...queue]
+    queue = [...back.filter(inCull), ...queue]
     restore = new Set()
     const backIds = new Set(back.map((b) => b.id))
     undoStack = undoStack.filter((entry) => !entry.some((u) => backIds.has(u.item.id)))
@@ -394,6 +520,7 @@
       </div>
       <span class="muted count">{isGroup ? `${group.length} in a row · ` : ''}{queue.length} left</span>
       <span class="actions">
+        <button class="pill" onclick={openGrid} aria-label="Grid">▦ {backlog.length}</button>
         <button class="pill" disabled={!pendingTrash.length} onclick={() => (screen = 'trash')}>
           🗑 {pendingTrash.length}
         </button>
@@ -483,6 +610,9 @@
           {:else}
             <p class="muted">New photos show up here.</p>
           {/if}
+          {#if backlog.length}
+            <button onclick={openGrid}>File older photos <span>{backlog.length}</span></button>
+          {/if}
         </div>
       {/if}
     </div>
@@ -522,6 +652,18 @@
         {/each}
       </div>
 
+      <h3>Folders</h3>
+      <p class="muted">Unticked folders are skipped when culling and in the grid.</p>
+      <div class="folders">
+        {#each buckets as [bucket, count] (bucket)}
+          <label class="folder">
+            <input type="checkbox" checked={!hidden.has(bucket)} onchange={() => toggleFolder(bucket)} />
+            <span>{bucket || '(no folder)'}</span>
+            <span class="muted">{count}</span>
+          </label>
+        {/each}
+      </div>
+
       <h3>Start point</h3>
       <p class="muted">
         {cutoff ? `Culling photos from ${fmt.format(cutoff)}.` : 'Culling everything.'} Photos already reviewed stay
@@ -529,6 +671,63 @@
       </p>
       <button onclick={changeStart}>Change start point</button>
     </section>
+  {:else if screen === 'grid'}
+    <header>
+      <button class="pill" onclick={() => (screen = 'cull')}>‹ Back</button>
+      <b>{gridSel.size ? `${gridSel.size} selected` : `No album · ${backlog.length}`}</b>
+      {#if gridSel.size}
+        <button class="pill" onclick={() => (gridSel = new Set())}>Clear</button>
+      {:else}
+        <button class="pill" onclick={() => (gridSel = new Set(backlog.map((i) => i.id)))} disabled={!backlog.length}>
+          All
+        </button>
+      {/if}
+    </header>
+    <div class="backlog">
+      {#each gridMonths as month (month.key)}
+        <div class="month">
+          <b>{fmtMonth.format(month.items[0].taken)}</b>
+          <button class="link" onclick={() => toggleMonth(month.items)}>
+            {month.items.every((i) => gridSel.has(i.id)) ? 'Clear' : 'Select'}
+            {month.items.length}
+          </button>
+        </div>
+        <div class="grid month-grid">
+          {#each month.items as item (item.id)}
+            <button class="cell" class:kept={gridSel.has(item.id)} onclick={() => toggleGrid(item.id)}>
+              <Thumb {item} />
+              {#if item.type === 'video'}<span class="badge">▶</span>{/if}
+              {#if gridSel.has(item.id)}<span class="tick small">✓</span>{/if}
+            </button>
+          {/each}
+        </div>
+      {:else}
+        <div class="center">
+          <h2>Everything has an album</h2>
+        </div>
+      {/each}
+      {#if gridMonths.length < months.length}<div class="sentinel" use:more></div>{/if}
+    </div>
+    {#if gridSel.size}
+      <nav class="albums" aria-label="Albums">
+        <span class="albums-label">Put {gridSel.size} into</span>
+        <div class="chips">
+          {#each gridAlbums as album (album.id)}
+            <button class="chip" class:target={album.id === gridSuggested?.id} onclick={() => fileGrid(album.id)}>
+              {albumTitle(album)}
+            </button>
+          {/each}
+          <button class="chip new" onclick={() => (sheet = { fileAfter: true, grid: true })}>+ New album</button>
+        </div>
+      </nav>
+    {/if}
+    <footer>
+      <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
+      <button class="trash" onclick={() => fileGrid()} disabled={!gridSel.size}>Trash {gridSel.size || ''}</button>
+    </footer>
+    {#if sheet && gridOldest !== undefined}
+      <AlbumSheet photoDate={gridOldest} oncreate={createAlbum} oncancel={() => (sheet = null)} />
+    {/if}
   {:else if screen === 'trash'}
     <header>
       <button class="pill" onclick={() => (screen = 'cull')}>‹ Back</button>
@@ -863,6 +1062,7 @@
     flex-direction: column;
     gap: 8px;
     padding-top: 8px;
+    overflow-y: auto;
   }
 
   .settings h3 {
@@ -886,6 +1086,65 @@
     border-color: var(--accent);
     color: #0b0b0f;
     font-weight: 600;
+  }
+
+  .backlog {
+    flex: 1;
+    overflow-y: auto;
+    margin: 4px 0 8px;
+  }
+
+  .month {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 2px;
+    background: var(--bg);
+  }
+
+  .month-grid {
+    flex: none;
+    grid-template-columns: repeat(4, 1fr);
+    overflow: visible;
+    margin-bottom: 4px;
+  }
+
+  .link {
+    min-height: 32px;
+    padding: 0 8px;
+    border: 0;
+    background: none;
+    color: var(--accent);
+  }
+
+  .sentinel {
+    height: 1px;
+  }
+
+  .folders {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .folder {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .folder input {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--accent);
+  }
+
+  .folder span:first-of-type {
+    flex: 1;
   }
 
   .version {
