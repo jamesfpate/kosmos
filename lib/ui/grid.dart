@@ -90,7 +90,7 @@ class _GridScreenState extends State<GridScreen> {
       Align(
         alignment: Alignment.centerLeft,
         child: Label(sel.isEmpty
-            ? 'Pick an album, or select photos'
+            ? 'Pick an album, then select photos'
             : 'Choose album for ${sel.length}${doomed.isNotEmpty ? ' · deletes ${doomed.length} in red' : ''}'),
       ),
       const SizedBox(height: 4),
@@ -114,8 +114,8 @@ class _GridScreenState extends State<GridScreen> {
           AlbumChip(
             label: '+',
             dashed: true,
-            // Needs a selection: the new album is dated from the selected photos (oldest), not whatever is first in the grid.
-            onTap: sel.isEmpty ? null : () => newAlbum(context, s, s.gridOldest!, fileAfter: true, grid: true),
+            // Dated from the selected photos (oldest); with none selected yet, from the first photo filed into it.
+            onTap: () => newAlbum(context, s, s.gridOldest, fileAfter: sel.isNotEmpty, grid: true),
           ),
         ]),
       ),

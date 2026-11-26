@@ -70,16 +70,20 @@ class Album {
     required this.lastUsedAt,
     this.monthly = false,
     this.immichAlbumId,
+    this.autoDate = false,
   });
 
   final String id;
   final String name;
 
   /// Start of the first day (local) for dated albums.
-  final int? start;
+  int? start;
 
   /// End of the last day (local); open-ended while null.
-  final int? end;
+  int? end;
+
+  /// Dated, but made before any photo was chosen: [start] is set from the first photo filed into it.
+  bool autoDate;
   final int createdAt;
 
   /// When a photo last went in (0 = never used; creating an album doesn't count).
@@ -100,6 +104,7 @@ class Album {
         'lastUsedAt': lastUsedAt,
         if (monthly) 'monthly': true,
         if (immichAlbumId != null) 'immichAlbumId': immichAlbumId,
+        if (autoDate) 'autoDate': true,
       };
 
   static Album fromJson(Map<String, Object?> j) => Album(
@@ -111,6 +116,7 @@ class Album {
         lastUsedAt: (j['lastUsedAt'] as num?)?.toInt() ?? 0,
         monthly: j['monthly'] == true || j['everyday'] == true,
         immichAlbumId: j['immichAlbumId'] as String?,
+        autoDate: j['autoDate'] == true,
       );
 }
 

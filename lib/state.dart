@@ -403,6 +403,16 @@ class AppState extends ChangeNotifier {
     for (final id in {for (final r in records) r.albumId}) {
       final a = albums.where((a) => a.id == id).firstOrNull;
       if (a != null) {
+        // Made before any photo was chosen: its date comes from the first (oldest) photo filed into it.
+        if (a.autoDate && a.start == null) {
+          final first = records.where((r) => r.albumId == id).map((r) => byId[r.id]?.taken).whereType<int>().fold<int?>(
+              null, (m, t) => m == null || t < m ? t : m);
+          if (first != null) {
+            final d = DateTime.fromMillisecondsSinceEpoch(first);
+            a.start = DateTime(d.year, d.month, d.day).millisecondsSinceEpoch;
+            a.autoDate = false;
+          }
+        }
         a.lastUsedAt = now;
         await db.put('albums', a.id, a.toJson());
       }
