@@ -112,6 +112,12 @@ public class MediaPlugin extends Plugin {
         call.resolve();
     }
 
+    /** JS numbers arrive as Integer or Long depending on size; PluginCall.getLong only accepts Long. */
+    private static Long idOf(PluginCall call) {
+        Object v = call.getData().opt("id");
+        return v instanceof Number ? ((Number) v).longValue() : null;
+    }
+
     private static Uri itemUri(long id, boolean video) {
         return ContentUris.withAppendedId(
             video ? MediaStore.Video.Media.EXTERNAL_CONTENT_URI : MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id);
@@ -172,9 +178,10 @@ public class MediaPlugin extends Plugin {
      */
     @PluginMethod
     public void preview(PluginCall call) {
-        Long id = call.getLong("id");
+        Long id = idOf(call);
         boolean video = "video".equals(call.getString("type"));
-        int size = call.getInt("size", 1600);
+        Object sizeArg = call.getData().opt("size");
+        int size = sizeArg instanceof Number ? ((Number) sizeArg).intValue() : 1600;
         if (id == null) {
             call.reject("id is required");
             return;
@@ -218,7 +225,7 @@ public class MediaPlugin extends Plugin {
     /** Opens the item in the system viewer (used to play videos). */
     @PluginMethod
     public void open(PluginCall call) {
-        Long id = call.getLong("id");
+        Long id = idOf(call);
         String type = call.getString("type", "image");
         if (id == null) {
             call.reject("id is required");
