@@ -161,7 +161,13 @@ class TraceFx extends StatefulWidget {
     this.radius = 0,
     this.fadeOut,
     this.frame = true,
+    this.thickness = Motion.thickness,
+    this.glow = Motion.glow,
   });
+
+  /// Line width and glow (smaller for the wordmark).
+  final double thickness;
+  final double glow;
 
   /// The photo whose outlines to trace, or [outlines] given directly.
   final Item? item;
@@ -219,7 +225,8 @@ class _TraceFxState extends State<TraceFx> with SingleTickerProviderStateMixin {
             Positioned.fill(
               child: IgnorePointer(
                 child: CustomPaint(
-                  painter: _TracePainter(_lines, widget.keep, trace, 1 - fade, widget.radius, widget.frame),
+                  painter: _TracePainter(_lines, widget.keep, trace, 1 - fade, widget.radius, widget.frame,
+                      widget.thickness, widget.glow),
                 ),
               ),
             ),
@@ -242,7 +249,7 @@ List<double> _grey(double t) {
 }
 
 class _TracePainter extends CustomPainter {
-  _TracePainter(this.lines, this.keep, this.p, this.alpha, this.radius, this.frame);
+  _TracePainter(this.lines, this.keep, this.p, this.alpha, this.radius, this.frame, this.thickness, this.glowR);
 
   final Outlines? lines;
   final bool keep;
@@ -250,6 +257,8 @@ class _TracePainter extends CustomPainter {
   final double alpha;
   final double radius;
   final bool frame;
+  final double thickness;
+  final double glowR;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -262,14 +271,14 @@ class _TracePainter extends CustomPainter {
     final glow = Paint()
       ..shader = shader
       ..style = PaintingStyle.stroke
-      ..strokeWidth = Motion.thickness * 1.6
+      ..strokeWidth = thickness * 1.6
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..maskFilter = Motion.glow > 0 ? const MaskFilter.blur(BlurStyle.normal, Motion.glow / 2.5) : null;
+      ..maskFilter = glowR > 0 ? MaskFilter.blur(BlurStyle.normal, glowR / 2.5) : null;
     final line = Paint()
       ..shader = shader
       ..style = PaintingStyle.stroke
-      ..strokeWidth = Motion.thickness
+      ..strokeWidth = thickness
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 

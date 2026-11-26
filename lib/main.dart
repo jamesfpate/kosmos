@@ -76,7 +76,8 @@ class _LoadingLogoState extends State<LoadingLogo> {
       child: Padding(padding: const EdgeInsets.all(16), child: Logo(size: 40, busy: !widget.done)),
     );
     if (_outlines == null) return logo;
-    return TraceFx(outlines: _outlines, keep: true, fadeOut: true, frame: false, child: logo);
+    return TraceFx(
+        outlines: _outlines, keep: true, fadeOut: true, frame: false, thickness: 1, glow: 3, child: logo);
   }
 }
 
