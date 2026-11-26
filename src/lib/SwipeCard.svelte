@@ -25,10 +25,18 @@
   let startX = 0
   let startY = 0
   let startT = 0
+  let moved = false
+
+  // Touches this close to the screen's left/right edge belong to Android's back gesture.
+  const EDGE = 28
+  // Movement before a touch counts as a swipe (below it, it's a tap).
+  const SLOP = 12
 
   function down(e: PointerEvent) {
     if (leaving || e.button !== 0) return
+    if (e.clientX < EDGE || e.clientX > window.innerWidth - EDGE) return
     dragging = true
+    moved = false
     startX = e.clientX
     startY = e.clientY
     startT = e.timeStamp
@@ -37,15 +45,19 @@
 
   function move(e: PointerEvent) {
     if (!dragging) return
-    dx = e.clientX - startX
-    dy = e.clientY - startY
+    const x = e.clientX - startX
+    const y = e.clientY - startY
+    if (!moved && Math.hypot(x, y) < SLOP) return
+    moved = true
+    dx = x
+    dy = y
   }
 
   function up(e: PointerEvent) {
     if (!dragging) return
     dragging = false
     const elapsed = Math.max(1, e.timeStamp - startT)
-    if (Math.hypot(dx, dy) < 10 && elapsed < 300) {
+    if (!moved) {
       dx = 0
       dy = 0
       ontap?.()

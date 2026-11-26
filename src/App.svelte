@@ -375,7 +375,7 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    padding: max(env(safe-area-inset-top), 8px) 12px max(env(safe-area-inset-bottom), 8px);
+    padding: max(env(safe-area-inset-top), 8px) 20px max(env(safe-area-inset-bottom), 8px);
     box-sizing: border-box;
   }
 

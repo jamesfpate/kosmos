@@ -3,15 +3,15 @@
 
   let { item }: { item: MediaItem } = $props()
   let src = $state('')
-  let failed = $state(false)
+  let failed = $state('')
 
   $effect(() => {
     const id = item.id
     src = ''
-    failed = false
+    failed = ''
     previewUrl(item).then(
       (url) => id === item.id && (src = url),
-      () => id === item.id && (failed = true),
+      (e) => id === item.id && (failed = e instanceof Error ? e.message : String(e)),
     )
   })
 </script>
@@ -19,7 +19,7 @@
 {#if src}
   <img {src} alt="" draggable="false" />
 {:else if failed}
-  <p>Can't show {item.name}</p>
+  <p>Can't show {item.name}<br /><small>{failed}</small></p>
 {:else}
   <p>Loading…</p>
 {/if}
@@ -35,6 +35,9 @@
 
   p {
     margin: 0;
+    padding: 0 16px;
+    text-align: center;
+    overflow-wrap: anywhere;
     color: var(--muted);
   }
 </style>

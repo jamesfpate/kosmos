@@ -209,7 +209,8 @@ public class MediaPlugin extends Plugin {
                 ret.put("path", out.getAbsolutePath());
                 call.resolve(ret);
             } catch (Exception e) {
-                call.reject("preview failed: " + e.getMessage(), e);
+                android.util.Log.e("Kosmos", "preview " + id + " failed", e);
+                call.reject("preview failed: " + e, e);
             }
         });
     }
