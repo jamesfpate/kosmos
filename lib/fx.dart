@@ -60,7 +60,10 @@ Future<Outlines> outlinesFromImage(ui.Image img) async {
 }
 
 Future<Outlines> _compute(Item item) async {
-  final bytes = await item.entity.thumbnailDataWithSize(const ThumbnailSize(200, 200));
+  // Ask for the photo's own proportions (as displayed), so the lines map 1:1 onto the photo on screen.
+  final a = item.aspect;
+  final size = a >= 1 ? ThumbnailSize(240, max(16, (240 / a).round())) : ThumbnailSize(max(16, (240 * a).round()), 240);
+  final bytes = await item.entity.thumbnailDataWithSize(size);
   if (bytes == null) return const Outlines([]);
   final codec = await ui.instantiateImageCodec(bytes);
   final img = (await codec.getNextFrame()).image;

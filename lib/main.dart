@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'package:flutter/rendering.dart';
 
 import 'fx.dart';
@@ -53,18 +52,29 @@ class _LoadingLogoState extends State<LoadingLogo> {
   final _key = GlobalKey();
   Future<Outlines>? _outlines;
 
+  bool _capturing = false;
+
   @override
   void didUpdateWidget(LoadingLogo oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.done && _outlines == null) {
-      final box = _key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      _outlines = box == null ? Future.value(const Outlines([])) : box.toImage(pixelRatio: 2).then(outlinesFromImage);
+    if (widget.done && _outlines == null && !_capturing) {
+      _capturing = true;
+      // Let the wordmark settle at rest for a frame, then capture exactly what's on screen.
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final box = _key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+        final o = box == null ? const Outlines([]) : await outlinesFromImage(await box.toImage(pixelRatio: 3));
+        if (mounted) setState(() => _outlines = Future.value(o));
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final logo = RepaintBoundary(key: _key, child: Logo(size: 40, busy: !widget.done));
+    // Padding so the raised and lowered letters sit inside the captured area (the outline lines up with them).
+    final logo = RepaintBoundary(
+      key: _key,
+      child: Padding(padding: const EdgeInsets.all(16), child: Logo(size: 40, busy: !widget.done)),
+    );
     if (_outlines == null) return logo;
     return TraceFx(outlines: _outlines, keep: true, fadeOut: true, frame: false, child: logo);
   }
