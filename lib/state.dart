@@ -918,6 +918,84 @@ class AppState extends ChangeNotifier {
   // ---------------------------------------------------------------- Immich
 
   /// Shares every album already in Immich with the share-with users (new ones are shared as they sync).
+  /// Reads an Immich album name the way Winnow writes them: "2026-11 Thanksgiving" (dated), "2026-11" (the month's
+  /// album) or anything else (undated). Dates come from the album's photos when they fall in that month.
+  Album _fromImmich(String id, String name, DateTime? from, DateTime? to, Album? base) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final m = RegExp(r'^(\d{4})-(\d{2})(?:\s+(.+))?$').firstMatch(name.trim());
+    int? start, end;
+    var label = name.trim();
+    var monthly = false;
+    if (m != null && int.parse(m[2]!) >= 1 && int.parse(m[2]!) <= 12) {
+      final month = DateTime(int.parse(m[1]!), int.parse(m[2]!)).millisecondsSinceEpoch;
+      label = m[3]?.trim() ?? '';
+      monthly = label.isEmpty;
+      final inMonth = from != null && startOfMonth(from.millisecondsSinceEpoch) == month;
+      if (monthly) {
+        start = month;
+        end = endOfMonth(month);
+      } else if (base?.start != null && startOfMonth(base!.start!) == month) {
+        // Same month as before (a rename): keep Winnow's own dates.
+        start = base.start;
+        end = base.end;
+      } else {
+        start = inMonth ? DateTime(from.year, from.month, from.day).millisecondsSinceEpoch : month;
+        end = inMonth && to != null ? DateTime(to.year, to.month, to.day + 1).millisecondsSinceEpoch - 1 : null;
+      }
+    }
+    return Album(
+      id: base?.id ?? _uuid(),
+      name: label,
+      start: start,
+      end: end,
+      createdAt: base?.createdAt ?? now,
+      lastUsedAt: base?.lastUsedAt ?? 0,
+      monthly: monthly,
+      immichAlbumId: id,
+      staleTags: base?.staleTags ?? const [],
+    );
+  }
+
+  /// One-time import: Immich albums Winnow doesn't have yet become Winnow albums (matched by link, then by title).
+  /// Returns (added, linked).
+  Future<(int, int)> importImmichAlbums() async {
+    final api = ImmichApi(immich);
+    var added = 0, linked = 0;
+    try {
+      for (final r in await api.albums()) {
+        if (albums.any((a) => a.immichAlbumId == r.id)) continue;
+        final parsed = _fromImmich(r.id, r.name, r.start, r.end, null);
+        final same = albums
+            .where((a) => a.immichAlbumId == null && albumTitle(a) == albumTitle(parsed) && a.monthly == parsed.monthly)
+            .firstOrNull;
+        if (same != null) {
+          same.immichAlbumId = r.id;
+          await db.put('albums', same.id, same.toJson());
+          linked++;
+        } else {
+          albums = [...albums, parsed];
+          await db.put('albums', parsed.id, parsed.toJson());
+          added++;
+        }
+      }
+    } finally {
+      api.close();
+      changed();
+    }
+    return (added, linked);
+  }
+
+  /// After a sync: albums renamed in Immich's own app get the new name (and dates) in Winnow, and their photos move to
+  /// the new tag.
+  Future<void> _pullAlbumNames(ImmichApi api) async {
+    final remote = {for (final r in await api.albums()) r.id: r};
+    for (final a in [...albums]) {
+      final r = remote[a.immichAlbumId];
+      if (r == null || r.name.trim() == albumTitle(a)) continue;
+      await updateAlbum(a, _fromImmich(r.id, r.name, r.start, r.end, a));
+    }
+  }
+
   Future<int> shareAllAlbums() async {
     final api = ImmichApi(immich);
     var n = 0;
@@ -1028,6 +1106,7 @@ class AppState extends ChangeNotifier {
           status();
         }
       } while (_syncAgain);
+      await _pullAlbumNames(api);
       sync = SyncStatus(done: done);
     } catch (e) {
       final records = {for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)};

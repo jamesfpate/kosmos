@@ -297,6 +297,18 @@ class _ImmichScreenState extends State<ImmichScreen> {
     }
   }
 
+  Future<void> _import() async {
+    setState(() => _msg = 'Importing albums…');
+    try {
+      final (added, linked) = await s.importImmichAlbums();
+      setState(() => _msg = added + linked == 0
+          ? 'No new albums in Immich'
+          : 'Added $added album${added == 1 ? '' : 's'}${linked > 0 ? ', linked $linked already in Winnow' : ''}');
+    } catch (e) {
+      setState(() => _msg = 'Import failed: $e');
+    }
+  }
+
   Future<void> _shareAll() async {
     setState(() => _msg = 'Sharing…');
     try {
@@ -374,6 +386,13 @@ class _ImmichScreenState extends State<ImmichScreen> {
             const SizedBox(width: 8),
             Expanded(child: Btn('Share existing albums now', onTap: ready && s.immich.shareWith.isNotEmpty ? _shareAll : null)),
           ]),
+          Label('Albums'),
+          const Text(
+            "Bring in albums you already have in Immich so you can file into them. Names like \"2024-12 Christmas\" become dated albums. Renames you make in Immich come back to Winnow after each sync.",
+            style: TextStyle(color: C.muted),
+          ),
+          const SizedBox(height: 6),
+          Btn('Import albums from Immich', onTap: ready ? _import : null),
           if (s.immich.enabled) ...[
             const SizedBox(height: 8),
             Text(

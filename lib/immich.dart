@@ -155,6 +155,20 @@ class ImmichApi {
     return id;
   }
 
+  /// Every album the key's owner can see (own and shared with them).
+  Future<List<({String id, String name, DateTime? start, DateTime? end})>> albums() async {
+    final list = (await call('GET', '/albums') as List).cast<Map>();
+    return [
+      for (final a in list)
+        (
+          id: a['id'] as String,
+          name: '${a['albumName']}',
+          start: DateTime.tryParse('${a['startDate']}')?.toLocal(),
+          end: DateTime.tryParse('${a['endDate']}')?.toLocal(),
+        ),
+    ];
+  }
+
   final _tagIds = <String, String>{};
 
   /// Creates the tag path if needed (Immich makes the parents) and returns the leaf tag's id.
