@@ -1234,6 +1234,36 @@
   {:else if screen === 'settings'}
     {@render topBar()}
     <section class="settings">
+      <h2>General</h2>
+
+      <h3>Order</h3>
+      <p class="muted">Which photos come first, everywhere: swiping one by one, bursts and the grid.</p>
+      <div class="choices">
+        <button class:on={!newestFirst} onclick={() => setOrder(false)}>Oldest first</button>
+        <button class:on={newestFirst} onclick={() => setOrder(true)}>Newest first</button>
+      </div>
+
+      <h3>Folders</h3>
+      <p class="muted">Unticked folders are skipped when culling and in the grid.</p>
+      <div class="folders">
+        {#each buckets as [bucket, count] (bucket)}
+          <label class="folder">
+            <input type="checkbox" checked={!hidden.has(bucket)} onchange={() => toggleFolder(bucket)} />
+            <span>{bucket || '(no folder)'}</span>
+            <span class="muted">{count}</span>
+          </label>
+        {/each}
+      </div>
+
+      <h3>Start point</h3>
+      <p class="muted">
+        {cutoff ? `Culling photos from ${fmt.format(cutoff)}.` : 'Culling everything.'} Photos already reviewed stay
+        reviewed.
+      </p>
+      <button onclick={changeStart}>Change start point</button>
+
+      <h2>Single photo</h2>
+
       <h3>Review bursts together</h3>
       <p class="muted">Photos taken in quick succession show as one card: keep the best, remove the rest.</p>
       <div class="choices">
@@ -1274,7 +1304,9 @@
       </div>
       {/if}
 
-      <h3>Grid: delete the gaps</h3>
+      <h2>Grid</h2>
+
+      <h3>Delete the gaps</h3>
       <p class="muted">
         Filing a selection into an album also deletes the unselected photos between your first and last pick (shown with
         a red border). Deletes go to Trash for review first.
@@ -1284,33 +1316,7 @@
         <button class:on={!gridAutoTrash} onclick={() => setGridAutoTrash(false)}>Off</button>
       </div>
 
-      <h3>Folders</h3>
-      <p class="muted">Unticked folders are skipped when culling and in the grid.</p>
-      <div class="folders">
-        {#each buckets as [bucket, count] (bucket)}
-          <label class="folder">
-            <input type="checkbox" checked={!hidden.has(bucket)} onchange={() => toggleFolder(bucket)} />
-            <span>{bucket || '(no folder)'}</span>
-            <span class="muted">{count}</span>
-          </label>
-        {/each}
-      </div>
-
-      <h3>Order</h3>
-      <p class="muted">Which photos come first, everywhere: swiping one by one, bursts and the grid.</p>
-      <div class="choices">
-        <button class:on={!newestFirst} onclick={() => setOrder(false)}>Oldest first</button>
-        <button class:on={newestFirst} onclick={() => setOrder(true)}>Newest first</button>
-      </div>
-
-      <h3>Start point</h3>
-      <p class="muted">
-        {cutoff ? `Culling photos from ${fmt.format(cutoff)}.` : 'Culling everything.'} Photos already reviewed stay
-        reviewed.
-      </p>
-      <button onclick={changeStart}>Change start point</button>
-
-      <h3>Integrations</h3>
+      <h2>Integrations</h2>
       <p class="muted">Upload kept photos with their albums.</p>
       <button class="row-link" onclick={() => (screen = 'immich')}>
         <span>Immich</span>
@@ -1321,7 +1327,7 @@
         <span class="muted">Coming later</span>
       </button>
 
-      <h3>Backup</h3>
+      <h2>Backup</h2>
       <p class="muted">
         Export or import your app settings, albums and photo decisions. They live only on this phone: export saves them to
         Downloads, import brings them back after a reinstall or on a new install.
@@ -2038,6 +2044,20 @@
     gap: 8px;
     padding-top: 8px;
     overflow-y: auto;
+  }
+
+  .settings h2 {
+    margin: 20px 0 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .settings h2:first-child {
+    margin-top: 4px;
   }
 
   .settings h3 {
