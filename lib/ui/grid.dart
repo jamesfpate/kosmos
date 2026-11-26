@@ -77,7 +77,7 @@ class _GridScreenState extends State<GridScreen> {
       TopBar(
         s,
         title: Logo(busy: s.sync.running),
-        subtitle: Text('${s.backlog.length} unreviewed'),
+        subtitle: Text(syncStatus(s) ?? '${s.backlog.length} unreviewed'),
       ),
       Align(
         alignment: Alignment.centerLeft,

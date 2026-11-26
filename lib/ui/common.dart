@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -272,8 +274,8 @@ class AlbumChip extends StatelessWidget {
   }
 }
 
-/// The Winnow wordmark: the two n's offset, one dropped and one raised, like grain being winnowed. With [busy] (an
-/// upload running) they toss up and down.
+/// The Winnow wordmark: the two n's offset, one dropped and one raised, like grain being winnowed. With [busy] (a
+/// sync running) the letters ripple in a wave.
 class Logo extends StatefulWidget {
   const Logo({super.key, this.size = 22, this.busy = false});
 
@@ -285,22 +287,19 @@ class Logo extends StatefulWidget {
 }
 
 class _LogoState extends State<Logo> with SingleTickerProviderStateMixin {
-  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
 
   @override
   void initState() {
     super.initState();
-    if (widget.busy) _anim.repeat(reverse: true);
+    if (widget.busy) _anim.repeat();
   }
 
   @override
   void didUpdateWidget(Logo oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.busy && !_anim.isAnimating) {
-      _anim.repeat(reverse: true);
-    } else if (!widget.busy && _anim.isAnimating) {
-      _anim.animateTo(0.5, duration: const Duration(milliseconds: 200));
-    }
+    if (widget.busy && !_anim.isAnimating) _anim.repeat();
+    if (!widget.busy && _anim.isAnimating) _anim.stop();
   }
 
   @override
@@ -312,22 +311,29 @@ class _LogoState extends State<Logo> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final style = TextStyle(fontSize: widget.size, fontWeight: FontWeight.w800, color: C.text, height: 1);
-    final n = style.copyWith(color: C.accent);
+    final accent = style.copyWith(color: C.accent);
     final shift = widget.size * 0.14;
+    const letters = ['w', 'i', 'n', 'n', 'o', 'w'];
+    // At rest the first n sits low and the second high.
+    final base = [0.0, 0.0, shift, -shift, 0.0, 0.0];
     return AnimatedBuilder(
       animation: _anim,
-      builder: (context, _) {
-        // At rest (0.5 or not running): first n down, second up. Busy: they swap back and forth.
-        final k = widget.busy || _anim.isAnimating ? (1 - 2 * Curves.easeInOut.transform(_anim.value)) : 1.0;
-        return Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Text('wi', style: style),
-          Transform.translate(offset: Offset(0, shift * k), child: Text('n', style: n)),
-          Transform.translate(offset: Offset(0, -shift * k), child: Text('n', style: n)),
-          Text('ow', style: style),
-        ]);
-      },
+      builder: (context, _) => Row(mainAxisSize: MainAxisSize.min, children: [
+        for (var i = 0; i < letters.length; i++)
+          Transform.translate(
+            offset: Offset(0, base[i] + (widget.busy ? shift * 1.2 * sin(2 * pi * _anim.value - i * 0.9) : 0)),
+            child: Text(letters[i], style: i == 2 || i == 3 ? accent : style),
+          ),
+      ]),
     );
   }
+}
+
+/// What a running sync is doing, for the line under the wordmark (null when idle).
+String? syncStatus(AppState s) {
+  final sync = s.sync;
+  if (!sync.running) return null;
+  return sync.pending > 0 ? 'Uploading ${sync.pending} to Immich…' : 'Syncing albums with Immich…';
 }
 
 /// Fades in and out while [on] (the upload counter during a sync).
