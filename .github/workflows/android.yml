@@ -1,10 +1,10 @@
 name: Android
 
-# Push to main: debug APK ("Winnow dev", installs next to the release) as a workflow artifact.
+# Push to main or flutter: debug APK ("Winnow dev", installs next to the release) as a workflow artifact.
 # Tag v*: signed release APK attached to a GitHub release, which Obtainium installs and updates.
 on:
   push:
-    branches: [main]
+    branches: [main, flutter]
     tags: ['v*']
   workflow_dispatch:
 
@@ -17,16 +17,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 17
           cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.0
+          channel: stable
+          cache: true
 
       - name: Version
         run: |
@@ -35,31 +36,29 @@ jobs:
             IFS=. read -r major minor patch <<< "$name"
             code=$(( major * 10000 + minor * 100 + patch ))
           else
-            name="0.0.0-dev.${GITHUB_RUN_NUMBER}+${GITHUB_SHA::7}"
+            name="0.0.0-dev.${GITHUB_RUN_NUMBER}"
             code=$GITHUB_RUN_NUMBER
           fi
           echo "WINNOW_VERSION_NAME=$name" >> "$GITHUB_ENV"
           echo "WINNOW_VERSION_CODE=$code" >> "$GITHUB_ENV"
 
-      - run: npm ci
-      - run: npm run check
-      - run: npm run build
-      - run: npx cap sync android
+      - run: flutter pub get
+      - run: flutter analyze
 
       - name: Debug APK
         if: github.ref_type != 'tag'
-        working-directory: android
-        run: ./gradlew --no-daemon assembleDebug
+        run: >
+          flutter build apk --debug --build-name "$WINNOW_VERSION_NAME" --build-number "$WINNOW_VERSION_CODE"
+          --dart-define WINNOW_VERSION="$WINNOW_VERSION_NAME"
 
       - uses: actions/upload-artifact@v4
         if: github.ref_type != 'tag'
         with:
           name: winnow-dev-${{ env.WINNOW_VERSION_CODE }}
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
 
       - name: Release APK
         if: github.ref_type == 'tag'
-        working-directory: android
         env:
           WINNOW_KEYSTORE_BASE64: ${{ secrets.WINNOW_KEYSTORE_BASE64 }}
           WINNOW_KEYSTORE_PASSWORD: ${{ secrets.WINNOW_KEYSTORE_PASSWORD }}
@@ -67,8 +66,9 @@ jobs:
         run: |
           export WINNOW_KEYSTORE_FILE="$RUNNER_TEMP/winnow.jks"
           echo "$WINNOW_KEYSTORE_BASE64" | base64 -d > "$WINNOW_KEYSTORE_FILE"
-          ./gradlew --no-daemon assembleRelease
-          mv app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/winnow-$WINNOW_VERSION_NAME.apk"
+          flutter build apk --release --build-name "$WINNOW_VERSION_NAME" --build-number "$WINNOW_VERSION_CODE" \
+            --dart-define WINNOW_VERSION="$WINNOW_VERSION_NAME"
+          mv build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/winnow-$WINNOW_VERSION_NAME.apk"
 
       - uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
