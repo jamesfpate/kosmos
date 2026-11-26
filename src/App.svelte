@@ -9,7 +9,6 @@
     importAll,
     monthPrefix,
     meta,
-    naming,
     type Album,
     type DecisionRecord,
   } from './lib/store.svelte'
@@ -261,7 +260,6 @@
       if (groupGap === 0) groupGap = 5
       autoTrash = (await meta.get<boolean>('autoTrash')) ?? true
       newestFirst = (await meta.get<boolean>('newestFirst')) ?? false
-      naming.format = (await meta.get<'ym' | 'y'>('nameFormat')) ?? 'ym'
       gridFrac = (await meta.get<number>('gridFrac')) ?? 0.4
       thumbH = (await meta.get<number>('thumbH')) ?? 150
       hidden = new Set((await meta.get<string[]>('hiddenBuckets')) ?? [])
@@ -583,11 +581,6 @@
     } catch (e) {
       backupMsg = `Import failed: ${e instanceof Error ? e.message : e}`
     }
-  }
-
-  async function setNameFormat(format: 'ym' | 'y') {
-    naming.format = format
-    await meta.set('nameFormat', format)
   }
 
   async function setOrder(newest: boolean) {
@@ -1172,13 +1165,6 @@
             <span class="muted">{count}</span>
           </label>
         {/each}
-      </div>
-
-      <h3>Album names</h3>
-      <p class="muted">The date in front of dated album names (and their Immich tags). Month albums stay YYYY-MM.</p>
-      <div class="choices">
-        <button class:on={naming.format === 'ym'} onclick={() => setNameFormat('ym')}>2026-11 Thanksgiving</button>
-        <button class:on={naming.format === 'y'} onclick={() => setNameFormat('y')}>2026 Thanksgiving</button>
       </div>
 
       <h3>Order</h3>

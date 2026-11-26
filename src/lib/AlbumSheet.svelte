@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { albumTitle, datePrefix, type Album } from './store.svelte'
+  import { albumTitle, monthPrefix, type Album } from './store.svelte'
 
   let {
     photoDate,
@@ -28,7 +28,7 @@
   let input: HTMLInputElement
 
   const start = $derived(dated ? fromInput(startInput) : undefined)
-  const prefix = $derived(start === undefined ? '' : datePrefix(start))
+  const prefix = $derived(start === undefined ? '' : monthPrefix(start))
   // The date prefix is added automatically; flag names that start with a year, month or YYYY-MM anyway.
   const DATE_START =
     /^\s*((19|20)\d\d([-/. ]\d{1,2})?|jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t(ember)?)?|oct(ober)?|nov(ember)?|dec(ember)?)\b[\s,.-]*/i
