@@ -82,6 +82,15 @@
   // A burst being worked through stays together (removing a photo can break the time gap between the others).
   let pinned = $state<Set<number> | null>(null)
 
+  // A new burst starts with every photo ticked (untick the ones to remove).
+  let seededFor = ''
+  $effect(() => {
+    const key = group.map((i) => i.id).join(',')
+    if (key === seededFor) return
+    seededFor = key
+    selected = group.length > 1 ? new Set(group.map((i) => i.id)) : new Set()
+  })
+
   const group = $derived.by(() => {
     if (pinned) {
       const rest = queue.filter((i) => pinned!.has(i.id))
@@ -311,6 +320,7 @@
     chosenId = null
     pinned = null
     playingId = null
+    seededFor = ''
   }
 
   /** Swipe right keeps into the target album (or asks for one); left trashes the whole card. */
@@ -983,10 +993,7 @@
                     class:focused={i === focus}
                     class:kept={selected.has(item.id)}
                     class:doomed={autoTrash && selected.size > 0 && !selected.has(item.id)}
-                    onclick={() => {
-                      focus = i
-                      toggleKeep(item.id)
-                    }}
+                    onclick={() => (i === focus ? toggleKeep(item.id) : (focus = i))}
                     role="option"
                     aria-selected={selected.has(item.id)}
                   >
@@ -1019,9 +1026,11 @@
     {#if isGroup}
       {@render sizeSlider()}
       <p class="muted hint">
-        {selected.size
-          ? `${selected.size} selected · ${burstDoomed.length ? `keeping them deletes the other ${burstDoomed.length}` : 'swipe or tap an album to file them, left to delete'}`
-          : 'Swipe files the large photo · tap thumbnails to select several'}
+        {selected.size === group.length
+          ? `Keeping all ${group.length} · tap a photo to view it, again to remove it`
+          : selected.size
+            ? `Keeping ${selected.size} · ${burstDoomed.length ? `${burstDoomed.length} in red go to trash` : `the other ${group.length - selected.size} wait`}`
+            : 'Nothing ticked · swipe files the large photo'}
       </p>
     {/if}
     <footer>
