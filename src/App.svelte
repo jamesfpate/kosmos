@@ -43,8 +43,8 @@
   let restore = $state(new Set<number>())
   let busy = $state(false)
   let card = $state<SwipeCard>()
-  // Burst photos checked by the user (none at first); the buttons act on these.
-  let checked = $state(new Set<number>())
+  // Burst photos the user unchecked; every other photo of the burst is checked (all of them at first).
+  let unchecked = $state(new Set<number>())
   let focus = $state(0)
   // Photos taken within this many seconds of the previous one are culled together as one card (setting).
   let groupGap = $state(5)
@@ -107,7 +107,7 @@
   const isGroup = $derived(group.length > 1)
   // Checked photos of the burst on screen; empty for a single photo.
   const selected = $derived(
-    group.length > 1 ? new Set(group.filter((i) => checked.has(i.id)).map((i) => i.id)) : new Set<number>(),
+    group.length > 1 ? new Set(group.filter((i) => !unchecked.has(i.id)).map((i) => i.id)) : new Set<number>(),
   )
   const pendingTrash = $derived(items.filter((i) => decided.get(i.id)?.decision === 'pending_trash'))
   // Month albums ("YYYY-MM", the catch-all) count as one recent, shown for the photo's month.
@@ -177,8 +177,8 @@
     chosenId === MONTH_ALBUM && group[0] ? monthChip(group[0].taken) : (recent.find((a) => a.id === chosenId) ?? suggested),
   )
   const barAlbums = $derived(target ? [target, ...recent.filter((a) => a.id !== target.id)] : recent)
-  // Burst buttons: nothing checked = the whole burst; else the checked ones, and (setting) the rest the other way.
-  const burstAll = $derived(isGroup && selected.size === 0)
+  // Burst buttons: all (or none) checked = the whole burst; else the checked ones, and (setting) the rest the other way.
+  const burstAll = $derived(isGroup && (selected.size === 0 || selected.size === group.length))
   const burstRest = $derived(isGroup && !burstAll && autoTrash ? group.length - selected.size : 0)
   const burstKeep = $derived(burstAll ? `Keep all ${group.length}` : `Keep ${selected.size}`)
   const burstDelete = $derived(burstAll ? `Delete all ${group.length}` : `Delete ${selected.size}`)
@@ -331,7 +331,7 @@
   let cardKey = $state(0)
 
   function nextCard() {
-    checked = new Set()
+    unchecked = new Set()
     focus = 0
     chosenId = null
     pinned = null
@@ -354,13 +354,13 @@
    * rest of the burst stays on screen (same album target) until every photo is decided.
    */
   async function file(dir: Direction, albumId?: string) {
-    // Burst: nothing checked = the whole burst; else the checked ones, plus the rest the opposite way (setting).
+    // Burst: all (or none) checked = the whole burst; else the checked ones, plus the rest the opposite way (setting).
     let keep: MediaItem[] = []
     let del: MediaItem[] = []
     if (isGroup) {
       const picked = group.filter((i) => selected.has(i.id))
       const others = group.filter((i) => !selected.has(i.id))
-      if (!picked.length) {
+      if (!picked.length || picked.length === group.length) {
         if (dir === 'right') keep = group
         else del = group
       } else if (dir === 'right') {
@@ -467,10 +467,10 @@
   }
 
   function toggleKeep(id: number) {
-    const next = new Set(checked)
+    const next = new Set(unchecked)
     if (next.has(id)) next.delete(id)
     else next.add(id)
-    checked = next
+    unchecked = next
   }
 
   function targetAt(point: { x: number; y: number }): string | null {
@@ -1166,7 +1166,7 @@
       {@render sizeSlider()}
       <p class="muted hint">
         {burstAll
-          ? 'Tap a photo to view it, again to check it'
+          ? 'All checked · tap a photo to view it, again to uncheck it'
           : burstRest
             ? `${selected.size} checked · the other ${burstRest} go the opposite way`
             : `${selected.size} checked · the other ${group.length - selected.size} stay for later`}
