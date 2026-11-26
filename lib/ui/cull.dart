@@ -49,8 +49,8 @@ class _CullScreenState extends State<CullScreen> {
     final target = s.target;
     return Column(children: [
       TopBar(s,
-          title: cur == null ? Logo(busy: s.sync.running) : Text(dayOf(cur.taken)),
-          subtitle: cur == null ? (syncStatus(s) == null ? null : Text(syncStatus(s)!)) : Text('${timeOf(cur.taken)} · ${s.queue.length} left')),
+          title: Logo(busy: s.sync.running),
+          subtitle: Text(syncStatus(s) ?? (cur == null ? 'All caught up' : '${s.queue.length} left'))),
       Align(alignment: Alignment.centerLeft, child: Label(sel.isNotEmpty && !s.burstAll ? 'Choose album for ${sel.length}' : 'Choose album')),
       const SizedBox(height: 4),
       SizedBox(
@@ -146,6 +146,7 @@ class _CullScreenState extends State<CullScreen> {
             play: playing == cur.id,
             onStop: () => setState(() => playing = null),
             selected: s.isGroup && sel.contains(cur.id),
+            caption: true,
             onCheck: s.isGroup ? () => s.toggleCheck(cur.id) : null),
       ),
       if (cur.isVideo && playing != cur.id)

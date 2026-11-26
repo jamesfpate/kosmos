@@ -10,7 +10,7 @@ import 'media.dart' as media;
 import 'media.dart' show Access;
 import 'models.dart';
 
-enum Screen { loading, access, start, cull, grid, trash, settings, immich, error }
+enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, error }
 
 enum Dir { left, right }
 
@@ -81,8 +81,10 @@ class AppState extends ChangeNotifier {
   Set<String>? pinned;
 
   // Grid.
-  /// What the grid shows: 'unreviewed' (no album yet), 'all' (everything kept or unreviewed), or an album id.
+  /// What the grid shows: 'unreviewed' (grid mode), or in explorer 'all' (everything on the phone that isn't
+  /// deleted), 'reviewed' (filed into an album) or an album id.
   String gridView = 'unreviewed';
+  String exploreView = 'all';
   Set<String> gridSel = {};
   String? gridChosenId;
 
@@ -138,7 +140,9 @@ class AppState extends ChangeNotifier {
       immich = ImmichConfig.fromJson((m['immich'] as Map?)?.cast<String, Object?>());
       albums = [for (final j in await db.all('albums')) Album.fromJson(j)];
       await reload();
-      mode = m['mode'] == 'grid' ? Screen.grid : Screen.cull;
+      mode = switch (m['mode']) { 'grid' => Screen.grid, 'explore' => Screen.explore, _ => Screen.cull };
+      exploreView = (m['exploreView'] as String?) ?? 'all';
+      gridView = mode == Screen.explore ? exploreView : 'unreviewed';
       screen = cutoff == null ? Screen.start : mode;
       changed();
       runSync();
@@ -546,6 +550,7 @@ class AppState extends ChangeNotifier {
         return switch (gridView) {
           'unreviewed' => _unreviewed(i),
           'all' => d == null || d.decision == Decision.keep,
+          'reviewed' => d?.decision == Decision.keep && d?.albumId != null,
           _ => d?.decision == Decision.keep && d?.albumId == gridView,
         };
       }).toList();
@@ -556,6 +561,10 @@ class AppState extends ChangeNotifier {
 
   void setGridView(String v) {
     gridView = v;
+    if (screen == Screen.explore) {
+      exploreView = v;
+      db.setMeta('exploreView', v);
+    }
     gridSel = {};
     changed();
   }
@@ -676,10 +685,20 @@ class AppState extends ChangeNotifier {
   }
 
   void openGrid() {
-    if (screen != Screen.grid && mode != Screen.grid) gridSel = {};
+    if (screen != Screen.grid) gridSel = {};
+    gridView = 'unreviewed';
     screen = mode = Screen.grid;
     changed();
     db.setMeta('mode', 'grid');
+  }
+
+  /// Explorer: browse everything (or reviewed, or one album); select to move or delete.
+  void openExplore() {
+    if (screen != Screen.explore) gridSel = {};
+    gridView = exploreView;
+    screen = mode = Screen.explore;
+    changed();
+    db.setMeta('mode', 'explore');
   }
 
   void openSingle() {

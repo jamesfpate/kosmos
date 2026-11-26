@@ -96,7 +96,7 @@ class _Modes extends StatelessWidget {
           child: InkWell(
             onTap: tap,
             child: Container(
-              width: 50,
+              width: 44,
               height: 40,
               color: on ? C.accent : C.surface,
               child: Icon(icon, size: 20, color: on ? C.bg : C.text),
@@ -110,6 +110,7 @@ class _Modes extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           seg(Icons.crop_portrait, s.screen == Screen.cull, s.openSingle, 'Single photo'),
           seg(Icons.grid_view, s.screen == Screen.grid, s.openGrid, 'Grid'),
+          seg(Icons.photo_library_outlined, s.screen == Screen.explore, s.openExplore, 'Explorer'),
         ]),
       ),
     );
@@ -413,7 +414,8 @@ class PhotoThumb extends StatelessWidget {
 
 /// Large view of a photo, or an inline video player once [play] is set.
 class Preview extends StatefulWidget {
-  const Preview(this.item, {super.key, this.play = false, this.onStop, this.selected = false, this.onCheck});
+  const Preview(this.item,
+      {super.key, this.play = false, this.onStop, this.selected = false, this.onCheck, this.caption = false});
 
   final Item item;
   final bool play;
@@ -423,6 +425,9 @@ class Preview extends StatefulWidget {
 
   /// In a burst: shows the check circle (filled or empty) on the photo; tapping it toggles.
   final VoidCallback? onCheck;
+
+  /// Date and time overlaid at the bottom of the photo.
+  final bool caption;
   final VoidCallback? onStop;
 
   @override
@@ -512,6 +517,19 @@ class _PreviewState extends State<Preview> {
             ),
           if (widget.onCheck != null)
             Positioned(top: 2, left: 2, child: CheckBadge(size: 36, checked: widget.selected, onTap: widget.onCheck)),
+          if (widget.caption)
+            Positioned(
+              left: 10,
+              bottom: 10,
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+                  child: Text('${dayOf(widget.item.taken)} · ${timeOf(widget.item.taken)}',
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ),
         ]),
       ),
     );

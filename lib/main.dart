@@ -65,7 +65,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
     if (state != AppLifecycleState.resumed) return;
     if (s.screen == Screen.access) {
       s.init();
-    } else if (s.screen == Screen.cull || s.screen == Screen.grid) {
+    } else if (s.screen == Screen.cull || s.screen == Screen.grid || s.screen == Screen.explore) {
       s.reload();
       s.runSync();
     }
@@ -97,7 +97,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                   Screen.access => AccessScreen(s),
                   Screen.start => StartScreen(s),
                   Screen.cull => CullScreen(s),
-                  Screen.grid => GridScreen(s),
+                  Screen.grid || Screen.explore => GridScreen(s),
                   Screen.trash => TrashScreen(s),
                   Screen.settings => SettingsScreen(s),
                   Screen.immich => ImmichScreen(s),

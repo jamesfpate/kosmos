@@ -77,10 +77,10 @@ class _GridScreenState extends State<GridScreen> {
       TopBar(
         s,
         title: Logo(busy: s.sync.running),
-        subtitle: Text(syncStatus(s) ?? '${s.unreviewedCount} unreviewed'),
+        subtitle: Text(syncStatus(s) ??
+            (s.screen == Screen.explore ? '${s.backlog.length} photos' : '${s.unreviewedCount} unreviewed')),
       ),
-      _viewBar(context),
-      const SizedBox(height: 6),
+      if (s.screen == Screen.explore) ...[_viewBar(context), const SizedBox(height: 6)],
       Align(
         alignment: Alignment.centerLeft,
         child: Label(sel.isEmpty
@@ -214,8 +214,8 @@ class _GridScreenState extends State<GridScreen> {
     return SizedBox(
       height: 40,
       child: ListView(scrollDirection: Axis.horizontal, children: [
-        chip('Unreviewed ${s.unreviewedCount}', view == 'unreviewed', () => s.setGridView('unreviewed')),
-        chip('All', view == 'all', () => s.setGridView('all')),
+        chip('All on phone', view == 'all', () => s.setGridView('all')),
+        chip('Reviewed', view == 'reviewed', () => s.setGridView('reviewed')),
         chip(album == null ? 'Albums ▾' : '${albumTitle(album)} ▾', album != null, () => _pickAlbum(context)),
       ]),
     );
