@@ -607,6 +607,39 @@
     }
   }
 
+  const SETTING_SECTIONS = [
+    ['general', 'General'],
+    ['single', 'Single photo'],
+    ['grid', 'Grid'],
+    ['integrations', 'Integrations'],
+    ['backup', 'Backup'],
+  ] as const
+  let settingsEl = $state<HTMLElement>()
+  let setSection = $state('general')
+
+  /** Highlights the section being read: the last heading scrolled past the sticky bar. */
+  let jumpedAt = 0
+
+  function trackSection() {
+    // A tapped section stays highlighted while the smooth scroll runs (short last sections can't reach the top).
+    if (!settingsEl || Date.now() - jumpedAt < 900) return
+    const top = settingsEl.getBoundingClientRect().top + 64
+    let current: string = SETTING_SECTIONS[0][0]
+    for (const [id] of SETTING_SECTIONS) {
+      const h = settingsEl.querySelector(`#set-${id}`)
+      if (h && h.getBoundingClientRect().top <= top) current = id
+    }
+    // At the very bottom the last (short) section can't reach the top: count it as current.
+    if (settingsEl.scrollTop + settingsEl.clientHeight >= settingsEl.scrollHeight - 4) current = SETTING_SECTIONS.at(-1)![0]
+    setSection = current
+  }
+
+  function jumpTo(id: string) {
+    settingsEl?.querySelector(`#set-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setSection = id
+    jumpedAt = Date.now()
+  }
+
   let backupMsg = $state('')
 
   async function exportData() {
@@ -1233,8 +1266,13 @@
     {/if}
   {:else if screen === 'settings'}
     {@render topBar()}
-    <section class="settings">
-      <h2>General</h2>
+    <section class="settings" bind:this={settingsEl} onscroll={trackSection}>
+      <nav class="set-nav" aria-label="Settings sections">
+        {#each SETTING_SECTIONS as [id, label] (id)}
+          <button class:on={setSection === id} onclick={() => jumpTo(id)}>{label}</button>
+        {/each}
+      </nav>
+      <h2 id="set-general">General</h2>
 
       <h3>Order</h3>
       <p class="muted">Which photos come first, everywhere: swiping one by one, bursts and the grid.</p>
@@ -1262,7 +1300,7 @@
       </p>
       <button onclick={changeStart}>Change start point</button>
 
-      <h2>Single photo</h2>
+      <h2 id="set-single">Single photo</h2>
 
       <h3>Review bursts together</h3>
       <p class="muted">Photos taken in quick succession show as one card: keep the best, remove the rest.</p>
@@ -1304,7 +1342,7 @@
       </div>
       {/if}
 
-      <h2>Grid</h2>
+      <h2 id="set-grid">Grid</h2>
 
       <h3>Delete the gaps</h3>
       <p class="muted">
@@ -1316,7 +1354,7 @@
         <button class:on={!gridAutoTrash} onclick={() => setGridAutoTrash(false)}>Off</button>
       </div>
 
-      <h2>Integrations</h2>
+      <h2 id="set-integrations">Integrations</h2>
       <p class="muted">Upload kept photos with their albums.</p>
       <button class="row-link" onclick={() => (screen = 'immich')}>
         <span>Immich</span>
@@ -1327,7 +1365,7 @@
         <span class="muted">Coming later</span>
       </button>
 
-      <h2>Backup</h2>
+      <h2 id="set-backup">Backup</h2>
       <p class="muted">
         Export or import your app settings, albums and photo decisions. They live only on this phone: export saves them to
         Downloads, import brings them back after a reinstall or on a new install.
@@ -2046,7 +2084,36 @@
     overflow-y: auto;
   }
 
+  .set-nav {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    gap: 6px;
+    margin: 0 -20px;
+    padding: 6px 20px 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    background: var(--bg);
+  }
+
+  .set-nav button {
+    flex: none;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+  }
+
+  .set-nav button.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0b0b0f;
+    font-weight: 600;
+  }
+
   .settings h2 {
+    scroll-margin-top: 56px;
     margin: 20px 0 0;
     padding-bottom: 4px;
     border-bottom: 1px solid var(--line);
@@ -2056,7 +2123,7 @@
     letter-spacing: 0.08em;
   }
 
-  .settings h2:first-child {
+  .settings h2#set-general {
     margin-top: 4px;
   }
 
