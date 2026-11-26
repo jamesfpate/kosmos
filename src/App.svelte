@@ -1303,7 +1303,10 @@
       </button>
 
       <h3>Backup</h3>
-      <p class="muted">Your decisions and albums live only on this phone. Export them to Downloads, import them after a reinstall.</p>
+      <p class="muted">
+        Export or import your app settings, albums and photo decisions. They live only on this phone: export saves them to
+        Downloads, import brings them back after a reinstall or on a new install.
+      </p>
       <div class="choices">
         <button onclick={exportData}>Export data</button>
         <button onclick={importData}>Import data</button>
