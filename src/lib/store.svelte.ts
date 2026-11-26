@@ -20,10 +20,13 @@ export interface Album {
   end?: number
   createdAt: number
   lastUsedAt: number
+  /** The month's catch-all album, named just "YYYY-MM" (empty name; created on first use). */
+  monthly?: boolean
 }
 
 export function albumTitle(a: Pick<Album, 'name' | 'start'>): string {
-  return a.start === undefined ? a.name : `${monthPrefix(a.start)} ${a.name}`
+  if (a.start === undefined) return a.name
+  return a.name ? `${monthPrefix(a.start)} ${a.name}` : monthPrefix(a.start)
 }
 
 export function monthPrefix(ms: number): string {

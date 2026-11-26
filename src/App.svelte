@@ -20,6 +20,7 @@
   const GROUP_MAX = 40
   const GAP_CHOICES = [0, 2, 5, 10, 30, 60] // seconds; 0 = never group
 
+  const MONTH_ALBUM = 'month' // chip / drop target id for the month's catch-all album (until it exists)
   const GRID_STEP = 400 // cells rendered per scroll step in the grid
 
   type Screen = 'loading' | 'access' | 'start' | 'cull' | 'grid' | 'trash' | 'settings' | 'error'
@@ -79,19 +80,47 @@
   const current = $derived(group[focus] ?? group[0])
   const isGroup = $derived(group.length > 1)
   const pendingTrash = $derived(items.filter((i) => decided.get(i.id)?.decision === 'pending_trash'))
-  const recent = $derived([...albums].sort((a, b) => b.lastUsedAt - a.lastUsedAt))
+  // Month albums ("YYYY-MM", the catch-all) count as one recent, shown for the photo's month.
+  const monthUsed = $derived(Math.max(0, ...albums.filter((a) => a.monthly).map((a) => a.lastUsedAt)))
+
+  /** That month's catch-all album, or a stand-in (id MONTH_ALBUM) until the first photo is filed into it. */
+  function monthChip(t: number): Album {
+    const d = new Date(t)
+    const start = new Date(d.getFullYear(), d.getMonth(), 1).getTime()
+    return (
+      albums.find((a) => a.monthly && a.start === start) ?? {
+        id: MONTH_ALBUM,
+        name: '',
+        start,
+        createdAt: 0,
+        lastUsedAt: monthUsed,
+        monthly: true,
+      }
+    )
+  }
+
+  /** Albums by last use; the month album sits wherever its last use puts it (last if never used). */
+  function recentFor(t: number | undefined): Album[] {
+    const list = albums.filter((a) => !a.monthly)
+    if (t !== undefined) list.push({ ...monthChip(t), lastUsedAt: monthUsed })
+    return list.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+  }
 
   /** A dated album whose range covers the time wins; otherwise the album used last. */
   function suggestFor(t: number | undefined): Album | undefined {
     if (t === undefined) return undefined
     const covering = albums
-      .filter((a) => a.start !== undefined && a.start <= t && (a.end === undefined || t <= a.end))
+      .filter((a) => !a.monthly && a.start !== undefined && a.start <= t && (a.end === undefined || t <= a.end))
       .sort((a, b) => b.start! - a.start!)[0]
-    return covering ?? recent[0]
+    const last = recentFor(t)[0]
+    return covering ?? (last?.lastUsedAt ? last : undefined)
   }
 
+  const recent = $derived(recentFor(group[0]?.taken))
   const suggested = $derived(suggestFor(group[0]?.taken))
-  const target = $derived(albums.find((a) => a.id === chosenId) ?? suggested)
+  const target = $derived(
+    chosenId === MONTH_ALBUM && group[0] ? monthChip(group[0].taken) : (recent.find((a) => a.id === chosenId) ?? suggested),
+  )
   const barAlbums = $derived(target ? [target, ...recent.filter((a) => a.id !== target.id)] : recent)
   const keepCount = $derived(isGroup && selected.size ? selected.size : group.length)
   const keepLabel = $derived(
@@ -161,8 +190,9 @@
   const gridChosen = $derived(backlog.filter((i) => gridSel.has(i.id)))
   const gridOldest = $derived(gridChosen.reduce<number | undefined>((t, i) => (t === undefined || i.taken < t ? i.taken : t), undefined))
   const gridSuggested = $derived(suggestFor(gridOldest))
+  const gridRecent = $derived(recentFor(gridOldest))
   const gridAlbums = $derived(
-    gridSuggested ? [gridSuggested, ...recent.filter((a) => a.id !== gridSuggested.id)] : recent,
+    gridSuggested ? [gridSuggested, ...gridRecent.filter((a) => a.id !== gridSuggested.id)] : gridRecent,
   )
   const buckets = $derived.by(() => {
     const counts = new Map<string, number>()
@@ -237,6 +267,8 @@
     return items.filter((i) => i.taken >= from).length
   }
 
+  const gridMonthsChosen = $derived(new Set(gridChosen.map((i) => monthPrefix(i.taken))))
+
   function nextCard() {
     selected = new Set()
     focus = 0
@@ -259,16 +291,18 @@
    */
   async function file(dir: Direction, albumId?: string) {
     const cardItems = group
+    const ticked = selected
     if (!cardItems.length) return
+    if (albumId === MONTH_ALBUM) albumId = (await monthAlbumFor(cardItems[0].taken)).id
     const now = Date.now()
     const records = cardItems.map((item): DecisionRecord => {
-      const keep = dir === 'right' && (!selected.size || selected.has(item.id))
+      const keep = dir === 'right' && (!ticked.size || ticked.has(item.id))
       return keep
         ? { id: item.id, decision: 'keep', decidedAt: now, albumId }
         : { id: item.id, decision: 'pending_trash', decidedAt: now }
     })
     nextCard()
-    await commit(cardItems, records, albumId)
+    await commit(cardItems, records)
   }
 
   /** Grid: files the selected photos into an album, or marks them for trash without one. */
@@ -277,18 +311,42 @@
     if (!chosen.length) return
     const now = Date.now()
     gridSel = new Set()
+    // Month album: each photo goes into its own month's.
+    const ids = new Map<number, string | undefined>()
+    for (const item of chosen) ids.set(item.id, albumId === MONTH_ALBUM ? (await monthAlbumFor(item.taken)).id : albumId)
     await commit(
       chosen,
-      chosen.map((item): DecisionRecord =>
-        albumId
-          ? { id: item.id, decision: 'keep', decidedAt: now, albumId }
-          : { id: item.id, decision: 'pending_trash', decidedAt: now },
-      ),
-      albumId,
+      chosen.map((item): DecisionRecord => {
+        const id = ids.get(item.id)
+        return id
+          ? { id: item.id, decision: 'keep', decidedAt: now, albumId: id }
+          : { id: item.id, decision: 'pending_trash', decidedAt: now }
+      }),
     )
   }
 
-  async function commit(cardItems: MediaItem[], records: DecisionRecord[], albumId?: string) {
+  /** The catch-all "YYYY-MM" album for the month of `t`, created on first use. */
+  async function monthAlbumFor(t: number): Promise<Album> {
+    const d = new Date(t)
+    const start = new Date(d.getFullYear(), d.getMonth(), 1).getTime()
+    const found = albums.find((a) => a.monthly && a.start === start)
+    if (found) return found
+    const now = Date.now()
+    const album: Album = {
+      id: crypto.randomUUID(),
+      name: '',
+      start,
+      end: new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime() - 1,
+      createdAt: now,
+      lastUsedAt: now,
+      monthly: true,
+    }
+    albums = [...albums, album]
+    await albumStore.put(album)
+    return album
+  }
+
+  async function commit(cardItems: MediaItem[], records: DecisionRecord[]) {
     const now = Date.now()
     undoStack = [...undoStack.slice(-49), cardItems.map((item) => ({ item, prev: decided.get(item.id) }))]
     const next = new Map(decided)
@@ -297,8 +355,8 @@
     const done = new Set(cardItems.map((i) => i.id))
     queue = queue.filter((i) => !done.has(i.id))
     for (const n of queue.slice(0, 3)) previewUrl(n).catch(() => {})
-    if (albumId) {
-      const album = albums.find((a) => a.id === albumId)
+    for (const id of new Set(records.map((r) => r.albumId))) {
+      const album = albums.find((a) => a.id === id)
       if (album) {
         album.lastUsedAt = now
         await albumStore.put(album)
@@ -840,8 +898,12 @@
         <span class="albums-label">Put {gridSel.size} into</span>
         <div class="chips">
           {#each gridAlbums as album (album.id)}
-            <button class="chip" class:target={album.id === gridSuggested?.id} onclick={() => fileGrid(album.id)}>
-              {albumTitle(album)}
+            <button
+              class="chip"
+              class:target={album.id === gridSuggested?.id}
+              onclick={() => fileGrid(album.monthly ? MONTH_ALBUM : album.id)}
+            >
+              {album.monthly && gridMonthsChosen.size > 1 ? 'Month (each photo’s own)' : albumTitle(album)}
             </button>
           {/each}
           <button class="chip new" onclick={() => (sheet = { fileAfter: true, grid: true })}>+ New album</button>
