@@ -80,13 +80,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
               child: ListenableBuilder(
                 listenable: s,
                 builder: (context, _) => switch (s.screen) {
-                  Screen.loading => Center(
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        const Logo(size: 34),
-                        const SizedBox(height: 16),
-                        Text(s.loading.isEmpty ? 'Loading…' : s.loading, style: const TextStyle(color: C.muted)),
-                      ]),
-                    ),
+                  // The same wave as during a sync, while the photo library loads.
+                  Screen.loading => const Center(child: Logo(size: 40, busy: true)),
                   Screen.error => Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         const Text('Something went wrong', style: TextStyle(fontSize: 20)),
