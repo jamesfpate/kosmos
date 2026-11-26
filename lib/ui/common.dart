@@ -6,6 +6,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:video_player/video_player.dart';
 
+import '../fx.dart';
 import '../models.dart';
 import '../state.dart';
 
@@ -415,7 +416,10 @@ class PhotoThumb extends StatelessWidget {
 /// Large view of a photo, or an inline video player once [play] is set.
 class Preview extends StatefulWidget {
   const Preview(this.item,
-      {super.key, this.play = false, this.onStop, this.selected = false, this.onCheck, this.caption = false});
+      {super.key, this.play = false, this.onStop, this.selected = false, this.onCheck, this.caption = false, this.fx});
+
+  /// Playing the keep (true) / delete (false) trace.
+  final bool? fx;
 
   final Item item;
   final bool play;
@@ -491,10 +495,7 @@ class _PreviewState extends State<Preview> {
       ]);
     }
     // Sized to the photo's own shape, so the border and check sit on the photo, not the empty space around it.
-    return Center(
-      child: AspectRatio(
-        aspectRatio: widget.item.aspect,
-        child: Stack(fit: StackFit.expand, children: [
+    final photo = Stack(fit: StackFit.expand, children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: AssetEntityImage(
@@ -530,7 +531,11 @@ class _PreviewState extends State<Preview> {
                 ),
               ),
             ),
-        ]),
+        ]);
+    return Center(
+      child: AspectRatio(
+        aspectRatio: widget.item.aspect,
+        child: widget.fx == null ? photo : TraceFx(item: widget.item, keep: widget.fx!, radius: 12, child: photo),
       ),
     );
   }

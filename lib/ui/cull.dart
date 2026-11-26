@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../fx.dart';
 import '../models.dart';
 import '../state.dart';
 import 'album_sheet.dart';
@@ -146,6 +147,7 @@ class _CullScreenState extends State<CullScreen> {
             play: playing == cur.id,
             onStop: () => setState(() => playing = null),
             selected: s.isGroup && sel.contains(cur.id),
+            fx: s.fx[cur.id],
             caption: true,
             onCheck: s.isGroup ? () => s.toggleCheck(cur.id) : null),
       ),
@@ -223,7 +225,7 @@ class _CullScreenState extends State<CullScreen> {
       child: SizedBox(
         width: item.aspect * h,
         height: h,
-        child: Stack(fit: StackFit.expand, children: [
+        child: _fx(item, Stack(fit: StackFit.expand, children: [
           PhotoThumb(item, height: h),
           if (item.isVideo) const Positioned(bottom: 6, right: 6, child: VideoBadge()),
           if (i == s.focus || checked)
@@ -234,9 +236,15 @@ class _CullScreenState extends State<CullScreen> {
             ),
           // Last, so it's on top of the frame and gets the tap.
           Positioned(top: -3, left: -3, child: CheckBadge(checked: checked, onTap: () => s.toggleCheck(item.id))),
-        ]),
+        ])),
       ),
     );
+  }
+
+  /// Wraps a photo in the keep/delete trace while it's playing.
+  Widget _fx(Item item, Widget child) {
+    final f = s.fx[item.id];
+    return f == null ? child : TraceFx(item: item, keep: f, child: child);
   }
 
   Widget _footer(BuildContext context, Item? cur) {
@@ -422,12 +430,12 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
   }
 
   /// Animate the card off screen, then report the decision. Also used by the buttons.
+  /// Settles the card back in place and reports the decision (the trace then plays on the photo). Also used by the
+  /// buttons.
   Future<void> fling(Dir dir) async {
     if (_leaving) return;
     _leaving = true;
-    final w = MediaQuery.sizeOf(context).width;
-    _animate(Offset((dir == Dir.right ? 1 : -1) * w * 1.4, _pos.dy));
-    await Future<void>.delayed(const Duration(milliseconds: 180));
+    _animate(Offset.zero);
     await widget.onSwipe(dir);
     if (mounted) reset();
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../fx.dart';
 import '../models.dart';
 import '../state.dart';
 import 'album_sheet.dart';
@@ -273,6 +274,12 @@ class _GridScreenState extends State<GridScreen> {
     );
   }
 
+  /// Wraps a photo in the keep/delete trace while it's playing.
+  Widget _fx(Item item, Widget child) {
+    final f = s.fx[item.id];
+    return f == null ? child : TraceFx(item: item, keep: f, child: child);
+  }
+
   Widget _cell(Item item, double h, bool doomed) {
     final checked = s.gridSel.contains(item.id);
     return GestureDetector(
@@ -284,7 +291,7 @@ class _GridScreenState extends State<GridScreen> {
       child: SizedBox(
         width: item.aspect * h,
         height: h,
-        child: Stack(fit: StackFit.expand, children: [
+        child: _fx(item, Stack(fit: StackFit.expand, children: [
           Opacity(opacity: doomed ? 0.55 : 1, child: PhotoThumb(item, height: h)),
           if (item.isVideo) const Positioned(bottom: 6, right: 6, child: VideoBadge()),
           if (checked) const Positioned(top: 5, left: 5, child: CheckBadge()),
@@ -292,7 +299,7 @@ class _GridScreenState extends State<GridScreen> {
             IgnorePointer(
               child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: checked ? C.select : C.trash, width: 3))),
             ),
-        ]),
+        ])),
       ),
     );
   }

@@ -159,6 +159,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _h3('Order'),
           _p('Which photos come first, everywhere: swiping one by one, bursts and the grid.'),
           Choices(options: const [(false, 'Oldest first'), (true, 'Newest first')], value: s.newestFirst, onPick: s.setOrder),
+          _h3('Keep / delete animation'),
+          _p('The outlines in the photo trace up (keep) or down (delete); deleted photos fade out. Off: decisions are instant.'),
+          Choices(options: const [(true, 'On'), (false, 'Off')], value: s.animations, onPick: s.setAnimations),
           _h3('Folders'),
           _p('Unticked folders are skipped when culling and in the grid.'),
           for (final (bucket, count) in s.buckets)

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import 'db.dart';
+import 'fx.dart';
 import 'immich.dart';
 import 'media.dart' as media;
 import 'media.dart' show Access;
@@ -65,6 +66,13 @@ class AppState extends ChangeNotifier {
   bool autoTrash = true;
   bool gridAutoTrash = false;
   bool newestFirst = false;
+
+  /// Keep / delete animation (trace) before a decision is saved (setting).
+  bool animations = true;
+
+  /// Photos playing the trace right now: id -> true (keep) / false (delete). Widgets showing one of them animate.
+  Map<String, bool> fx = {};
+  bool get animating => fx.isNotEmpty;
   double gridFrac = 0.4;
   double thumbH = 150;
   Set<String> hidden = {};
@@ -134,6 +142,7 @@ class AppState extends ChangeNotifier {
       autoTrash = (m['autoTrash'] as bool?) ?? true;
       gridAutoTrash = (m['gridAutoTrash'] as bool?) ?? false;
       newestFirst = (m['newestFirst'] as bool?) ?? false;
+      animations = (m['animations'] as bool?) ?? true;
       gridFrac = (m['gridFrac'] as num?)?.toDouble() ?? 0.4;
       thumbH = (m['thumbH'] as num?)?.toDouble() ?? 150;
       hidden = ((m['hiddenBuckets'] as List?) ?? []).cast<String>().toSet();
@@ -444,7 +453,8 @@ class AppState extends ChangeNotifier {
     } else if (current != null) {
       dir == Dir.right ? keep = [current!] : del = [current!];
     }
-    if (keep.isEmpty && del.isEmpty) return;
+    if (keep.isEmpty && del.isEmpty || animating) return;
+    await _play({for (final i in keep) i.id: true, for (final i in del) i.id: false});
     final done = {for (final i in [...keep, ...del]) i.id};
     final remaining = g.where((i) => !done.contains(i.id)).toList();
     final keepChoice = chosenId;
@@ -466,6 +476,21 @@ class AppState extends ChangeNotifier {
       focus = min(at, max(0, group.length - 1));
     }
     changed();
+  }
+
+  /// Plays the trace on these photos (only those on screen actually draw it), then returns so the decision is saved.
+  Future<void> _play(Map<String, bool> marks) async {
+    if (!animations || marks.isEmpty) return;
+    await prepareOutlines([for (final id in marks.keys) if (byId[id] != null) byId[id]!]);
+    fx = marks;
+    changed();
+    await Future<void>.delayed(Motion.total);
+    fx = {};
+  }
+
+  Future<void> setAnimations(bool on) {
+    animations = on;
+    return _set('animations', on);
   }
 
   Future<void> _commit(List<Item> cardItems, List<DecisionRecord> records) async {
@@ -669,6 +694,8 @@ class AppState extends ChangeNotifier {
     if (chosen.isEmpty) return;
     final doomedIds = albumId != null ? gridDoomed : <String>{};
     final doomed = [for (final i in backlog) if (doomedIds.contains(i.id)) i];
+    if (animating) return;
+    await _play({for (final i in chosen) i.id: albumId != null, for (final i in doomed) i.id: false});
     final now = DateTime.now().millisecondsSinceEpoch;
     gridSel = {};
     final records = <DecisionRecord>[];
