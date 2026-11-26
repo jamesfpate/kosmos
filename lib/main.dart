@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:flutter/rendering.dart';
+
+import 'fx.dart';
 import 'state.dart';
 import 'ui/common.dart';
 import 'ui/cull.dart';
@@ -34,6 +37,37 @@ class WinnowApp extends StatelessWidget {
         ),
         home: const Home(),
       );
+}
+
+/// The wordmark waving while the library loads; when [done], its letters trace (like a kept photo) and it fades.
+class LoadingLogo extends StatefulWidget {
+  const LoadingLogo({super.key, required this.done});
+
+  final bool done;
+
+  @override
+  State<LoadingLogo> createState() => _LoadingLogoState();
+}
+
+class _LoadingLogoState extends State<LoadingLogo> {
+  final _key = GlobalKey();
+  Future<Outlines>? _outlines;
+
+  @override
+  void didUpdateWidget(LoadingLogo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.done && _outlines == null) {
+      final box = _key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      _outlines = box == null ? Future.value(const Outlines([])) : box.toImage(pixelRatio: 2).then(outlinesFromImage);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final logo = RepaintBoundary(key: _key, child: Logo(size: 40, busy: !widget.done));
+    if (_outlines == null) return logo;
+    return TraceFx(outlines: _outlines, keep: true, fadeOut: true, frame: false, child: logo);
+  }
 }
 
 class Home extends StatefulWidget {
@@ -81,7 +115,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                 listenable: s,
                 builder: (context, _) => switch (s.screen) {
                   // The same wave as during a sync, while the photo library loads.
-                  Screen.loading => const Center(child: Logo(size: 40, busy: true)),
+                  Screen.loading => Center(child: LoadingLogo(done: s.loadDone)),
                   Screen.error => Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         const Text('Something went wrong', style: TextStyle(fontSize: 20)),

@@ -52,6 +52,13 @@ Future<Outlines> outlinesFor(Item item) {
   return _cache.putIfAbsent(item.id, () => _compute(item));
 }
 
+/// Outlines of any rendered image (e.g. the wordmark, for the loading outro).
+Future<Outlines> outlinesFromImage(ui.Image img) async {
+  final data = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+  if (data == null) return const Outlines([]);
+  return Outlines(_trace(data.buffer.asUint8List(), img.width, img.height));
+}
+
 Future<Outlines> _compute(Item item) async {
   final bytes = await item.entity.thumbnailDataWithSize(const ThumbnailSize(200, 200));
   if (bytes == null) return const Outlines([]);
@@ -142,12 +149,29 @@ double _ease(double x) => x * x * (3 - 2 * x);
 /// Plays the trace over [child] (the photo, already sized to its own shape). Kept photos stay; deleted ones fade and
 /// go grey.
 class TraceFx extends StatefulWidget {
-  const TraceFx({super.key, required this.item, required this.keep, required this.child, this.radius = 0});
+  const TraceFx({
+    super.key,
+    this.item,
+    this.outlines,
+    required this.keep,
+    required this.child,
+    this.radius = 0,
+    this.fadeOut,
+    this.frame = true,
+  });
 
-  final Item item;
+  /// The photo whose outlines to trace, or [outlines] given directly.
+  final Item? item;
+  final Future<Outlines>? outlines;
   final bool keep;
   final Widget child;
   final double radius;
+
+  /// Fade the child out (default: only for delete). Deletes also go grey.
+  final bool? fadeOut;
+
+  /// Draw the frame around the edge too.
+  final bool frame;
 
   @override
   State<TraceFx> createState() => _TraceFxState();
@@ -160,8 +184,9 @@ class _TraceFxState extends State<TraceFx> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _lines = _ready[widget.item.id];
-    outlinesFor(widget.item).then((o) {
+    final item = widget.item;
+    if (item != null) _lines = _ready[item.id];
+    (widget.outlines ?? (item == null ? Future.value(const Outlines([])) : outlinesFor(item))).then((o) {
       if (mounted) setState(() => _lines = o);
     });
   }
@@ -180,10 +205,10 @@ class _TraceFxState extends State<TraceFx> with SingleTickerProviderStateMixin {
           final trace = _ease(min(1, e / Motion.traceMs));
           final fade = _ease(((e - Motion.traceMs * Motion.fadeStart) / Motion.fadeMs).clamp(0, 1));
           Widget photo = child!;
-          if (!widget.keep) {
+          if (widget.fadeOut ?? !widget.keep) {
             photo = Opacity(
               opacity: 1 - fade,
-              child: ColorFiltered(colorFilter: ColorFilter.matrix(_grey(fade)), child: photo),
+              child: widget.keep ? photo : ColorFiltered(colorFilter: ColorFilter.matrix(_grey(fade)), child: photo),
             );
           }
           return Stack(fit: StackFit.passthrough, children: [
@@ -191,7 +216,7 @@ class _TraceFxState extends State<TraceFx> with SingleTickerProviderStateMixin {
             Positioned.fill(
               child: IgnorePointer(
                 child: CustomPaint(
-                  painter: _TracePainter(_lines, widget.keep, trace, 1 - fade, widget.radius),
+                  painter: _TracePainter(_lines, widget.keep, trace, 1 - fade, widget.radius, widget.frame),
                 ),
               ),
             ),
@@ -214,13 +239,14 @@ List<double> _grey(double t) {
 }
 
 class _TracePainter extends CustomPainter {
-  _TracePainter(this.lines, this.keep, this.p, this.alpha, this.radius);
+  _TracePainter(this.lines, this.keep, this.p, this.alpha, this.radius, this.frame);
 
   final Outlines? lines;
   final bool keep;
   final double p;
   final double alpha;
   final double radius;
+  final bool frame;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -263,6 +289,11 @@ class _TracePainter extends CustomPainter {
     }
     // The frame: up both sides from the start edge, closing at the far edge.
     const inset = 1.5;
+    if (!frame) {
+      canvas.drawPath(path, glow);
+      canvas.drawPath(path, line);
+      return;
+    }
     final y0 = keep ? size.height - inset : inset, y1 = keep ? inset : size.height - inset;
     final yy = y0 + (y1 - y0) * p;
     path

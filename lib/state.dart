@@ -104,6 +104,9 @@ class AppState extends ChangeNotifier {
   bool _syncAgain = false;
 
   int _rev = 0;
+
+  /// Loading finished: the loading screen plays its outro (the wordmark traces and fades) before the app shows.
+  bool loadDone = false;
   final _memo = <String, (int, Object?)>{};
 
   /// Derived values are recomputed at most once per change (the UI reads them many times per frame).
@@ -152,6 +155,11 @@ class AppState extends ChangeNotifier {
       mode = switch (m['mode']) { 'grid' => Screen.grid, 'explore' => Screen.explore, _ => Screen.cull };
       exploreView = (m['exploreView'] as String?) ?? 'all';
       gridView = mode == Screen.explore ? exploreView : 'unreviewed';
+      if (screen == Screen.loading && animations) {
+        loadDone = true;
+        changed();
+        await Future<void>.delayed(Motion.total + const Duration(milliseconds: 80));
+      }
       screen = cutoff == null ? Screen.start : mode;
       changed();
       runSync();
