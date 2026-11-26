@@ -868,6 +868,27 @@
   </header>
 {/snippet}
 
+{#snippet removeButton(id: number, small: boolean)}
+  <!-- ✕ marks the photo for removal (red); ↺ brings it back. Tapping the photo itself only shows it. -->
+  <button
+    class="remove"
+    class:small
+    class:undo={!selected.has(id)}
+    onpointerdown={(e) => e.stopPropagation()}
+    onclick={(e) => {
+      e.stopPropagation()
+      toggleKeep(id)
+    }}
+    aria-label={selected.has(id) ? 'Remove this photo' : 'Keep this photo'}
+  >
+    {#if selected.has(id)}
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" /></svg>
+    {:else}
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5M5 4v4h4" /></svg>
+    {/if}
+  </button>
+{/snippet}
+
 {#snippet checkIcon()}
   <svg class="check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
 {/snippet}
@@ -955,7 +976,6 @@
           <SwipeCard
             bind:this={card}
             onswipe={decide}
-            ontap={isGroup ? () => toggleKeep(current.id) : undefined}
             ondrag={onDrag}
             ondrop={onDrop}
             {keepLabel}
@@ -964,6 +984,7 @@
             <div class="photo" class:kept={isGroup && selected.has(current.id)}>
               <Preview item={current} play={playingId === current.id} onstop={() => (playingId = null)} />
               {#if isGroup && selected.has(current.id)}<span class="tick">{@render checkIcon()}</span>{/if}
+              {#if isGroup}{@render removeButton(current.id, false)}{/if}
               {#if current.type === 'video' && playingId !== current.id}
                 <button class="play" onpointerdown={(e) => e.stopPropagation()} onclick={() => (playingId = current.id)}>
                   ▶ {Math.round(current.duration / 1000)}s
@@ -986,21 +1007,24 @@
                   <div class="row">
                 {#each row.items as item (item.id)}
                   {@const i = group.indexOf(item)}
-                  <button
+                  <div
                     class="cell"
                     style:width={`${aspect(item) * row.h}px`}
                     style:height={`${row.h}px`}
                     class:focused={i === focus}
                     class:kept={selected.has(item.id)}
                     class:doomed={(autoTrash || selected.size === 0) && !selected.has(item.id)}
-                    onclick={() => (i === focus ? toggleKeep(item.id) : (focus = i))}
+                    onclick={() => (focus = i)}
+                    onkeydown={(e) => e.key === 'Enter' && (focus = i)}
                     role="option"
+                    tabindex="0"
                     aria-selected={selected.has(item.id)}
                   >
                     <Thumb {item} />
-                    {#if item.type === 'video'}<span class="badge">▶</span>{/if}
+                    {#if item.type === 'video'}<span class="badge video">▶</span>{/if}
                     {#if selected.has(item.id)}<span class="tick small">{@render checkIcon()}</span>{/if}
-                  </button>
+                    {@render removeButton(item.id, true)}
+                  </div>
                 {/each}
                   </div>
                 {/each}
@@ -1036,7 +1060,7 @@
     <footer>
       <button onclick={undo} disabled={!undoStack.length}>↶ Undo</button>
       <button class="trash" onclick={() => card?.fling('left')} disabled={!current}>
-        <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 8H3M7 4L3 8l4 4" /></svg>Delete{isGroup ? ` all ${group.length}` : ''}
+        <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M14 8H3M7 4L3 8l4 4" /></svg>Delete{isGroup ? ` ${group.length}` : ''}
       </button>
       {#if burstNone}
         <button class="put none" onclick={() => card?.fling('right')}>
@@ -1047,7 +1071,7 @@
           <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M9 4l4 4-4 4" /></svg><span class="label">{target ? albumTitle(target) : 'New album'}</span>
         </button>
       {/if}
-      <button onclick={later} disabled={queue.length <= group.length}>Later</button>
+      <button class="later" onclick={later} disabled={queue.length <= group.length}>Later</button>
     </footer>
 
     {#if sheet && current}
@@ -1497,6 +1521,50 @@
     height: 1.1em;
   }
 
+  .remove {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    min-height: 0;
+    height: 40px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(0 0 0 / 0.6);
+    color: #fff;
+    z-index: 1;
+  }
+
+  .remove.small {
+    top: 4px;
+    right: 4px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .remove.undo {
+    background: var(--trash);
+    color: #0b0b0f;
+  }
+
+  .remove svg {
+    width: 60%;
+    height: 60%;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .badge.video {
+    top: auto;
+    bottom: 6px;
+  }
+
   .play {
     position: absolute;
     bottom: 16px;
@@ -1664,13 +1732,27 @@
     text-overflow: ellipsis;
   }
 
+  /* Widths by weight, not by label length, so the album button keeps its room. */
+  footer button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 6px;
+    gap: 4px;
+    font-size: 0.95rem;
+  }
+
+  footer button.later,
+  footer button:first-child {
+    flex: 0.8 1 0;
+  }
+
   footer button.put.none {
     background: var(--trash);
     border-color: var(--trash);
   }
 
   footer button.put {
-    flex: 2.4;
+    flex: 2 1 0;
     padding: 0 10px;
     font-size: 0.95rem;
     min-width: 0;
