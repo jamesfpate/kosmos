@@ -136,6 +136,7 @@ class AppState extends ChangeNotifier {
       immich = ImmichConfig.fromJson((m['immich'] as Map?)?.cast<String, Object?>());
       albums = [for (final j in await db.all('albums')) Album.fromJson(j)];
       await reload();
+      mode = m['mode'] == 'grid' ? Screen.grid : Screen.cull;
       screen = cutoff == null ? Screen.start : mode;
       changed();
       runSync();
@@ -646,11 +647,13 @@ class AppState extends ChangeNotifier {
     if (screen != Screen.grid && mode != Screen.grid) gridSel = {};
     screen = mode = Screen.grid;
     changed();
+    db.setMeta('mode', 'grid');
   }
 
   void openSingle() {
     screen = mode = Screen.cull;
     changed();
+    db.setMeta('mode', 'single');
   }
 
   /// Settings and trash toggle: tapping again goes back to the current mode.

@@ -49,7 +49,7 @@ class _CullScreenState extends State<CullScreen> {
     final target = s.target;
     return Column(children: [
       TopBar(s,
-          title: cur == null ? const Logo() : Text(dayOf(cur.taken)),
+          title: cur == null ? Logo(busy: s.sync.running) : Text(dayOf(cur.taken)),
           subtitle: cur == null ? null : Text('${timeOf(cur.taken)} · ${s.queue.length} left')),
       Align(alignment: Alignment.centerLeft, child: Label(sel.isNotEmpty && !s.burstAll ? 'Choose album for ${sel.length}' : 'Choose album')),
       const SizedBox(height: 4),
@@ -176,6 +176,10 @@ class _CullScreenState extends State<CullScreen> {
             width: double.infinity,
             child: Stack(alignment: Alignment.center, children: [
               Container(width: 48, height: 5, decoration: BoxDecoration(color: C.line, borderRadius: BorderRadius.circular(3))),
+              Positioned(
+                left: 0,
+                child: Text('${sel.length} of ${g.length} selected', style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
               // Check / uncheck the whole burst.
               Positioned(
                 right: 0,

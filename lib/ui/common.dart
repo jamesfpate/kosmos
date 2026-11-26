@@ -56,11 +56,14 @@ class TopBar extends StatelessWidget {
           ),
         ),
         if (s.immich.enabled && (sync.pending > 0 || sync.running || sync.error.isNotEmpty))
-          Pill(
-            icon: Icons.arrow_upward,
-            label: sync.error.isNotEmpty ? '!' : '${sync.pending}',
-            color: sync.error.isNotEmpty ? C.trash : null,
-            onTap: () => s.go(Screen.immich),
+          Pulse(
+            on: sync.running,
+            child: Pill(
+              icon: Icons.arrow_upward,
+              label: sync.error.isNotEmpty ? '!' : '${sync.pending}',
+              color: sync.error.isNotEmpty ? C.trash : null,
+              onTap: () => s.go(Screen.immich),
+            ),
           ),
         Pill(
           icon: Icons.delete_outline,
@@ -269,24 +272,101 @@ class AlbumChip extends StatelessWidget {
   }
 }
 
-/// The Winnow wordmark: the two n's offset, one dropped and one raised, like grain being winnowed.
-class Logo extends StatelessWidget {
-  const Logo({super.key, this.size = 22});
+/// The Winnow wordmark: the two n's offset, one dropped and one raised, like grain being winnowed. With [busy] (an
+/// upload running) they toss up and down.
+class Logo extends StatefulWidget {
+  const Logo({super.key, this.size = 22, this.busy = false});
 
   final double size;
+  final bool busy;
+
+  @override
+  State<Logo> createState() => _LogoState();
+}
+
+class _LogoState extends State<Logo> with SingleTickerProviderStateMixin {
+  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.busy) _anim.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(Logo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.busy && !_anim.isAnimating) {
+      _anim.repeat(reverse: true);
+    } else if (!widget.busy && _anim.isAnimating) {
+      _anim.animateTo(0.5, duration: const Duration(milliseconds: 200));
+    }
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final style = TextStyle(fontSize: size, fontWeight: FontWeight.w800, color: C.text, height: 1);
+    final style = TextStyle(fontSize: widget.size, fontWeight: FontWeight.w800, color: C.text, height: 1);
     final n = style.copyWith(color: C.accent);
-    final shift = size * 0.14;
-    return Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
-      Text('wi', style: style),
-      Transform.translate(offset: Offset(0, shift), child: Text('n', style: n)),
-      Transform.translate(offset: Offset(0, -shift), child: Text('n', style: n)),
-      Text('ow', style: style),
-    ]);
+    final shift = widget.size * 0.14;
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, _) {
+        // At rest (0.5 or not running): first n down, second up. Busy: they swap back and forth.
+        final k = widget.busy || _anim.isAnimating ? (1 - 2 * Curves.easeInOut.transform(_anim.value)) : 1.0;
+        return Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Text('wi', style: style),
+          Transform.translate(offset: Offset(0, shift * k), child: Text('n', style: n)),
+          Transform.translate(offset: Offset(0, -shift * k), child: Text('n', style: n)),
+          Text('ow', style: style),
+        ]);
+      },
+    );
   }
+}
+
+/// Fades in and out while [on] (the upload counter during a sync).
+class Pulse extends StatefulWidget {
+  const Pulse({super.key, required this.on, required this.child});
+
+  final bool on;
+  final Widget child;
+
+  @override
+  State<Pulse> createState() => _PulseState();
+}
+
+class _PulseState extends State<Pulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.on) _anim.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(Pulse oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.on && !_anim.isAnimating) _anim.repeat(reverse: true);
+    if (!widget.on && _anim.isAnimating) _anim.stop();
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.on
+      ? FadeTransition(opacity: Tween(begin: 0.35, end: 1.0).animate(_anim), child: widget.child)
+      : widget.child;
 }
 
 class Label extends StatelessWidget {

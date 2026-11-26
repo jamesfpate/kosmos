@@ -76,16 +76,8 @@ class _GridScreenState extends State<GridScreen> {
     return Column(children: [
       TopBar(
         s,
-        title: sel.isEmpty ? const Logo() : Text('${sel.length} selected'),
-        subtitle: sel.isEmpty
-            ? Text('${s.backlog.length} unreviewed')
-            : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                if (s.gapCount > 0) ...[
-                  _link(Icons.swap_horiz, 'Fill ${s.gapCount}', s.selectBetween),
-                  const Text('  ·  ', style: TextStyle(color: C.muted)),
-                ],
-                _link(null, 'Clear', s.clearGrid),
-              ]),
+        title: Logo(busy: s.sync.running),
+        subtitle: Text('${s.backlog.length} unreviewed'),
       ),
       Align(
         alignment: Alignment.centerLeft,
@@ -122,7 +114,21 @@ class _GridScreenState extends State<GridScreen> {
           ),
         ]),
       ),
-      const SizedBox(height: 4),
+      // Selection, right above the photos: count, select between (fill the gaps), clear.
+      SizedBox(
+        height: 32,
+        child: sel.isEmpty
+            ? null
+            : Row(children: [
+                Text('${sel.length} selected', style: const TextStyle(fontWeight: FontWeight.w700)),
+                const Spacer(),
+                if (s.gapCount > 0) ...[
+                  _link(Icons.swap_horiz, 'Fill ${s.gapCount}', s.selectBetween),
+                  const SizedBox(width: 16),
+                ],
+                _link(Icons.close, 'Clear', s.clearGrid),
+              ]),
+      ),
       Expanded(
         child: s.backlog.isEmpty
             ? const Center(child: Text('Everything has an album', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)))
@@ -166,12 +172,12 @@ class _GridScreenState extends State<GridScreen> {
         Expanded(flex: 6, child: Btn('', icon: Icons.undo, onTap: s.undoStack.isEmpty ? null : s.undo)),
         const SizedBox(width: 6),
         Expanded(
-          flex: 10,
+          flex: 13,
           child: Btn(sel.isEmpty ? 'Delete' : 'Delete ${sel.length}', icon: Icons.arrow_back, color: C.trash, onTap: sel.isEmpty ? null : () => s.fileGrid(null)),
         ),
         const SizedBox(width: 6),
         Expanded(
-          flex: 20,
+          flex: 17,
           child: Btn(target == null ? 'Album' : chipLabel(target),
               icon: Icons.arrow_forward,
               bold: true,
