@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../immich.dart';
 import '../media.dart' as media;
 import '../state.dart';
+import '../stores.dart';
 import 'common.dart';
 
 const _sections = [
@@ -211,10 +212,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ]),
             onTap: () => s.go(Screen.immich),
           ),
-          for (final (screen, name, key, on) in [
-            (Screen.b2, 'Backblaze B2', 'B2', s.b2.enabled),
-            (Screen.webdav, 'ownCloud / Nextcloud', 'WebDAV', s.webdav.enabled),
-            (Screen.google, 'Google Photos', 'Google Photos', s.google.enabled),
+          for (final (open, name, key, on) in [
+            (() => s.go(Screen.google), 'Google Photos', 'Google Photos', s.google.enabled),
+            for (final d in storeDefs) (() => s.openStore(d.key), d.title, d.label, s.store(d.key).enabled),
           ])
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -226,7 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Icon(Icons.chevron_right, color: C.muted),
               ]),
-              onTap: () => s.go(screen),
+              onTap: open,
             ),
           _h3('Free up space'),
           _p('Once every integration that is on has a kept photo (checked on the server), it moves to the phone\'s trash, where it can be restored for 30 days. Photos you restore are never removed again.'),

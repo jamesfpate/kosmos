@@ -32,13 +32,25 @@ class Db {
     return Db._(db);
   }
 
+  final _tables = <String>{};
+
+  /// File stores each get a table, made the first time it's used.
+  Future<void> _ensure(String table) async {
+    if (_tables.contains(table)) return;
+    await _db.execute('CREATE TABLE IF NOT EXISTS $table (id TEXT PRIMARY KEY, json TEXT NOT NULL)');
+    _tables.add(table);
+  }
+
   Future<List<Map<String, Object?>>> all(String table) async {
+    await _ensure(table);
     final rows = await _db.query(table);
     return [for (final r in rows) jsonDecode(r['json'] as String) as Map<String, Object?>];
   }
 
-  Future<void> put(String table, String id, Object? value) =>
-      _db.insert(table, {'id': id, 'json': jsonEncode(value)}, conflictAlgorithm: ConflictAlgorithm.replace);
+  Future<void> put(String table, String id, Object? value) async {
+    await _ensure(table);
+    await _db.insert(table, {'id': id, 'json': jsonEncode(value)}, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
 
   Future<void> putAll(String table, Map<String, Object?> values) async {
     final batch = _db.batch();

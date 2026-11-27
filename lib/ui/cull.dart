@@ -51,7 +51,7 @@ class _CullScreenState extends State<CullScreen> {
     return Column(children: [
       TopBar(s,
           title: Logo(busy: s.sync.running),
-          subtitle: Text(syncStatus(s) ?? (cur == null ? 'All caught up' : '${s.queue.length} left'))),
+          subtitle: Text(cur == null ? 'All caught up' : '${s.queue.length} left')),
       Align(alignment: Alignment.centerLeft, child: Label(sel.isNotEmpty && !s.burstAll ? 'Choose album for ${sel.length}' : 'Choose album')),
       const SizedBox(height: 4),
       SizedBox(
@@ -152,15 +152,7 @@ class _CullScreenState extends State<CullScreen> {
             onCheck: s.isGroup ? () => s.toggleCheck(cur.id) : null),
       ),
       if (cur.isVideo && playing != cur.id)
-        Positioned(
-          bottom: 14,
-          child: FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: Colors.black54),
-            onPressed: () => setState(() => playing = cur.id),
-            icon: const Icon(Icons.play_arrow),
-            label: Text('${cur.entity.duration}s'),
-          ),
-        ),
+        PlayButton(seconds: cur.entity.duration, onTap: () => setState(() => playing = cur.id)),
     ]);
     if (!s.isGroup) return large;
     return LayoutBuilder(builder: (context, box) {

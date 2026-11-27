@@ -32,7 +32,7 @@ String dayOf(int ms) => fmtDay.format(DateTime.fromMillisecondsSinceEpoch(ms));
 String timeOf(int ms) => fmtTime.format(DateTime.fromMillisecondsSinceEpoch(ms));
 
 /// The top bar on every screen: single/grid switch, title, uploads, trash, settings.
-const _integrationPages = {Screen.immich, Screen.b2, Screen.webdav, Screen.google};
+const _integrationPages = {Screen.immich, Screen.store, Screen.google};
 
 class TopBar extends StatelessWidget {
   const TopBar(this.s, {super.key, required this.title, this.subtitle});
@@ -64,32 +64,16 @@ class TopBar extends StatelessWidget {
             ]),
           ),
         ),
-        if (s.anyIntegration && (sync.pending > 0 || sync.running || sync.error.isNotEmpty))
-          Pulse(
-            on: sync.running,
-            child: Pill(
-              icon: Icons.arrow_upward,
-              label: sync.error.isNotEmpty ? '!' : '${sync.pending}',
-              color: sync.error.isNotEmpty ? C.trash : null,
-              onTap: () => s.go(s.immich.enabled
-                  ? Screen.immich
-                  : s.b2.enabled
-                      ? Screen.b2
-                      : s.webdav.enabled
-                          ? Screen.webdav
-                          : s.google.enabled
-                              ? Screen.google
-                              : Screen.immich),
-            ),
-          ),
         Pill(
           icon: Icons.delete_outline,
           label: '${s.pendingTrash.length}',
           on: s.screen == Screen.trash,
           onTap: s.pendingTrash.isEmpty && s.screen != Screen.trash ? null : () => s.toggleScreen(Screen.trash),
         ),
+        // Red when the last backup sync had an error (details on the integration's page).
         Pill(
           icon: Icons.settings_outlined,
+          color: sync.error.isNotEmpty ? C.trash : null,
           on: s.screen == Screen.settings || _integrationPages.contains(s.screen),
           onTap: () => _integrationPages.contains(s.screen) ? s.go(Screen.settings) : s.toggleScreen(Screen.settings),
         ),
@@ -345,52 +329,6 @@ class _LogoState extends State<Logo> with SingleTickerProviderStateMixin {
   }
 }
 
-/// What a running sync is doing, for the line under the wordmark (null when idle).
-String? syncStatus(AppState s) {
-  final sync = s.sync;
-  if (!sync.running) return null;
-  return sync.pending > 0 ? 'Uploading ${sync.pending} to Immich…' : 'Syncing albums with Immich…';
-}
-
-/// Fades in and out while [on] (the upload counter during a sync).
-class Pulse extends StatefulWidget {
-  const Pulse({super.key, required this.on, required this.child});
-
-  final bool on;
-  final Widget child;
-
-  @override
-  State<Pulse> createState() => _PulseState();
-}
-
-class _PulseState extends State<Pulse> with SingleTickerProviderStateMixin {
-  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.on) _anim.repeat(reverse: true);
-  }
-
-  @override
-  void didUpdateWidget(Pulse oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.on && !_anim.isAnimating) _anim.repeat(reverse: true);
-    if (!widget.on && _anim.isAnimating) _anim.stop();
-  }
-
-  @override
-  void dispose() {
-    _anim.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.on
-      ? FadeTransition(opacity: Tween(begin: 0.35, end: 1.0).animate(_anim), child: widget.child)
-      : widget.child;
-}
-
 class Label extends StatelessWidget {
   const Label(this.text, {super.key});
 
@@ -583,6 +521,38 @@ class CheckBadge extends StatelessWidget {
       child: Padding(padding: const EdgeInsets.all(8), child: circle),
     );
   }
+}
+
+/// Big play button over a video (single mode and the full-size viewer), with its length.
+class PlayButton extends StatelessWidget {
+  const PlayButton({super.key, required this.seconds, required this.onTap});
+
+  final int seconds;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white70, width: 2),
+            ),
+            child: const Icon(Icons.play_arrow_rounded, size: 52, color: Colors.white),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+            child: Text(seconds >= 60 ? '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}' : '0:${seconds.toString().padLeft(2, '0')}',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      );
 }
 
 class VideoBadge extends StatelessWidget {

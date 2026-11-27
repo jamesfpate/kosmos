@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:winnow_native/winnow_native.dart';
 
-import '../b2.dart';
 import '../gphotos.dart';
 import '../state.dart';
-import '../webdav.dart';
+import '../store.dart';
+import '../stores.dart';
 import 'common.dart';
 
-// Settings pages for Backblaze B2, ownCloud / Nextcloud (WebDAV) and Google Photos.
+// Settings pages for the file stores (Nextcloud / WebDAV, SFTP, S3, B2) and Google Photos.
 
 /// Page frame: top bar, back to Settings, then [children].
 Widget _page(AppState s, String title, bool on, String doing, List<Widget> children) => Column(children: [
@@ -29,7 +29,7 @@ Widget _muted(String text) =>
     Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(text, style: const TextStyle(color: C.muted)));
 
 Widget _field(String label, TextEditingController c, String hint, VoidCallback save,
-        {bool secret = false, TextInputType? type}) =>
+        {bool secret = false, TextInputType? type, int lines = 1}) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const SizedBox(height: 14),
       Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -39,6 +39,8 @@ Widget _field(String label, TextEditingController c, String hint, VoidCallback s
         obscureText: secret,
         autocorrect: false,
         keyboardType: type,
+        minLines: lines,
+        maxLines: lines,
         decoration: InputDecoration(hintText: hint, border: const OutlineInputBorder(), isDense: true),
         onSubmitted: (_) => save(),
       ),
@@ -92,104 +94,33 @@ List<Widget> _options(
   ];
 }
 
-class B2Screen extends StatefulWidget {
-  const B2Screen(this.s, {super.key});
+/// A file store's page: its fields, folder, Test connection, and the common options.
+class StoreScreen extends StatefulWidget {
+  const StoreScreen(this.s, {super.key});
 
   final AppState s;
 
   @override
-  State<B2Screen> createState() => _B2ScreenState();
+  State<StoreScreen> createState() => _StoreScreenState();
 }
 
-class _B2ScreenState extends State<B2Screen> {
-  late final _keyId = TextEditingController(text: widget.s.b2.keyId);
-  late final _appKey = TextEditingController(text: widget.s.b2.appKey);
-  late final _bucket = TextEditingController(text: widget.s.b2.bucket);
-  late final _prefix = TextEditingController(text: widget.s.b2.prefix);
-  String _msg = '';
-
+class _StoreScreenState extends State<StoreScreen> {
   AppState get s => widget.s;
-
-  Future<void> _save() => s.saveB2(keyId: _keyId.text, appKey: _appKey.text, bucket: _bucket.text, prefix: _prefix.text);
-
-  Future<void> _test() async {
-    await _save();
-    setState(() => _msg = 'Checking…');
-    final api = B2Api(s.b2);
-    try {
-      final bucket = await api.authorize();
-      setState(() => _msg = 'Connected · bucket "$bucket" is ready');
-    } catch (e) {
-      setState(() => _msg = "Can't connect: $e");
-    } finally {
-      api.close();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = s.b2;
-    return _page(s, 'Backblaze B2', c.enabled, 'Backing up kept photos', [
-      _muted('Kept photos are copied, original files, into your own B2 bucket by album: Photos/2026/2026-11 '
-          'Thanksgiving/, undated albums under Photos/Albums/. Moving a photo or renaming an album moves its files. '
-          'Deleted photos are never uploaded.'),
-      _muted('In Backblaze: Application Keys → Add a New Application Key, allow access to the bucket, Read and Write. '
-          'Set the bucket to keep only the last version so moved files don\'t take up space.'),
-      _field('Key ID', _keyId, 'keyID', _save),
-      _field('Application key', _appKey, 'applicationKey', _save, secret: true),
-      _field('Bucket', _bucket, 'my-photos', _save),
-      _field('Folder in the bucket', _prefix, 'Photos/', _save),
-      const SizedBox(height: 8),
-      Btn('Test connection', onTap: _test),
-      if (_msg.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: _muted(_msg)),
-      ..._options(
-        s,
-        'B2',
-        enabled: c.enabled,
-        wifiOnly: c.wifiOnly,
-        background: c.background,
-        videos: c.videos,
-        setEnabled: (on) async {
-          await _save();
-          if (on && !s.b2.ready) return setState(() => _msg = 'Add the key and bucket first.');
-          await s.saveB2(enabled: on);
-        },
-        setWifi: (v) => s.saveB2(wifiOnly: v),
-        setBackground: (v) => s.saveB2(background: v),
-        setVideos: (v) => s.saveB2(videos: v),
-      ),
-    ]);
-  }
-}
-
-class WebDavScreen extends StatefulWidget {
-  const WebDavScreen(this.s, {super.key});
-
-  final AppState s;
-
-  @override
-  State<WebDavScreen> createState() => _WebDavScreenState();
-}
-
-class _WebDavScreenState extends State<WebDavScreen> {
-  late final _url = TextEditingController(text: widget.s.webdav.url);
-  late final _user = TextEditingController(text: widget.s.webdav.user);
-  late final _password = TextEditingController(text: widget.s.webdav.password);
-  late final _folder = TextEditingController(text: widget.s.webdav.folder);
+  StoreDef get def => storeDef(s.storeKey);
+  late final _c = {for (final f in def.fields) f.key: TextEditingController(text: s.store(def.key)[f.key])};
+  late final _folder = TextEditingController(text: s.store(def.key).folder);
   String _msg = '';
-
-  AppState get s => widget.s;
 
   Future<void> _save() =>
-      s.saveWebDav(url: _url.text, user: _user.text, password: _password.text, folder: _folder.text);
+      s.saveStore(def.key, fields: {for (final e in _c.entries) e.key: e.value.text}, folder: _folder.text);
 
   Future<void> _test() async {
     await _save();
     setState(() => _msg = 'Checking…');
-    final api = WebDavApi(s.webdav);
+    final api = def.make(s.store(def.key), (k, v) => s.saveStore(def.key, fields: {k: v}));
     try {
-      final root = await api.authorize();
-      setState(() => _msg = 'Connected · $root');
+      final where = await api.authorize();
+      setState(() => _msg = 'Connected · $where');
     } catch (e) {
       setState(() => _msg = "Can't connect: ${'$e'.replaceFirst('Exception: ', '')}");
     } finally {
@@ -199,35 +130,42 @@ class _WebDavScreenState extends State<WebDavScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = s.webdav;
-    return _page(s, 'WebDAV', c.enabled, 'Backing up kept photos', [
-      _muted('Kept photos are copied, original files, into a folder on your server by album: Photos/2026/2026-11 '
-          'Thanksgiving/, undated albums under Photos/Albums/. Moving a photo or renaming an album moves its files. '
-          'Works with any WebDAV server.'),
-      _muted('Use an app password, not your login: Nextcloud → Settings → Security → Devices & sessions; ownCloud → '
-          'Settings → Security → App passwords.'),
-      _field('Server', _url, 'https://cloud.example.com', _save, type: TextInputType.url),
-      _field('User name', _user, 'you', _save),
-      _field('App password', _password, 'xxxxx-xxxxx-xxxxx', _save, secret: true),
-      _field('Folder', _folder, 'Photos/', _save),
+    final c = s.store(def.key);
+    return _page(s, def.title, c.enabled, 'Backing up kept photos', [
+      for (final t in def.intro) _muted(t),
+      _muted('Layout: ${c.folder}2026/2026-11 Thanksgiving/IMG_1234.jpg; undated albums under ${c.folder}Albums/.'),
+      for (final f in def.fields)
+        _field(f.label, _c[f.key]!, f.hint, _save,
+            secret: f.secret, type: f.url ? TextInputType.url : (f.lines > 1 ? TextInputType.multiline : null), lines: f.lines),
+      _field(def.folderLabel, _folder, 'Photos/', _save),
+      if (c['hostKey'].isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(children: [
+            Expanded(child: _muted('Server identity: ${c['hostKey']}')),
+            TextButton(onPressed: () => s.saveStore(def.key, fields: {'hostKey': ''}), child: const Text('Forget')),
+          ]),
+        ),
       const SizedBox(height: 8),
       Btn('Test connection', onTap: _test),
       if (_msg.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: _muted(_msg)),
       ..._options(
         s,
-        'WebDAV',
+        def.label,
         enabled: c.enabled,
         wifiOnly: c.wifiOnly,
         background: c.background,
         videos: c.videos,
         setEnabled: (on) async {
           await _save();
-          if (on && !s.webdav.ready) return setState(() => _msg = 'Add the server, user name and app password first.');
-          await s.saveWebDav(enabled: on);
+          if (on && !def.ready(s.store(def.key))) {
+            return setState(() => _msg = 'Fill in ${def.fields.where((f) => !f.optional).map((f) => f.label.toLowerCase()).join(', ')} first.');
+          }
+          await s.saveStore(def.key, enabled: on);
         },
-        setWifi: (v) => s.saveWebDav(wifiOnly: v),
-        setBackground: (v) => s.saveWebDav(background: v),
-        setVideos: (v) => s.saveWebDav(videos: v),
+        setWifi: (v) => s.saveStore(def.key, wifiOnly: v),
+        setBackground: (v) => s.saveStore(def.key, background: v),
+        setVideos: (v) => s.saveStore(def.key, videos: v),
       ),
     ]);
   }

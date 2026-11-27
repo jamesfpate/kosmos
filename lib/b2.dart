@@ -7,90 +7,36 @@ import 'package:photo_manager/photo_manager.dart';
 import 'models.dart';
 import 'store.dart';
 
-// Backblaze B2 (native API v3): kept photos are uploaded straight from the phone into
-// <prefix>YYYY/YYYY-MM name/file (dated albums) or <prefix>Albums/name/file (undated). A photo that moves to another
-// album, or whose album is renamed, is copied to its new path and the old one hidden (B2 keeps it as a hidden
-// version until the bucket's lifecycle rules remove it).
+const b2Def = StoreDef(
+  key: 'b2',
+  title: 'Backblaze B2',
+  label: 'B2',
+  intro: [
+    'Kept photos are copied, original files, into your own B2 bucket by album. Moving a photo or renaming an album moves its files.',
+    'In Backblaze: Application Keys → Add a New Application Key, allow access to the bucket, Read and Write. Set the bucket to keep only the last version so moved files don\'t take up space.',
+  ],
+  fields: [
+    FieldDef('keyId', 'Key ID', 'keyID'),
+    FieldDef('appKey', 'Application key', 'applicationKey', secret: true),
+    FieldDef('bucket', 'Bucket', 'my-photos'),
+  ],
+  folderLabel: 'Folder in the bucket',
+  make: _make,
+);
 
-class B2Config {
-  const B2Config({
-    this.keyId = '',
-    this.appKey = '',
-    this.bucket = '',
-    this.prefix = 'Photos/',
-    this.enabled = false,
-    this.wifiOnly = false,
-    this.videos = true,
-    this.background = 'off',
-  });
+FileStore _make(StoreConfig c, void Function(String, String) remember) => B2Api(c);
 
-  final String keyId;
-  final String appKey;
-  final String bucket;
-
-  /// Folder in the bucket everything goes under ('' for the top).
-  final String prefix;
-  final bool enabled;
-  final bool wifiOnly;
-  final bool videos;
-  final String background;
-
-  bool get ready => keyId.isNotEmpty && appKey.isNotEmpty && bucket.isNotEmpty;
-
-  B2Config copyWith({
-    String? keyId,
-    String? appKey,
-    String? bucket,
-    String? prefix,
-    bool? enabled,
-    bool? wifiOnly,
-    bool? videos,
-    String? background,
-  }) =>
-      B2Config(
-        keyId: keyId ?? this.keyId,
-        appKey: appKey ?? this.appKey,
-        bucket: bucket ?? this.bucket,
-        prefix: prefix ?? this.prefix,
-        enabled: enabled ?? this.enabled,
-        wifiOnly: wifiOnly ?? this.wifiOnly,
-        videos: videos ?? this.videos,
-        background: background ?? this.background,
-      );
-
-  Map<String, Object?> toJson() => {
-        'keyId': keyId,
-        'appKey': appKey,
-        'bucket': bucket,
-        'prefix': prefix,
-        'enabled': enabled,
-        'wifiOnly': wifiOnly,
-        'videos': videos,
-        'background': background,
-      };
-
-  static B2Config fromJson(Map<String, Object?>? j) => j == null
-      ? const B2Config()
-      : B2Config(
-          keyId: (j['keyId'] as String?) ?? '',
-          appKey: (j['appKey'] as String?) ?? '',
-          bucket: (j['bucket'] as String?) ?? '',
-          prefix: (j['prefix'] as String?) ?? 'Photos/',
-          enabled: j['enabled'] == true,
-          wifiOnly: j['wifiOnly'] == true,
-          videos: j['videos'] != false,
-          background: (j['background'] as String?) ?? 'off',
-        );
-}
+// Backblaze B2 (native API v3). A photo that moves to another album, or whose album is renamed, is copied to its new
+// path and the old one hidden (B2 keeps it as a hidden version until the bucket's lifecycle rules remove it).
 
 // Test builds can point this at a mock (--dart-define=B2_AUTH_URL=...).
 const _authUrl = String.fromEnvironment('B2_AUTH_URL',
     defaultValue: 'https://api.backblazeb2.com/b2api/v3/b2_authorize_account');
 
-class B2Api implements FileStore {
+class B2Api extends FileStore {
   B2Api(this.cfg);
 
-  final B2Config cfg;
+  final StoreConfig cfg;
   final _client = http.Client();
   String? _apiUrl;
   String? _token;
@@ -101,7 +47,7 @@ class B2Api implements FileStore {
   /// Signs in and finds the bucket. Returns the bucket name (the key may be limited to one bucket).
   @override
   Future<String> authorize() async {
-    final basic = base64Encode(utf8.encode('${cfg.keyId.trim()}:${cfg.appKey.trim()}'));
+    final basic = base64Encode(utf8.encode('${cfg['keyId'].trim()}:${cfg['appKey'].trim()}'));
     final res = await _client.get(Uri.parse(_authUrl),
         headers: {'Authorization': 'Basic $basic'});
     final j = _decode(res);
@@ -110,16 +56,16 @@ class B2Api implements FileStore {
     _token = j['authorizationToken'] as String;
     final allowed = (storage['allowed'] as Map?) ?? {};
     final buckets = (allowed['buckets'] as List?)?.cast<Map>() ?? const [];
-    final restricted = buckets.where((b) => b['name'] == cfg.bucket.trim()).firstOrNull;
+    final restricted = buckets.where((b) => b['name'] == cfg['bucket'].trim()).firstOrNull;
     if (restricted != null) {
       _bucketId = restricted['id'] as String;
     } else {
-      final found = await _call('b2_list_buckets', {'accountId': j['accountId'], 'bucketName': cfg.bucket.trim()});
+      final found = await _call('b2_list_buckets', {'accountId': j['accountId'], 'bucketName': cfg['bucket'].trim()});
       final list = (found['buckets'] as List).cast<Map>();
-      if (list.isEmpty) throw Exception('No bucket named "${cfg.bucket.trim()}" for this key');
+      if (list.isEmpty) throw Exception('No bucket named "${cfg['bucket'].trim()}" for this key');
       _bucketId = list.first['bucketId'] as String;
     }
-    return cfg.bucket.trim();
+    return cfg['bucket'].trim();
   }
 
   Map<String, Object?> _decode(http.Response res) {
@@ -155,7 +101,7 @@ class B2Api implements FileStore {
       final req = http.StreamedRequest('POST', Uri.parse(_uploadUrl!))
         ..headers.addAll({
           'Authorization': _uploadToken!,
-          'X-Bz-File-Name': Uri.encodeComponent(fileName).replaceAll('%2F', '/'),
+          'X-Bz-File-Name': Uri.encodeComponent(objectKey(fileName)).replaceAll('%2F', '/'),
           'Content-Type': item.entity.mimeType ?? 'b2/x-auto',
           'X-Bz-Content-Sha1': '$digest',
           'X-Bz-Info-src_last_modified_millis': '${item.taken}',
@@ -176,8 +122,8 @@ class B2Api implements FileStore {
   /// Moves a file: copy to the new name, hide the old one. Returns the new file id.
   @override
   Future<String> move(FileRecord r, String fileName) async {
-    final copied = await _call('b2_copy_file', {'sourceFileId': r.fileId, 'fileName': fileName});
-    await _call('b2_hide_file', {'bucketId': _bucketId, 'fileName': r.fileName});
+    final copied = await _call('b2_copy_file', {'sourceFileId': r.fileId, 'fileName': objectKey(fileName)});
+    await _call('b2_hide_file', {'bucketId': _bucketId, 'fileName': objectKey(r.fileName)});
     return copied['fileId'] as String;
   }
 

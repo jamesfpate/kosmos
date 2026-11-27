@@ -79,7 +79,7 @@ class _GridScreenState extends State<GridScreen> {
     String chipLabel(Album a) => a.monthly && months > 1 ? 'By month ($months)' : albumTitle(a);
     if (s.screen == Screen.explore && isImmichView(s.gridView)) {
       return Column(children: [
-        TopBar(s, title: Logo(busy: s.sync.running), subtitle: Text(syncStatus(s) ?? 'Immich')),
+        TopBar(s, title: Logo(busy: s.sync.running), subtitle: const Text('Immich')),
         _viewBar(context),
         const SizedBox(height: 6),
         Expanded(child: RemoteExplorer(s, key: ValueKey(s.gridView), view: s.gridView)),
@@ -89,7 +89,7 @@ class _GridScreenState extends State<GridScreen> {
       TopBar(
         s,
         title: Logo(busy: s.sync.running),
-        subtitle: Text(syncStatus(s) ??
+        subtitle: Text(
             (s.screen == Screen.explore ? '${s.backlog.length} photos' : '${s.unreviewedCount} unreviewed')),
       ),
       if (s.screen == Screen.explore) ...[_viewBar(context), const SizedBox(height: 6)],
@@ -419,15 +419,7 @@ class _ViewerState extends State<Viewer> {
                       itemBuilder: (_, i) => Stack(alignment: Alignment.center, children: [
                         Center(child: Preview(list[i], play: playing == list[i].id, onStop: () => setState(() => playing = null))),
                         if (list[i].isVideo && playing != list[i].id)
-                          Positioned(
-                            bottom: 16,
-                            child: FilledButton.icon(
-                              style: FilledButton.styleFrom(backgroundColor: Colors.black54),
-                              onPressed: () => setState(() => playing = list[i].id),
-                              icon: const Icon(Icons.play_arrow),
-                              label: Text('${list[i].entity.duration}s'),
-                            ),
-                          ),
+                          PlayButton(seconds: list[i].entity.duration, onTap: () => setState(() => playing = list[i].id)),
                       ]),
                     ),
                   ),

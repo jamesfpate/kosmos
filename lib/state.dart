@@ -5,7 +5,6 @@ import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
-import 'b2.dart';
 import 'gphotos.dart';
 import 'db.dart';
 import 'fx.dart';
@@ -15,9 +14,9 @@ import 'media.dart' show Access;
 import 'background.dart';
 import 'models.dart';
 import 'store.dart';
-import 'webdav.dart';
+import 'stores.dart';
 
-enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, b2, webdav, google, error }
+enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, store, google, error }
 
 enum Dir { left, right }
 
@@ -103,8 +102,14 @@ class AppState extends ChangeNotifier {
   String gridView = 'unreviewed';
   String exploreView = 'all';
 
-  B2Config b2 = const B2Config();
-  WebDavConfig webdav = const WebDavConfig();
+  /// File stores' settings (B2, WebDAV, S3, SFTP), by [StoreDef.key].
+  Map<String, StoreConfig> stores = {};
+
+  /// The file store whose page is open ([Screen.store]).
+  String storeKey = storeDefs.first.key;
+
+  StoreConfig store(String key) => stores[key] ?? const StoreConfig();
+  bool storeOn(String key) => store(key).enabled && storeDef(key).ready(store(key));
   GPhotosConfig google = const GPhotosConfig();
 
   /// Free up space after backup: 'off', 'now' (as soon as every integration has a photo) or '30d' (keep the last 30
@@ -197,8 +202,7 @@ class AppState extends ChangeNotifier {
     thumbH = (m['thumbH'] as num?)?.toDouble() ?? 150;
     hidden = ((m['hiddenBuckets'] as List?) ?? []).cast<String>().toSet();
     immich = ImmichConfig.fromJson((m['immich'] as Map?)?.cast<String, Object?>());
-    b2 = B2Config.fromJson((m['b2'] as Map?)?.cast<String, Object?>());
-    webdav = WebDavConfig.fromJson((m['webdav'] as Map?)?.cast<String, Object?>());
+    stores = {for (final d in storeDefs) d.key: StoreConfig.fromJson((m[d.key] as Map?)?.cast<String, Object?>())};
     google = GPhotosConfig.fromJson((m['google'] as Map?)?.cast<String, Object?>());
     freeUp = (m['freeUp'] as String?) ?? 'off';
   }
@@ -1073,54 +1077,36 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> saveB2({
-    String? keyId,
-    String? appKey,
-    String? bucket,
-    String? prefix,
-    bool? enabled,
-    bool? wifiOnly,
-    bool? videos,
-    String? background,
-  }) async {
-    b2 = b2.copyWith(
-      keyId: keyId?.trim(),
-      appKey: appKey?.trim(),
-      bucket: bucket?.trim(),
-      prefix: prefix?.trim(),
-      enabled: enabled,
-      wifiOnly: wifiOnly,
-      videos: videos,
-      background: background,
-    );
-    await _set('b2', b2.toJson());
-    _reschedule();
-    if (enabled == true || wifiOnly != null || videos != null) runSync();
-  }
-
-  Future<void> saveWebDav({
-    String? url,
-    String? user,
-    String? password,
+  /// Saves a file store's settings: [fields] are merged in.
+  Future<void> saveStore(
+    String key, {
+    Map<String, String>? fields,
     String? folder,
     bool? enabled,
     bool? wifiOnly,
     bool? videos,
     String? background,
   }) async {
-    webdav = webdav.copyWith(
-      url: url?.trim(),
-      user: user?.trim(),
-      password: password?.trim(),
-      folder: folder?.trim(),
-      enabled: enabled,
-      wifiOnly: wifiOnly,
-      videos: videos,
-      background: background,
-    );
-    await _set('webdav', webdav.toJson());
+    final c = store(key);
+    stores = {
+      ...stores,
+      key: c.copyWith(
+        fields: fields == null ? null : {...c.fields, for (final e in fields.entries) e.key: e.value.trim()},
+        folder: folder?.trim(),
+        enabled: enabled,
+        wifiOnly: wifiOnly,
+        videos: videos,
+        background: background,
+      ),
+    };
+    await _set(key, store(key).toJson());
     _reschedule();
     if (enabled == true || wifiOnly != null || videos != null) runSync();
+  }
+
+  void openStore(String key) {
+    storeKey = key;
+    go(Screen.store);
   }
 
   Future<void> saveGoogle({
@@ -1196,20 +1182,19 @@ class AppState extends ChangeNotifier {
       }).toList();
 
   bool get _immichOn => immich.enabled && immich.ready;
-  bool get _b2On => b2.enabled && b2.ready;
-  bool get _davOn => webdav.enabled && webdav.ready;
+  List<StoreDef> get _storesOn => [for (final d in storeDefs) if (storeOn(d.key)) d];
   bool get _googleOn => google.enabled && google.ready;
   /// The last sync's error for one integration ('' if it went fine), by the name it reports under.
   String errorFor(String name) =>
       sync.error.split('\n').where((l) => l.startsWith('$name: ')).map((l) => l.substring(name.length + 2)).join('\n');
 
-  bool get anyIntegration => _immichOn || _b2On || _davOn || _googleOn;
+  bool get anyIntegration => _immichOn || _storesOn.isNotEmpty || _googleOn;
 
   /// What background upload should do: one entry per integration that's on and wants it.
   List<({String bg, bool wifi})> get _bgWants => [
         if (_immichOn && immich.background != 'off') (bg: immich.background, wifi: immich.wifiOnly),
-        if (_b2On && b2.background != 'off') (bg: b2.background, wifi: b2.wifiOnly),
-        if (_davOn && webdav.background != 'off') (bg: webdav.background, wifi: webdav.wifiOnly),
+        for (final d in _storesOn)
+          if (store(d.key).background != 'off') (bg: store(d.key).background, wifi: store(d.key).wifiOnly),
         if (_googleOn && google.background != 'off') (bg: google.background, wifi: google.wifiOnly),
       ];
 
@@ -1249,8 +1234,9 @@ class AppState extends ChangeNotifier {
     if (_immichOn) {
       n += _pendingUploads({for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)}).length;
     }
-    if (_b2On) n += _pendingFiles(await _files('b2'), b2.prefix, b2.videos).length;
-    if (_davOn) n += _pendingFiles(await _files('webdav'), webdav.folder, webdav.videos).length;
+    for (final d in _storesOn) {
+      n += _pendingFiles(await _files(d.key), store(d.key).folder, store(d.key).videos).length;
+    }
     if (_googleOn) n += _pendingGoogle(await _gRecords()).length;
     return n;
   }
@@ -1271,11 +1257,11 @@ class AppState extends ChangeNotifier {
     final wifi = await _onWifi();
     bool go(bool on, bool wifiOnly) => on && (wifi || !wifiOnly);
     final doImmich = go(_immichOn, immich.wifiOnly);
-    final doB2 = go(_b2On, b2.wifiOnly);
-    final doDav = go(_davOn, webdav.wifiOnly);
+    final doStores = [for (final d in _storesOn) if (go(true, store(d.key).wifiOnly)) d];
     final doGoogle = go(_googleOn, google.wifiOnly);
-    final waiting = (_immichOn && !doImmich) || (_b2On && !doB2) || (_davOn && !doDav) || (_googleOn && !doGoogle);
-    if (!doImmich && !doB2 && !doDav && !doGoogle) {
+    final waiting =
+        (_immichOn && !doImmich) || doStores.length < _storesOn.length || (_googleOn && !doGoogle);
+    if (!doImmich && doStores.isEmpty && !doGoogle) {
       sync = SyncStatus(pending: await _pendingCount(), done: sync.done, waitingWifi: true);
       changed();
       return;
@@ -1301,8 +1287,9 @@ class AppState extends ChangeNotifier {
         _syncAgain = false;
         errors.clear();
         if (doImmich) await run('Immich', _syncImmich);
-        if (doB2) await run('B2', () => _syncFiles(B2Api(b2), 'b2', b2.prefix, b2.videos));
-        if (doDav) await run('WebDAV', () => _syncFiles(WebDavApi(webdav), 'webdav', webdav.folder, webdav.videos));
+        for (final d in doStores) {
+          await run(d.label, () => _syncFiles(d));
+        }
         if (doGoogle) await run('Google Photos', _syncGoogle);
       } while (_syncAgain);
       if (errors.isEmpty) await run('Free up space', _freeUp);
@@ -1312,6 +1299,9 @@ class AppState extends ChangeNotifier {
         pending: waiting || errors.isNotEmpty ? await _pendingCount() : 0,
         error: errors.join('\n'),
       );
+    } catch (e) {
+      // Never leave a stale "up to date" behind.
+      sync = SyncStatus(done: _done, error: [...errors, '$e'.replaceFirst('Exception: ', '')].join('\n'));
     } finally {
       _syncing = false;
       changed();
@@ -1387,12 +1377,18 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Uploads kept photos to a file store (B2, WebDAV) at their album's path; photos whose album changed (or was
+  /// A file store's client; values it learns (an SFTP host key) are saved into its settings.
+  FileStore _make(StoreDef def) => def.make(store(def.key), (k, v) => saveStore(def.key, fields: {k: v}));
+
+  /// Uploads kept photos to a file store (B2, WebDAV, S3, SFTP) at their album's path; photos whose album changed (or was
   /// renamed) move there.
-  Future<void> _syncFiles(FileStore api, String table, String prefix, bool videos) async {
+  Future<void> _syncFiles(StoreDef def) async {
+    final c = store(def.key);
+    final api = _make(def);
+    final table = def.key;
     try {
       final recs = await _files(table);
-      final todo = _pendingFiles(recs, prefix, videos);
+      final todo = _pendingFiles(recs, c.folder, c.videos);
       if (todo.isEmpty) return;
       await api.authorize();
       final taken = {for (final r in recs.values) r.fileName: r.id};
@@ -1400,19 +1396,21 @@ class AppState extends ChangeNotifier {
       _status(todo.length);
       for (final item in todo) {
         final album = albums.firstWhere((a) => a.id == decided[item.id]!.albumId);
-        var name = storePath(prefix, album, item.name);
+        var name = storePath(c.folder, album, item.name);
         final owner = taken[name];
         if (owner != null && owner != item.id) name = withSuffix(name, item.id);
         final old = recs[item.id];
         final fileId = old == null ? await api.upload(item, name) : await api.move(old, name);
         if (old != null) taken.remove(old.fileName);
         taken[name] = item.id;
-        final rec = FileRecord(id: item.id, fileId: fileId, fileName: name);
+        final rec = FileRecord(id: item.id, fileId: fileId, fileName: name, album: albumTitle(album));
+        await api.filed(rec, old);
         recs[item.id] = rec;
         await db.put(table, rec.id, rec.toJson());
         _done++;
         _status(todo.length - ++here);
       }
+      await api.finish();
     } finally {
       api.close();
     }
@@ -1489,42 +1487,50 @@ class AppState extends ChangeNotifier {
     final before = freeUp == '30d' ? now - 30 * day : now;
     final freed = ((await db.getMeta<List>('freed')) ?? []).cast<String>().toSet();
     final ups = {for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)};
-    final b2s = await _files('b2');
-    final davs = await _files('webdav');
+    final files = {for (final d in _storesOn) d.key: await _files(d.key)};
     final gs = await _gRecords();
     final candidates = items.where((i) {
       if (!_keptFiled(i, true) || freed.contains(i.id) || i.taken >= before) return false;
       final album = decided[i.id]!.albumId!;
       if (_immichOn && ups[i.id]?.syncedAlbumId != album) return false;
-      if (_b2On && (b2s[i.id] == null || !_fileAt(b2s[i.id]!, i, album, b2.prefix))) return false;
-      if (_davOn && (davs[i.id] == null || !_fileAt(davs[i.id]!, i, album, webdav.folder))) return false;
+      for (final d in _storesOn) {
+        final r = files[d.key]![i.id];
+        if (r == null || !_fileAt(r, i, album, store(d.key).folder)) return false;
+      }
       if (_googleOn && gs[i.id]?.albumId != album) return false;
       return true;
     }).take(300).toList();
     if (candidates.isEmpty) return;
     final safe = <Item>[];
     final immichApi = _immichOn ? ImmichApi(immich) : null;
-    final b2Api = _b2On ? B2Api(b2) : null;
-    final davApi = _davOn ? WebDavApi(webdav) : null;
+    final storeApis = {for (final d in _storesOn) d.key: _make(d)};
     final gApi = _googleOn ? await GPhotosApi.connect() : null;
     if (_googleOn && gApi == null) return;
     try {
-      await b2Api?.authorize();
-      await davApi?.authorize();
+      for (final a in storeApis.values) {
+        await a.authorize();
+      }
       for (final i in candidates) {
         if (immichApi != null) {
           final a = await immichApi.call('GET', '/assets/${ups[i.id]!.assetId}') as Map;
           if (a['isTrashed'] == true) continue;
         }
-        if (b2Api != null && !await b2Api.exists(b2s[i.id]!)) continue;
-        if (davApi != null && !await davApi.exists(davs[i.id]!)) continue;
+        var everywhere = true;
+        for (final e in storeApis.entries) {
+          if (!await e.value.exists(files[e.key]![i.id]!)) {
+            everywhere = false;
+            break;
+          }
+        }
+        if (!everywhere) continue;
         if (gApi != null && !await gApi.exists(gs[i.id]!.mediaItemId)) continue;
         safe.add(i);
       }
     } finally {
       immichApi?.close();
-      b2Api?.close();
-      davApi?.close();
+      for (final a in storeApis.values) {
+        a.close();
+      }
       gApi?.close();
     }
     if (safe.isEmpty) return;
