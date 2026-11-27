@@ -43,9 +43,13 @@
   .mark { width: clamp(72px, 9vw, 96px); height: auto; flex: none; overflow: visible; }
   h1 { font-size: clamp(44px, 6.5vw, 68px); line-height: 1; letter-spacing: -0.03em; margin: 0; font-weight: 800; }
   /* The app's wordmark: the two n's offset, one dropped and one raised, like grain being winnowed. */
-  h1 .n { display: inline-block; color: var(--accent); }
-  h1 .n1 { transform: translateY(0.08em); }
-  h1 .n2 { transform: translateY(-0.12em); }
+  h1 { position: relative; }
+  h1 span { display: inline-block; }
+  h1 .n { color: var(--accent); }
+  h1 span:nth-child(3) { transform: translateY(0.14em); }
+  h1 span:nth-child(4) { transform: translateY(-0.14em); }
+  /* The keep/delete trace: lines drawn over a photo (or the wordmark) on a canvas. */
+  canvas.trace { position: absolute; pointer-events: none; z-index: 2; }
   .summary { font-size: clamp(20px, 2.4vw, 24px); line-height: 1.35; margin: 0 0 12px; font-weight: 600; max-width: 26em; }
 
   /* Icon on load: the back card swings out from behind, the front card drops in, the W lands last. */
@@ -55,10 +59,6 @@
   @keyframes swing { from { transform: rotate(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
   @keyframes drop { from { transform: translateY(-60px) scale(0.85); opacity: 0; } to { transform: none; opacity: 1; } }
   @keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
-  h1 .n1 { animation: dropN 0.8s ease-out 0.7s both; }
-  h1 .n2 { animation: raiseN 0.8s ease-out 0.8s both; }
-  @keyframes dropN { from { transform: none; } to { transform: translateY(0.08em); } }
-  @keyframes raiseN { from { transform: none; } to { transform: translateY(-0.12em); } }
   .lede { font-size: 19px; color: var(--muted); margin: 0 0 28px; max-width: 34em; }
   .lede strong { color: var(--text); font-weight: 600; }
 
@@ -72,75 +72,102 @@
   .btn small { font-weight: 400; color: inherit; opacity: 0.7; }
   .fine { color: var(--muted); font-size: 14px; margin-top: 14px; }
 
-  /* The swipe demo: a phone with cards that fly right (keep) or left (delete). */
+  /* Mock app screens: small copies of Winnow's own screens (top bar, album bar, grid, footer), in its colours. */
+  .ui { background: var(--bg); color: var(--text); font-size: 10px; line-height: 1.25; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .ui svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .ui .tb { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .ui .seg { display: flex; justify-self: start; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+  .ui .seg i { width: 20px; height: 18px; display: grid; place-items: center; color: var(--text); }
+  .ui .seg i.on { background: var(--accent); color: var(--bg); }
+  .ui .wm { text-align: center; font-weight: 800; font-size: 12px; letter-spacing: 0.01em; }
+  .ui .wm b { color: var(--accent); display: inline-block; transform: translateY(0.14em); }
+  .ui .wm b + b { transform: translateY(-0.14em); }
+  .ui .wm small { display: block; font-weight: 400; color: var(--muted); font-size: 8px; margin-top: 1px; }
+  .ui .rt { display: flex; gap: 4px; justify-self: end; }
+  .ui .rt i { height: 18px; min-width: 18px; padding: 0 4px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; gap: 2px; color: var(--muted); font-size: 8px; font-style: normal; }
+  .ui .rt em { font-style: normal; }
+  .ui .lbl { font-size: 7.5px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ui .srch { display: flex; gap: 4px; }
+  .ui .in { flex: 1; display: flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); padding: 4px 8px; color: var(--muted); min-width: 0; }
+  .ui .ch { border: 1px solid var(--line); border-radius: 999px; padding: 4px 9px; background: var(--surface); white-space: nowrap; }
+  .ui .ch.t { background: var(--keep); border-color: var(--keep); color: var(--bg); font-weight: 700; }
+  .ui .ch.nw { color: var(--accent); }
+  .ui .chs { display: flex; gap: 4px; overflow: hidden; }
+  .ui .foot { display: flex; gap: 4px; }
+  .ui .foot span { flex: 3; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 26px; text-align: center; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); transition: transform .15s, filter .15s; white-space: nowrap; }
+  .ui .foot .u { flex: 1.3; color: var(--muted); }
+  .ui .foot .d { color: var(--trash); }
+  .ui .foot .k { flex: 4; background: var(--keep); border-color: var(--keep); color: var(--bg); font-weight: 700; }
+  .ui .foot .l { flex: 1.8; }
+  .ui .foot small { font-size: 7px; font-weight: 400; opacity: 0.85; }
+  .ui .foot span.press { transform: scale(0.93); filter: brightness(1.35); }
+  .ui .foot .off { opacity: 0.45; }
+  .ui .selrow { display: flex; align-items: center; min-height: 13px; font-weight: 700; }
+  .ui .selrow .x { margin-left: auto; display: flex; gap: 10px; font-weight: 400; color: var(--accent); }
+  .ui .selrow .fill { opacity: 0; transition: opacity .2s, transform .15s; }
+  .ui .selrow .fill.show { opacity: 1; }
+  .ui .selrow .fill.press { transform: scale(0.9); }
+  .ui .mh { display: flex; justify-content: space-between; font-weight: 700; font-size: 9px; }
+  .ui .mh a { color: var(--accent); font-weight: 400; text-decoration: none; }
+  .ui .hint { text-align: center; color: var(--muted); font-size: 8px; }
+
+  /* Hero: the swipe screen in a phone. */
   .phone {
-    position: relative; justify-self: center; width: min(300px, 80vw); aspect-ratio: 9 / 17.5;
-    border: 2px solid var(--line); border-radius: 36px; background: #000; padding: 14px; overflow: hidden;
+    position: relative; justify-self: center; width: min(320px, 86vw); aspect-ratio: 9 / 18.5;
+    border: 2px solid var(--line); border-radius: 36px; background: var(--bg); padding: 16px 12px 14px; overflow: hidden;
     box-shadow: 0 30px 80px -30px rgba(96, 165, 250, 0.35);
   }
-  .chips { display: flex; gap: 6px; margin-bottom: 10px; }
-  .chip { font-size: 11px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
-  .chip.on { background: var(--keep); border-color: var(--keep); color: var(--bg); font-weight: 700; }
-  .stage { position: relative; height: calc(100% - 82px); }
-  .card {
-    position: absolute; inset: 0; border-radius: 16px; overflow: hidden;
-    display: flex; align-items: flex-end; padding: 12px; color: #fff; font-size: 12px; font-weight: 600;
-  }
-  .card { background: #111; }
-  .card .ph { position: absolute; inset: -6px; background: center / cover; }
-  .card .label { position: relative; padding: 3px 8px; border-radius: 6px; background: rgba(0,0,0,0.5); }
-  .card .stamp {
-    position: absolute; top: 16px; padding: 4px 10px; border: 3px solid; border-radius: 8px;
-    font-size: 16px; font-weight: 800; letter-spacing: 0.05em; opacity: 0;
-  }
-  .card .stamp.keep { left: 14px; color: var(--keep); transform: rotate(-12deg); }
-  .card .stamp.del { right: 14px; color: var(--trash); transform: rotate(12deg); }
+  .phone .ui { height: 100%; }
+  .stage { position: relative; flex: 1; min-height: 0; }
+  .card { position: absolute; inset: 0; border-radius: 12px; overflow: hidden; background: #111; display: flex; align-items: flex-end; padding: 8px; }
+  .card .ph { position: absolute; inset: 0; background: center / cover; }
+  .card .cap { position: relative; padding: 3px 7px; border-radius: 6px; background: rgba(0,0,0,0.55); color: #fff; font-size: 8.5px; font-weight: 600; }
+  .card .stamp { position: absolute; top: 14px; padding: 3px 8px; border-radius: 8px; font-size: 10px; font-weight: 800; color: var(--bg); opacity: 0; z-index: 3; white-space: nowrap; }
+  .card .stamp.keep { left: 10px; background: var(--keep); transform: rotate(-12deg); }
+  .card .stamp.del { right: 10px; background: var(--trash); transform: rotate(12deg); }
   .card.go-keep { animation: keep 0.9s ease-in forwards; }
   .card.go-keep .stamp.keep, .card.go-del .stamp.del { animation: stamp 0.9s forwards; }
   .card.go-del { animation: del 0.9s ease-in forwards; }
   @keyframes keep { 0% { transform: none; } 35% { transform: translateX(14%) rotate(4deg); } 100% { transform: translateX(140%) rotate(18deg); } }
   @keyframes del { 0% { transform: none; } 35% { transform: translateX(-14%) rotate(-4deg); } 100% { transform: translateX(-140%) rotate(-18deg); opacity: 0.4; } }
   @keyframes stamp { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 1; } }
-  .bar { display: flex; gap: 6px; margin-top: 10px; }
-  .bar span { flex: 1; text-align: center; font-size: 11px; padding: 8px 0; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
-  .bar .k { background: var(--keep); color: var(--bg); font-weight: 700; border-color: var(--keep); }
-  .bar .d { color: var(--trash); }
-  @media (prefers-reduced-motion: reduce) { .card, .mark *, h1 .n { animation: none !important; } }
 
   section { padding: 48px 0; border-top: 1px solid var(--line); }
   h2 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 22px; font-weight: 750; }
 
-  /* Fast bulk review: four small looping demos of the grid. */
+  /* Fast bulk review: four looping demos on copies of the grid and burst screens. */
   .demos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-  .demo { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .demo { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
   .demo h3 { margin: 0 0 4px; font-size: 18px; }
   .demo p { margin: 0; color: var(--muted); font-size: 15px; }
-  .screen { background: #000; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
-  .screen .top { display: flex; align-items: center; justify-content: space-between; height: 24px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-  .screen .top b { color: var(--text); }
-  .pill { font-size: 11px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); opacity: 0; transform: scale(0.8); transition: opacity .25s, transform .25s, background .2s, color .2s; }
-  .pill.show { opacity: 1; transform: none; }
-  .pill.press { background: var(--accent); color: var(--bg); }
-  .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
-  .tile { position: relative; aspect-ratio: 1; border-radius: 4px; background: #222 center / cover; transition: transform .35s, opacity .35s, box-shadow .2s, filter .3s; }
-  .tile::after { content: ""; position: absolute; inset: 0; border-radius: 4px; box-shadow: inset 0 0 0 0 transparent; transition: box-shadow .2s; }
-  .tile.sel::after { box-shadow: inset 0 0 0 3px var(--accent); }
-  .tile.sel::before { content: "✓"; position: absolute; top: 3px; left: 3px; z-index: 1; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); color: var(--bg); font-size: 10px; font-weight: 800; line-height: 14px; text-align: center; }
-  .tile.doom::after { box-shadow: inset 0 0 0 3px var(--trash); }
-  .tile.doom { filter: brightness(0.6); }
-  .tile.tap { transform: scale(0.86); }
-  .tile.keep { transform: translateY(-14px) scale(0.6); opacity: 0; }
-  .tile.gone { transform: translateY(14px) scale(0.6); opacity: 0; }
-  .tile.blur { filter: blur(1.5px) saturate(0.5); }
-  .acts { display: flex; gap: 6px; margin-top: 8px; }
-  .acts span { flex: 1; text-align: center; font-size: 11px; padding: 7px 0; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); transition: transform .15s, filter .15s; }
-  .acts .d { color: var(--trash); }
-  .acts .k { background: var(--keep); border-color: var(--keep); color: var(--bg); font-weight: 700; }
-  .acts span.press { transform: scale(0.94); filter: brightness(1.3); }
-  .burst { display: grid; grid-template-columns: 1fr; gap: 6px; }
-  .burst .big { aspect-ratio: 16 / 7; border-radius: 6px; background: #222 center / 135%; transition: background-position .25s, opacity .3s; }
+  .screen { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+  .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
+  .tile { position: relative; aspect-ratio: 1; background: #222 center / cover; transition: opacity .25s, filter .3s; }
+  .tile::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
+  .tile.sel::after { box-shadow: inset 0 0 0 2px var(--accent); }
+  .tile.doom { opacity: 0.55; }
+  .tile.doom::after { box-shadow: inset 0 0 0 2px var(--trash); }
+  .tile.focus::after { box-shadow: inset 0 0 0 2px var(--text); }
+  .tile.sel.focus::after { box-shadow: inset 0 0 0 2px var(--accent); }
+  .chk { position: absolute; top: 3px; left: 3px; z-index: 1; width: 11px; height: 11px; border-radius: 50%; display: grid; place-items: center; }
+  .tile.sel .chk { background: var(--accent); border: 1px solid rgba(0,0,0,0.35); }
+  .tile.sel .chk::after { content: ""; width: 4px; height: 2px; border: solid var(--bg); border-width: 0 0 1.5px 1.5px; transform: rotate(-45deg) translate(0.5px, -0.5px); }
+  .tile.ring .chk { border: 1.5px solid rgba(255,255,255,0.8); background: rgba(0,0,0,0.3); }
+  .tile.tap { filter: brightness(1.3); }
+  .tile.blur { filter: blur(1.2px) saturate(0.5); }
+  .tile.keep, .tile.gone { opacity: 0 !important; }
+  .burstbig { position: relative; align-self: center; width: 58%; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; background: #222 center / 230%; transition: background-position .2s; }
+  .burstbig::after { content: ""; position: absolute; inset: 0; border-radius: 8px; pointer-events: none; }
+  .burstbig.sel::after { box-shadow: inset 0 0 0 2px var(--accent); }
+  .burstbig .chk { width: 15px; height: 15px; top: 5px; left: 5px; }
+  .burstbig.sel .chk { background: var(--accent); }
+  .burstbig.sel .chk::after { content: ""; width: 5px; height: 2.5px; border: solid var(--bg); border-width: 0 0 1.5px 1.5px; transform: rotate(-45deg) translate(0.5px, -0.5px); }
+  .burstbig.ring .chk { border: 1.5px solid rgba(255,255,255,0.8); background: rgba(0,0,0,0.3); }
+  .burstbig .cap { position: absolute; left: 5px; bottom: 5px; padding: 2px 5px; border-radius: 4px; background: rgba(0,0,0,0.55); font-size: 7px; font-weight: 600; color: #fff; }
+  .bthumbs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
+  .bthumbs .tile { aspect-ratio: 3 / 4; }
   @media (max-width: 820px) { .demos { grid-template-columns: 1fr; } }
-  @media (prefers-reduced-motion: reduce) { .tile, .pill, .acts span { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .tile, .ui .foot span { transition: none; } .card, .mark * { animation: none !important; } }
 
   .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px 28px; }
   .feature { display: flex; gap: 12px; padding: 12px 0; }
@@ -202,7 +229,7 @@
           </g>
           <path class="w" fill="var(--bg)" d="M358 430h58l34 150 39-150h44l39 150 34-150h58l-63 215h-58l-32-127-32 127h-58z"/>
         </svg>
-        <h1>wi<span class="n n1">n</span><span class="n n2">n</span>ow</h1>
+        <h1 id="wordmark" aria-label="Winnow"><span>w</span><span>i</span><span class="n">n</span><span class="n">n</span><span>o</span><span>w</span></h1>
       </div>
       <p class="summary">Review your photos and sync the keepers, sorted into albums, to Immich, Google Photos, Apple Photos or your own storage.</p>
       <p class="lede">Swipe right to keep a photo in an album, left to delete it. Bursts come up together, albums are
@@ -214,10 +241,15 @@
       <p class="fine">Free. No ads, no tracking, no account. Your photos go only where you send them.</p>
     </div>
 
-    <div class="phone" aria-label="Animation: photos swiped right into an album or left to delete">
-      <div class="chips"><span class="chip on">→ 2026-07 Hawaii</span><span class="chip">2026</span><span class="chip">+ New</span></div>
-      <div class="stage" id="stage"></div>
-      <div class="bar"><span class="d">← Delete</span><span class="k">→ Hawaii</span><span>Later</span></div>
+    <div class="phone" aria-label="Animation of Winnow's swipe screen: photos kept into an album or deleted">
+      <div class="ui">
+        <div class="tb"><div class="seg"><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span id="left">214</span> left</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+        <div class="lbl">Choose album</div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+        <div class="stage" id="stage"></div>
+        <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d">← Delete</span><span class="k">→ 2026-07 Hawaii</span><span class="l">Later</span></div>
+      </div>
     </div>
   </div>
 
@@ -226,36 +258,57 @@
     <p class="lede">Years of photos in an evening. Pick the keepers, pick the rejects, or both in one tap, across a whole month at a time.</p>
     <div class="demos">
       <div class="demo">
-        <div class="screen" id="d-fill">
-          <div class="top"><b class="count">&nbsp;</b><span class="pill">Fill 8</span></div>
+        <div class="screen ui" id="d-fill">
+          <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="lbl"><span class="lab">Pick an album, then select photos</span></div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          <div class="mh"><span>July 2026</span><a>Select 18</a></div>
           <div class="tiles"></div>
-          <div class="acts"><span class="d">← Delete</span><span class="k">→ Hawaii</span></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div><h3>Fill between</h3><p>Tap the first and last photo of a run, then Fill: everything in between is selected, ready to file.</p></div>
       </div>
       <div class="demo">
-        <div class="screen" id="d-gaps">
-          <div class="top"><b class="count">&nbsp;</b></div>
+        <div class="screen ui" id="d-gaps">
+          <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="lbl"><span class="lab">Pick an album, then select photos</span></div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          <div class="mh"><span>July 2026</span><a>Select 18</a></div>
           <div class="tiles"></div>
-          <div class="acts"><span class="d">← Delete</span><span class="k">→ Hawaii</span></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div><h3>Keep the best, drop the rest</h3><p>Select only the keepers and file them. The photos you skipped between them get a red border and go to Trash, so a whole run is done in one tap.</p></div>
       </div>
       <div class="demo">
-        <div class="screen" id="d-rejects">
-          <div class="top"><b class="count">&nbsp;</b></div>
+        <div class="screen ui" id="d-rejects">
+          <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="lbl"><span class="lab">Pick an album, then select photos</span></div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          <div class="mh"><span>July 2026</span><a>Select 18</a></div>
           <div class="tiles"></div>
-          <div class="acts"><span class="d">← Delete</span><span class="k">→ Hawaii</span></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div><h3>Or just pick the rejects</h3><p>Select the blurry and the duplicate shots and Delete them. Everything else stays where it is, ready for later.</p></div>
       </div>
       <div class="demo">
-        <div class="screen" id="d-burst">
-          <div class="top"><b class="count">Burst · 5 photos</b><span class="pill">Keep 2 · delete 3</span></div>
-          <div class="burst"><div class="tile big"></div><div class="tiles"></div></div>
-          <div class="acts"><span class="d">← Delete</span><span class="k">→ Keep 2</span></div>
+        <div class="screen ui" id="d-burst">
+          <div class="tb"><div class="seg"><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">214 left</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="lbl"><span class="lab">Choose album</span></div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+          <div class="burstbig sel"><span class="chk"></span><span class="cap">Sat, Jul 12, 2026 · 6:42 PM</span></div>
+          <div class="selrow"><span class="cnt">5 of 5 selected</span><span class="x"><span class="all">Uncheck all</span></span></div>
+          <div class="bthumbs"></div>
+          <div class="hint">All checked · tap a circle to uncheck a photo</div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d">Delete all 5</span><span class="k">Keep all 5</span><span class="l">Later</span></div>
         </div>
-        <div><h3>Bursts in one tap</h3><p>A burst comes up as one card. Check the sharp ones and Keep: the unchecked ones are deleted in the same tap. Or check the bad ones and Delete, and the rest are kept.</p></div>
+        <div><h3>Bursts in one tap</h3><p>A burst comes up as one card with every shot checked. Uncheck the misses and Keep: the unchecked ones are deleted in the same tap. Or check the bad ones and Delete, and the rest are kept.</p></div>
       </div>
     </div>
     <p class="fine">Deletes wait in Winnow’s trash for review before anything leaves your phone. A month header’s “Select” picks the whole month at once.</p>
@@ -358,124 +411,367 @@ fetch('https://api.github.com/repos/jamesfpate/winnow/releases/latest')
   })
   .catch(() => {});
 
-// Fast bulk review demos: each loops a short script while it's on screen.
+// The keep/delete trace, ported from the app (lib/fx.dart, tools/motion-trace.html): the photo's own outlines light
+// up, from the bottom for keep (blue to pink) and from the top for delete (dark red to orange), with a frame along
+// the edges. Kept photos stay; deleted ones fade to grey. The app's timings, slowed a little to read on a page.
+const Trace = (() => {
+  const SLOW = 1.6;
+  const M = { trace: 300 * SLOW, fade: 220 * SLOW, fadeStart: 0.7, sens: 120,
+    keep: { thick: 2.4, glow: 15, a: [96, 165, 250], b: [244, 114, 182] },
+    del: { thick: 1.2, glow: 8, a: [153, 27, 27], b: [249, 115, 22] } };
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ease = x => x * x * (3 - 2 * x);
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  const mix = (a, b, f) => a.map((v, i) => Math.round(v + (b[i] - v) * f));
+  const images = {};
+  const load = src => images[src] ||= new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
+
+  /** Sobel edges thinned to one-pixel lines, linked into paths (as in the app). */
+  function edges(ctx, w, h, sens = M.sens) {
+    const d = ctx.getImageData(0, 0, w, h).data;
+    const g = new Float32Array(w * h);
+    for (let i = 0; i < w * h; i++) g[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11 + (255 - d[i * 4 + 3]);
+    const mag = new Float32Array(w * h), ang = new Float32Array(w * h);
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const gx = -g[i - w - 1] - 2 * g[i - 1] - g[i + w - 1] + g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1];
+      const gy = -g[i - w - 1] - 2 * g[i - w] - g[i - w + 1] + g[i + w - 1] + 2 * g[i + w] + g[i + w + 1];
+      mag[i] = Math.hypot(gx, gy); ang[i] = Math.atan2(gy, gx);
+    }
+    const on = new Uint8Array(w * h), pts = [];
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x, m = mag[i];
+      if (m <= sens) continue;
+      const a = ((ang[i] * 180) / Math.PI + 180) % 180;
+      const [dx, dy] = a < 22.5 || a >= 157.5 ? [1, 0] : a < 67.5 ? [1, 1] : a < 112.5 ? [0, 1] : [-1, 1];
+      if (m < mag[i + dy * w + dx] || m < mag[i - dy * w - dx]) continue;
+      on[i] = 1; pts.push([x, y]);
+    }
+    const nb = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
+    const count = (x, y) => nb.reduce((n, [a, b]) => n + on[(y + b) * w + x + a], 0);
+    const seen = new Uint8Array(w * h), chains = [];
+    const walk = (x, y) => {
+      const c = [];
+      for (;;) {
+        seen[y * w + x] = 1; c.push([x, y]);
+        let next = null;
+        for (const [a, b] of nb) { const j = (y + b) * w + x + a; if (on[j] && !seen[j]) { next = [x + a, y + b]; break; } }
+        if (!next) break;
+        [x, y] = next;
+      }
+      if (c.length >= 6) chains.push(c);
+    };
+    for (const [x, y] of pts) if (!seen[y * w + x] && count(x, y) === 1) walk(x, y);
+    for (const [x, y] of pts) if (!seen[y * w + x]) walk(x, y);
+    return chains;
+  }
+
+  /** Outlines of the background image an element shows (honours background-size / -position). */
+  async function outlinesOf(el) {
+    const cs = getComputedStyle(el);
+    const src = (cs.backgroundImage.match(/url\("?([^")]+)"?\)/) || [])[1];
+    const r = el.getBoundingClientRect();
+    const W = Math.max(1, Math.round(r.width)), H = Math.max(1, Math.round(r.height));
+    const key = `${src}|${W}x${H}|${cs.backgroundSize}|${cs.backgroundPosition}`;
+    if (el._outlines?.key === key) return el._outlines;
+    const img = await load(src);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    let dw, dh;
+    if (cs.backgroundSize.endsWith('%')) { dw = W * parseFloat(cs.backgroundSize) / 100; dh = img.height * dw / img.width; }
+    else { const k = Math.max(W / img.width, H / img.height); dw = img.width * k; dh = img.height * k; }
+    const [px, py] = cs.backgroundPosition.split(' ').map(v => parseFloat(v) / 100);
+    x.drawImage(img, (W - dw) * (isNaN(px) ? 0.5 : px), (H - dh) * (isNaN(py) ? 0.5 : py), dw, dh);
+    el._outlines = { key, W, H, chains: edges(x, W, H) };
+    return el._outlines;
+  }
+
+  function canvasOver(host, target, W, H) {
+    const c = document.createElement('canvas');
+    c.className = 'trace';
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    c.width = W * dpr; c.height = H * dpr;
+    const hr = host.getBoundingClientRect(), tr = target.getBoundingClientRect();
+    Object.assign(c.style, { left: `${tr.left - hr.left}px`, top: `${tr.top - hr.top}px`, width: `${W}px`, height: `${H}px` });
+    host.append(c);
+    const g = c.getContext('2d'); g.scale(dpr, dpr);
+    return [c, g];
+  }
+
+  function draw(g, o, kind, p, alpha, frame, scale = 1) {
+    const { W, H } = o, k = M[kind], up = kind === 'keep', ins = 3;
+    g.clearRect(0, 0, W, H);
+    if (alpha <= 0) return;
+    const y0 = up ? H - ins : ins, y1 = up ? ins : H - ins, yy = y0 + (y1 - y0) * p;
+    g.globalAlpha = alpha;
+    const grad = g.createLinearGradient(0, y0, 0, y1);
+    grad.addColorStop(0, rgba(k.a, 1)); grad.addColorStop(1, rgba(k.b, 1));
+    g.shadowBlur = o.glow ?? k.glow; g.shadowColor = rgba(mix(k.a, k.b, 0.5), 0.9);
+    g.strokeStyle = grad; g.lineWidth = o.thick ?? k.thick; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath();
+    for (const c of o.chains) {
+      const pts = (up ? c[0][1] < c[c.length - 1][1] : c[0][1] > c[c.length - 1][1]) ? [...c].reverse() : c;
+      const n = Math.max(1, Math.ceil(pts.length * p));
+      g.moveTo(pts[0][0] / scale, pts[0][1] / scale);
+      for (let i = 1; i < n; i++) g.lineTo(pts[i][0] / scale, pts[i][1] / scale);
+    }
+    g.stroke();
+    if (frame) {
+      g.lineWidth = 4; g.shadowBlur = (o.glow ?? k.glow) + 4;
+      g.beginPath();
+      g.moveTo(ins, y0); g.lineTo(ins, yy); g.moveTo(W - ins, y0); g.lineTo(W - ins, yy); g.moveTo(ins, y0); g.lineTo(W - ins, y0);
+      if (p >= 0.98) { g.moveTo(ins, y1); g.lineTo(W - ins, y1); }
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+  }
+
+  /** One timeline: the lines trace, then fade; a deleted photo fades out and greys with them. */
+  function run(o, g, kind, onFade) {
+    return new Promise(done => {
+      const T = still ? 1 : M.trace, F = still ? 1 : M.fade, FS = T * M.fadeStart, total = Math.max(T, FS + F);
+      const start = performance.now();
+      const frame = now => {
+        const e = now - start, f = ease(Math.min(1, Math.max(0, (e - FS) / F)));
+        onFade?.(f);
+        draw(g, o, kind, ease(Math.min(1, e / T)), 1 - f, o.frame !== false, o.scale || 1);
+        e < total ? requestAnimationFrame(frame) : done();
+      };
+      requestAnimationFrame(frame);
+    });
+  }
+
+  /** Plays the trace over a photo element (its background image). host: where the canvas goes (positioned). */
+  async function photo(el, kind, host = el, baseFilter = '') {
+    let o;
+    try { o = await outlinesOf(el); } catch { o = { W: 1, H: 1, chains: [] }; }
+    const [c, g] = canvasOver(host, el, o.W, o.H);
+    await run(o, g, kind, f => {
+      if (kind !== 'del') return;
+      const fadeTarget = host === el ? el : host;
+      fadeTarget.style.opacity = String(1 - f);
+      el.style.filter = `${baseFilter} grayscale(${f})`;
+    });
+    c.remove();
+  }
+
+  /** The app's intro: the wordmark ripples in a wave, settles, then a keep trace runs over its letters and fades. */
+  async function intro(h1) {
+    const letters = [...h1.children];
+    const size = parseFloat(getComputedStyle(h1).fontSize), shift = size * 0.14;
+    const base = [0, 0, shift, -shift, 0, 0];
+    const place = off => letters.forEach((l, i) => { l.style.transform = `translateY(${base[i] + off(i)}px)`; });
+    if (!still) {
+      // As while the app loads its library (one 1200 ms wave per cycle, letters 0.9 rad apart), easing out to rest.
+      const P = 1200, cycles = 1.75, start = performance.now();
+      await new Promise(done => {
+        const frame = now => {
+          const t = (now - start) / P;
+          const env = t < cycles - 0.6 ? 1 : Math.max(0, (cycles - t) / 0.6);
+          place(i => shift * 1.2 * env * Math.sin(2 * Math.PI * t - i * 0.9));
+          t < cycles ? requestAnimationFrame(frame) : done();
+        };
+        requestAnimationFrame(frame);
+      });
+    }
+    place(() => 0);
+    // Capture the settled wordmark as a picture and trace its outlines, thin, no frame (as in the app's outro).
+    const r = h1.getBoundingClientRect(), pad = Math.ceil(size * 0.25), S = 2;
+    const W = Math.ceil(r.width) + pad * 2, H = Math.ceil(r.height) + pad * 2;
+    const cv = document.createElement('canvas'); cv.width = W * S; cv.height = H * S;
+    const x = cv.getContext('2d', { willReadFrequently: true });
+    x.fillStyle = '#000'; x.fillRect(0, 0, W * S, H * S); x.scale(S, S); x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
+    const cs = getComputedStyle(h1);
+    x.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    for (const l of letters) {
+      const lr = l.getBoundingClientRect();
+      const m = x.measureText(l.textContent);
+      x.fillText(l.textContent, lr.left - r.left + pad, lr.top - r.top + pad + (lr.height + m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2);
+    }
+    const o = { W, H, chains: edges(x, W * S, H * S, 200), scale: S, frame: false, thick: 1.2, glow: 4 };
+    const c = document.createElement('canvas');
+    c.className = 'trace';
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    c.width = W * dpr; c.height = H * dpr;
+    Object.assign(c.style, { left: `${-pad}px`, top: `${-pad}px`, width: `${W}px`, height: `${H}px` });
+    h1.append(c);
+    const g = c.getContext('2d'); g.scale(dpr, dpr);
+    await new Promise(r2 => setTimeout(r2, still ? 0 : 150));
+    const slow = { ...M };
+    M.trace *= 1.8; M.fade *= 1.8;
+    await run(o, g, 'keep');
+    Object.assign(M, slow);
+    c.remove();
+  }
+
+  return { photo, intro };
+})();
+
+// The wordmark intro, once fonts are in (the trace follows the real letter shapes).
+(document.fonts?.ready || Promise.resolve()).then(() => Trace.intro(document.getElementById('wordmark')));
+
+// Fast bulk review demos: each loops a short script on a copy of the grid (or burst) screen while it's on screen.
 (() => {
   // Free photos from Unsplash (img/CREDITS.md), each demo starting at a different place in the set.
   const pool = [10,13,17,49,54,65,74,77,82,92,102,108,110,129,152,163,164,174,177,182,189,199,211,218,237,244,287,306,314,323,360,372,374,392,402,419];
-  const paint = (t, i) => { t.style.backgroundImage = `url(img/t/${pool[(i * 5) % pool.length]}.jpg)`; };
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const wait = ms => new Promise(r => setTimeout(r, still ? 0 : ms));
-  function setup(id, n) {
+  const tileHtml = '<span class="chk"></span>';
+  function setup(id) {
     const el = document.getElementById(id);
-    const box = el.querySelector('.tiles');
-    const fresh = () => {
+    const q = sel => el.querySelector(sel);
+    const offset = [...id].reduce((n, c) => n + c.charCodeAt(0), 0);
+    const fresh = n => {
+      const box = q('.tiles, .bthumbs');
       box.innerHTML = '';
       const tiles = [];
-      for (let i = 0; i < n; i++) { const t = document.createElement('div'); t.className = 'tile'; paint(t, i + [...id].reduce((n, c) => n + c.charCodeAt(0), 0)); box.append(t); tiles.push(t); }
-      el.querySelectorAll('.pill').forEach(p => p.classList.remove('show', 'press'));
+      for (let i = 0; i < n; i++) {
+        const t = document.createElement('div'); t.className = 'tile'; t.innerHTML = tileHtml;
+        t.style.backgroundImage = `url(img/t/${pool[((i + offset) * 5) % pool.length]}.jpg)`;
+        box.append(t); tiles.push(t);
+      }
       return tiles;
     };
-    const count = txt => { el.querySelector('.count').textContent = txt; };
-    const press = async sel => { const b = el.querySelector(sel); b.classList.add('press'); await wait(180); b.classList.remove('press'); };
-    const tap = async t => { t.classList.add('tap'); await wait(140); t.classList.remove('tap'); };
-    return { el, fresh, count, press, tap };
+    const press = async sel => { const b = q(sel); b.classList.add('press'); await wait(170); b.classList.remove('press'); };
+    const tap = async t => { t.classList.add('tap'); await wait(120); t.classList.remove('tap'); };
+    return { el, q, fresh, press, tap };
   }
-  const run = (id, n, script) => {
-    const d = setup(id, n);
+  // The grid screen's live bits, as the app shows them.
+  function gridState(d, tiles) {
+    const sel = tiles.filter(t => t.classList.contains('sel')).length;
+    const doom = tiles.filter(t => t.classList.contains('doom')).length;
+    const idx = tiles.map((t, i) => t.classList.contains('sel') ? i : -1).filter(i => i >= 0);
+    const gaps = idx.length ? idx[idx.length - 1] - idx[0] + 1 - idx.length : 0;
+    d.q('.lab').textContent = sel ? `Choose album for ${sel}${doom ? ` · deletes ${doom} in red` : ''}` : 'Pick an album, then select photos';
+    d.q('.cnt').textContent = sel ? `${sel} selected` : '';
+    d.q('.x').style.visibility = sel ? 'visible' : 'hidden';
+    d.q('.gap').textContent = gaps;
+    d.q('.fill').classList.toggle('show', gaps > 0 && d.el.id !== 'd-gaps');
+    const del = d.q('.foot .d');
+    del.textContent = sel ? `← Delete ${sel}` : '← Delete';
+    del.classList.toggle('off', !sel);
+  }
+  // Kept photos trace and then leave the grid (they're filed); deleted ones trace and fade out where they are.
+  const filed = async (kept, gone) => {
+    await Promise.all([
+      ...kept.map(x => Trace.photo(x, 'keep')),
+      ...gone.map(x => Trace.photo(x, 'del', x, x.classList.contains('blur') ? 'blur(1.2px) saturate(0.5)' : '')),
+    ]);
+    kept.forEach(x => x.classList.add('keep'));
+    gone.forEach(x => x.classList.add('gone'));
+  };
+  const run = (id, script) => {
+    const d = setup(id);
     let on = false, going = false;
     const loop = async () => {
       if (going) return; going = true;
-      while (on) { const tiles = d.fresh(); await script(d, tiles); if (still) break; await wait(1400); }
+      while (on) { await script(d); if (still) break; await wait(1500); }
       going = false;
     };
     new IntersectionObserver(es => { on = es[0].isIntersecting; if (on) loop(); }, { threshold: 0.3 }).observe(d.el);
   };
 
-  run('d-fill', 18, async (d, t) => {
-    d.count('0 selected'); await wait(700);
-    await d.tap(t[3]); t[3].classList.add('sel'); d.count('1 selected'); await wait(450);
-    await d.tap(t[12]); t[12].classList.add('sel'); d.count('2 selected'); await wait(350);
-    const pill = d.el.querySelector('.pill'); pill.classList.add('show'); await wait(700);
-    pill.classList.add('press'); await wait(160);
-    for (let i = 4; i < 12; i++) { t[i].classList.add('sel'); d.count(`${i - 1} selected`); await wait(55); }
-    d.count('10 selected'); pill.classList.remove('show'); await wait(900);
-    await d.press('.k'); for (let i = 3; i <= 12; i++) t[i].classList.add('keep'); d.count('Filed 10 into Hawaii'); await wait(900);
+  run('d-fill', async d => {
+    const t = d.fresh(18); gridState(d, t); await wait(800);
+    for (const i of [3, 12]) { await d.tap(t[i]); t[i].classList.add('sel'); gridState(d, t); await wait(500); }
+    await wait(500); await d.press('.fill');
+    for (let i = 4; i < 12; i++) { t[i].classList.add('sel'); gridState(d, t); await wait(50); }
+    await wait(900);
+    await d.press('.foot .k'); await filed(t.slice(3, 13), []);
   });
 
-  run('d-gaps', 18, async (d, t) => {
-    d.count('0 selected'); await wait(700);
+  run('d-gaps', async d => {
+    const t = d.fresh(18); gridState(d, t); await wait(800);
     const keep = [2, 5, 6, 10, 13];
-    for (const [n, i] of keep.entries()) {
-      await d.tap(t[i]); t[i].classList.add('sel'); d.count(`${n + 1} selected · delete ${n ? i - keep[0] + 1 - (n + 1) : 0}`);
+    for (const i of keep) {
+      await d.tap(t[i]); t[i].classList.add('sel');
       for (let j = keep[0]; j <= i; j++) if (!keep.includes(j)) t[j].classList.add('doom');
-      await wait(380);
+      gridState(d, t); await wait(420);
     }
+    await wait(900);
+    await d.press('.foot .k');
+    const span = t.slice(keep[0], 14);
+    await filed(span.filter(x => x.classList.contains('sel')), span.filter(x => x.classList.contains('doom')));
+  });
+
+  run('d-rejects', async d => {
+    const t = d.fresh(18); const bad = [1, 7, 8, 15];
+    bad.forEach(i => t[i].classList.add('blur')); gridState(d, t); await wait(900);
+    for (const i of bad) { await d.tap(t[i]); t[i].classList.add('sel'); gridState(d, t); await wait(380); }
     await wait(700);
-    await d.press('.k');
-    for (let i = keep[0]; i <= 13; i++) t[i].classList.add(keep.includes(i) ? 'keep' : 'gone');
-    d.count('Kept 5 · 7 to Trash'); await wait(900);
+    await d.press('.foot .d'); await filed([], bad.map(i => t[i]));
   });
 
-  run('d-rejects', 18, async (d, t) => {
-    const bad = [1, 7, 8, 15];
-    bad.forEach(i => t[i].classList.add('blur'));
-    d.count('0 selected'); await wait(800);
-    for (const [n, i] of bad.entries()) { await d.tap(t[i]); t[i].classList.add('sel'); d.count(`${n + 1} selected`); await wait(350); }
-    await wait(500);
-    await d.press('.d'); bad.forEach(i => t[i].classList.add('gone')); d.count('4 to Trash · 14 left to review'); await wait(900);
-  });
-
-  run('d-burst', 5, async (d, t) => {
-    const big = d.el.querySelector('.big');
+  run('d-burst', async d => {
+    const t = d.fresh(5);
+    const big = d.q('.burstbig');
     const frames = ['38% 50%', '43% 47%', '48% 52%', '53% 48%', '58% 51%'];
-    t.forEach((x, i) => { x.style.backgroundImage = 'url(img/h/390.jpg)'; x.style.backgroundSize = '260%'; x.style.backgroundPosition = frames[i]; });
+    t.forEach((x, i) => { x.style.backgroundImage = 'url(img/h/390.jpg)'; x.style.backgroundSize = '260%'; x.style.backgroundPosition = frames[i]; x.classList.add('sel'); });
     big.style.backgroundImage = 'url(img/h/390.jpg)';
-    const show = i => { big.style.backgroundPosition = frames[i]; };
-    show(0); d.el.querySelector('.count').textContent = 'Burst · 5 photos';
-    await wait(700);
-    for (const i of [1, 3]) { await d.tap(t[i]); show(i); t[i].classList.add('sel'); await wait(420); }
-    [0, 2, 4].forEach(i => t[i].classList.add('doom'));
-    const pill = d.el.querySelector('.pill'); pill.classList.add('show'); await wait(900);
-    await d.press('.k');
-    t.forEach((x, i) => x.classList.add([1, 3].includes(i) ? 'keep' : 'gone')); big.style.opacity = '0.3';
-    await wait(1000); big.style.opacity = '';
+    let focus = 0;
+    const show = () => {
+      const k = t.filter(x => x.classList.contains('sel')).length, n = t.length;
+      t.forEach((x, i) => { x.classList.toggle('focus', i === focus); x.classList.toggle('ring', !x.classList.contains('sel')); });
+      big.style.backgroundPosition = frames[focus];
+      big.classList.toggle('sel', t[focus].classList.contains('sel')); big.classList.toggle('ring', !t[focus].classList.contains('sel'));
+      d.q('.cnt').textContent = `${k} of ${n} selected`;
+      d.q('.all').textContent = k === n ? 'Uncheck all' : 'Check all';
+      d.q('.hint').textContent = k === n ? 'All checked · tap a circle to uncheck a photo' : `${k} checked · ${n - k} unchecked`;
+      d.q('.foot .d').innerHTML = k === n ? 'Delete all 5' : `Delete ${k}<small>keep ${n - k}</small>`;
+      d.q('.foot .k').innerHTML = k === n ? 'Keep all 5' : `Keep ${k}<small>delete ${n - k}</small>`;
+    };
+    big.style.opacity = ''; show(); await wait(900);
+    for (const i of [0, 2, 4]) { focus = i; show(); await wait(250); await d.tap(t[i]); t[i].classList.remove('sel'); show(); await wait(450); }
+    focus = 1; show(); await wait(900);
+    await d.press('.foot .k');
+    await filed([t[1], t[3]], [t[0], t[2], t[4]]);
+    big.style.opacity = '0.25';
+    await wait(500);
   });
 })();
 
-// The swipe demo: a stack of photo cards, each kept (right) or deleted (left) in turn.
+// The swipe screen: each photo kept into the album or deleted, by swipe (the card flies off, as in the app) or by
+// the buttons (the trace plays on it).
 (() => {
   const stage = document.getElementById('stage');
+  const left = document.getElementById('left');
   const photos = [
-    ['374', 'Beach · Jul 12', true, ''],
-    ['92', 'Blurry · Jul 12', false, 'blur(3px) saturate(0.7)'],
-    ['110', 'Sunset · Jul 12', true, ''],
-    ['110', 'Duplicate · Jul 12', false, 'brightness(0.92)'],
-    ['177', 'Hike · Jul 13', true, ''],
+    ['374', 'Sat, Jul 12, 2026 · 10:14 AM', true, '', 'button'],
+    ['92', 'Sat, Jul 12, 2026 · 10:15 AM', false, 'blur(3px) saturate(0.7)', 'swipe'],
+    ['110', 'Sat, Jul 12, 2026 · 7:48 PM', true, '', 'swipe'],
+    ['110', 'Sat, Jul 12, 2026 · 7:48 PM', false, 'brightness(0.92)', 'button'],
+    ['177', 'Sun, Jul 13, 2026 · 9:02 AM', true, '', 'button'],
   ];
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    const [img, label] = photos[0];
-    stage.innerHTML = `<div class="card"><div class="ph" style="background-image:url(img/h/${img}.jpg)"></div><span>${label}</span></div>`;
-    return;
-  }
-  let i = 0;
   const make = n => {
-    const [img, label, , filter] = photos[n % photos.length];
+    const [img, when, , filter] = photos[n % photos.length];
     const c = document.createElement('div');
     c.className = 'card';
-    c.innerHTML = `<div class="ph" style="background-image:url(img/h/${img}.jpg);filter:${filter || 'none'}"></div><span class="stamp keep">KEEP</span><span class="stamp del">DELETE</span><span class="label">${label}</span>`;
+    c.innerHTML = `<div class="ph" style="background-image:url(img/h/${img}.jpg);filter:${filter || 'none'}"></div><span class="stamp keep">Keep in 2026-07 Hawaii</span><span class="stamp del">Delete</span><span class="cap">${when}</span>`;
     stage.prepend(c);
     return c;
   };
-  let top = make(0); make(1);
-  setInterval(() => {
-    const keep = photos[i % photos.length][2];
-    top.classList.add(keep ? 'go-keep' : 'go-del');
-    const gone = top;
-    setTimeout(() => gone.remove(), 950);
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { make(0); return; }
+  const press = async sel => { const b = document.querySelector(`.phone .foot ${sel}`); b.classList.add('press'); await new Promise(r => setTimeout(r, 170)); b.classList.remove('press'); };
+  let i = 0, top = make(0), n = 214;
+  make(1);
+  const step = async () => {
+    const [, , keep, filter, how] = photos[i % photos.length];
+    const card = top;
+    if (how === 'swipe') {
+      card.classList.add(keep ? 'go-keep' : 'go-del');
+      await new Promise(r => setTimeout(r, 950));
+    } else {
+      await press(keep ? '.k' : '.d');
+      await Trace.photo(card.querySelector('.ph'), keep ? 'keep' : 'del', card, filter || '');
+    }
+    card.remove();
+    left.textContent = --n < 200 ? (n = 214) : n;
     i++;
-    top = stage.lastElementChild.previousElementSibling || stage.lastElementChild;
+    top = stage.lastElementChild;
     make(i + 1);
-  }, 1600);
+    setTimeout(step, 900);
+  };
+  setTimeout(step, 1400);
 })();
 </script>
 </body>
