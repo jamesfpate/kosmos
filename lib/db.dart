@@ -11,17 +11,22 @@ class Db {
 
   static Future<Db> open() async {
     final path = p.join(await getDatabasesPath(), 'winnow.db');
-    // v2: b2 (Backblaze B2 uploads).
+    // v2: b2 (Backblaze B2 uploads). v3: webdav, gphotos.
     final db = await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, _) async {
-        for (final t in ['decisions', 'albums', 'uploads', 'meta', 'b2']) {
+        for (final t in ['decisions', 'albums', 'uploads', 'meta', 'b2', 'webdav', 'gphotos']) {
           await db.execute('CREATE TABLE $t (id TEXT PRIMARY KEY, json TEXT NOT NULL)');
         }
       },
       onUpgrade: (db, from, _) async {
         if (from < 2) await db.execute('CREATE TABLE b2 (id TEXT PRIMARY KEY, json TEXT NOT NULL)');
+        if (from < 3) {
+          for (final t in ['webdav', 'gphotos']) {
+            await db.execute('CREATE TABLE $t (id TEXT PRIMARY KEY, json TEXT NOT NULL)');
+          }
+        }
       },
     );
     return Db._(db);

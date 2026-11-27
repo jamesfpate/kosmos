@@ -6,6 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
 import 'b2.dart';
+import 'gphotos.dart';
 import 'db.dart';
 import 'fx.dart';
 import 'immich.dart';
@@ -13,8 +14,10 @@ import 'media.dart' as media;
 import 'media.dart' show Access;
 import 'background.dart';
 import 'models.dart';
+import 'store.dart';
+import 'webdav.dart';
 
-enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, b2, error }
+enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, b2, webdav, google, error }
 
 enum Dir { left, right }
 
@@ -101,6 +104,8 @@ class AppState extends ChangeNotifier {
   String exploreView = 'all';
 
   B2Config b2 = const B2Config();
+  WebDavConfig webdav = const WebDavConfig();
+  GPhotosConfig google = const GPhotosConfig();
 
   /// Free up space after backup: 'off', 'now' (as soon as every integration has a photo) or '30d' (keep the last 30
   /// days on the phone).
@@ -169,7 +174,7 @@ class AppState extends ChangeNotifier {
       }
       screen = cutoff == null ? Screen.start : mode;
       changed();
-      scheduleBackground(immich, b2);
+      _reschedule();
       runSync();
     } catch (e) {
       error = '$e';
@@ -193,6 +198,8 @@ class AppState extends ChangeNotifier {
     hidden = ((m['hiddenBuckets'] as List?) ?? []).cast<String>().toSet();
     immich = ImmichConfig.fromJson((m['immich'] as Map?)?.cast<String, Object?>());
     b2 = B2Config.fromJson((m['b2'] as Map?)?.cast<String, Object?>());
+    webdav = WebDavConfig.fromJson((m['webdav'] as Map?)?.cast<String, Object?>());
+    google = GPhotosConfig.fromJson((m['google'] as Map?)?.cast<String, Object?>());
     freeUp = (m['freeUp'] as String?) ?? 'off';
   }
 
@@ -203,7 +210,7 @@ class AppState extends ChangeNotifier {
     // list comes back empty and nothing uploads.
     await media.skipPermissionCheck();
     _loadSettings(await db.allMeta());
-    if (!_immichOn && !_b2On) return;
+    if (!anyIntegration) return;
     _background = true;
     albums = [for (final j in await db.all('albums')) Album.fromJson(j)];
     await reload();
@@ -419,7 +426,10 @@ class AppState extends ChangeNotifier {
     await db.put('albums', updated.id, updated.toJson());
     changed();
     final immichId = updated.immichAlbumId;
-    if (immichId == null || (oldTitle == albumTitle(updated) && oldTag == albumTag(updated))) return;
+    if (immichId == null || (oldTitle == albumTitle(updated) && oldTag == albumTag(updated))) {
+      runSync();
+      return;
+    }
     final recs = [
       for (final j in await db.all('uploads'))
         if (UploadRecord.fromJson(j).syncedAlbumId == updated.id) UploadRecord.fromJson(j),
@@ -446,6 +456,8 @@ class AppState extends ChangeNotifier {
     } finally {
       api.close();
     }
+    // File stores and Google move or rename on the next sync: run it now.
+    runSync();
   }
 
   Future<void> createAlbum(Album a, {bool fileAfter = false, bool grid = false}) async {
@@ -997,6 +1009,7 @@ class AppState extends ChangeNotifier {
       lastUsedAt: base?.lastUsedAt ?? 0,
       monthly: monthly,
       immichAlbumId: id,
+      googleAlbumId: base?.googleAlbumId,
       staleTags: base?.staleTags ?? const [],
     );
   }
@@ -1081,7 +1094,53 @@ class AppState extends ChangeNotifier {
       background: background,
     );
     await _set('b2', b2.toJson());
-    scheduleBackground(immich, b2);
+    _reschedule();
+    if (enabled == true || wifiOnly != null || videos != null) runSync();
+  }
+
+  Future<void> saveWebDav({
+    String? url,
+    String? user,
+    String? password,
+    String? folder,
+    bool? enabled,
+    bool? wifiOnly,
+    bool? videos,
+    String? background,
+  }) async {
+    webdav = webdav.copyWith(
+      url: url?.trim(),
+      user: user?.trim(),
+      password: password?.trim(),
+      folder: folder?.trim(),
+      enabled: enabled,
+      wifiOnly: wifiOnly,
+      videos: videos,
+      background: background,
+    );
+    await _set('webdav', webdav.toJson());
+    _reschedule();
+    if (enabled == true || wifiOnly != null || videos != null) runSync();
+  }
+
+  Future<void> saveGoogle({
+    String? email,
+    bool? enabled,
+    bool? wifiOnly,
+    bool? videos,
+    String? background,
+    bool? backupOffSeen,
+  }) async {
+    google = google.copyWith(
+      email: email,
+      enabled: enabled,
+      wifiOnly: wifiOnly,
+      videos: videos,
+      background: background,
+      backupOffSeen: backupOffSeen,
+    );
+    await _set('google', google.toJson());
+    _reschedule();
     if (enabled == true || wifiOnly != null || videos != null) runSync();
   }
 
@@ -1117,7 +1176,7 @@ class AppState extends ChangeNotifier {
         videos: videos,
         background: background);
     await _set('immich', immich.toJson());
-    scheduleBackground(immich, b2);
+    _reschedule();
     if (enabled == true || wifiOnly != null || videos != null) runSync();
   }
 
@@ -1138,29 +1197,61 @@ class AppState extends ChangeNotifier {
 
   bool get _immichOn => immich.enabled && immich.ready;
   bool get _b2On => b2.enabled && b2.ready;
+  bool get _davOn => webdav.enabled && webdav.ready;
+  bool get _googleOn => google.enabled && google.ready;
+  /// The last sync's error for one integration ('' if it went fine), by the name it reports under.
+  String errorFor(String name) =>
+      sync.error.split('\n').where((l) => l.startsWith('$name: ')).map((l) => l.substring(name.length + 2)).join('\n');
 
-  /// Kept, filed photos B2 doesn't have at their current path yet.
-  List<Item> _pendingB2(Map<String, B2Record> recs) => items.where((i) {
-        final d = decided[i.id];
-        if (d == null || d.decision != Decision.keep || d.albumId == null || (!b2.videos && i.isVideo)) return false;
+  bool get anyIntegration => _immichOn || _b2On || _davOn || _googleOn;
+
+  /// What background upload should do: one entry per integration that's on and wants it.
+  List<({String bg, bool wifi})> get _bgWants => [
+        if (_immichOn && immich.background != 'off') (bg: immich.background, wifi: immich.wifiOnly),
+        if (_b2On && b2.background != 'off') (bg: b2.background, wifi: b2.wifiOnly),
+        if (_davOn && webdav.background != 'off') (bg: webdav.background, wifi: webdav.wifiOnly),
+        if (_googleOn && google.background != 'off') (bg: google.background, wifi: google.wifiOnly),
+      ];
+
+  void _reschedule() => scheduleBackground(_bgWants);
+
+  Future<Map<String, FileRecord>> _files(String table) async =>
+      {for (final j in await db.all(table)) FileRecord.fromJson(j).id: FileRecord.fromJson(j)};
+
+  Future<Map<String, GRecord>> _gRecords() async =>
+      {for (final j in await db.all('gphotos')) GRecord.fromJson(j).id: GRecord.fromJson(j)};
+
+  bool _keptFiled(Item i, bool videos) {
+    final d = decided[i.id];
+    return d != null && d.decision == Decision.keep && d.albumId != null && (videos || !i.isVideo);
+  }
+
+  /// Kept, filed photos a file store doesn't have at their current path yet.
+  List<Item> _pendingFiles(Map<String, FileRecord> recs, String prefix, bool videos) => items.where((i) {
+        if (!_keptFiled(i, videos)) return false;
         final r = recs[i.id];
-        return r == null || !_b2At(r, i, d.albumId!);
+        return r == null || !_fileAt(r, i, decided[i.id]!.albumId!, prefix);
       }).toList();
 
   /// Whether [r] is already where [i] belongs (its album's folder, with or without the clash suffix).
-  bool _b2At(B2Record r, Item i, String albumId) {
+  bool _fileAt(FileRecord r, Item i, String albumId, String prefix) {
     final album = albums.where((a) => a.id == albumId).firstOrNull;
     if (album == null) return true;
-    final base = b2Path(b2, album, i.name);
+    final base = storePath(prefix, album, i.name);
     return r.fileName == base || r.fileName == withSuffix(base, i.id);
   }
+
+  List<Item> _pendingGoogle(Map<String, GRecord> recs) =>
+      items.where((i) => _keptFiled(i, google.videos) && recs[i.id]?.albumId != decided[i.id]!.albumId).toList();
 
   Future<int> _pendingCount() async {
     var n = 0;
     if (_immichOn) {
       n += _pendingUploads({for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)}).length;
     }
-    if (_b2On) n += _pendingB2({for (final j in await db.all('b2')) B2Record.fromJson(j).id: B2Record.fromJson(j)}).length;
+    if (_b2On) n += _pendingFiles(await _files('b2'), b2.prefix, b2.videos).length;
+    if (_davOn) n += _pendingFiles(await _files('webdav'), webdav.folder, webdav.videos).length;
+    if (_googleOn) n += _pendingGoogle(await _gRecords()).length;
     return n;
   }
 
@@ -1172,15 +1263,19 @@ class AppState extends ChangeNotifier {
     changed();
   }
 
-  /// Backs up kept photos to each integration that's on (Immich, then B2), then frees up space if that's on. One run
-  /// at a time; a call during a run schedules another pass.
+  /// Backs up kept photos to each integration that's on (Immich, B2, WebDAV, Google Photos), then frees up space if
+  /// that's on. One run at a time; a call during a run schedules another pass.
   Future<void> runSync() async {
-    if (_db == null || !(_immichOn || _b2On)) return;
+    if (_db == null || !anyIntegration) return;
     _watchNetwork();
     final wifi = await _onWifi();
-    final doImmich = _immichOn && (wifi || !immich.wifiOnly);
-    final doB2 = _b2On && (wifi || !b2.wifiOnly);
-    if (!doImmich && !doB2) {
+    bool go(bool on, bool wifiOnly) => on && (wifi || !wifiOnly);
+    final doImmich = go(_immichOn, immich.wifiOnly);
+    final doB2 = go(_b2On, b2.wifiOnly);
+    final doDav = go(_davOn, webdav.wifiOnly);
+    final doGoogle = go(_googleOn, google.wifiOnly);
+    final waiting = (_immichOn && !doImmich) || (_b2On && !doB2) || (_davOn && !doDav) || (_googleOn && !doGoogle);
+    if (!doImmich && !doB2 && !doDav && !doGoogle) {
       sync = SyncStatus(pending: await _pendingCount(), done: sync.done, waitingWifi: true);
       changed();
       return;
@@ -1191,17 +1286,32 @@ class AppState extends ChangeNotifier {
     }
     _syncing = true;
     _done = 0;
+    final errors = <String>[];
+    // One failing integration doesn't stop the others.
+    Future<void> run(String name, Future<void> Function() f) async {
+      try {
+        await f();
+      } catch (e) {
+        errors.add('$name: ${'$e'.replaceFirst('Exception: ', '')}');
+      }
+    }
+
     try {
       do {
         _syncAgain = false;
-        if (doImmich) await _syncImmich();
-        if (doB2) await _syncB2();
+        errors.clear();
+        if (doImmich) await run('Immich', _syncImmich);
+        if (doB2) await run('B2', () => _syncFiles(B2Api(b2), 'b2', b2.prefix, b2.videos));
+        if (doDav) await run('WebDAV', () => _syncFiles(WebDavApi(webdav), 'webdav', webdav.folder, webdav.videos));
+        if (doGoogle) await run('Google Photos', _syncGoogle);
       } while (_syncAgain);
-      await _freeUp();
-      final waiting = (_immichOn && !doImmich) || (_b2On && !doB2);
-      sync = SyncStatus(done: _done, waitingWifi: waiting, pending: waiting ? await _pendingCount() : 0);
-    } catch (e) {
-      sync = SyncStatus(pending: await _pendingCount(), done: _done, error: '$e'.replaceFirst('Exception: ', ''));
+      if (errors.isEmpty) await run('Free up space', _freeUp);
+      sync = SyncStatus(
+        done: _done,
+        waitingWifi: waiting,
+        pending: waiting || errors.isNotEmpty ? await _pendingCount() : 0,
+        error: errors.join('\n'),
+      );
     } finally {
       _syncing = false;
       changed();
@@ -1277,12 +1387,12 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Uploads kept photos to B2 at their album's path; photos whose album changed (or was renamed) move there.
-  Future<void> _syncB2() async {
-    final api = B2Api(b2);
+  /// Uploads kept photos to a file store (B2, WebDAV) at their album's path; photos whose album changed (or was
+  /// renamed) move there.
+  Future<void> _syncFiles(FileStore api, String table, String prefix, bool videos) async {
     try {
-      final recs = {for (final j in await db.all('b2')) B2Record.fromJson(j).id: B2Record.fromJson(j)};
-      final todo = _pendingB2(recs);
+      final recs = await _files(table);
+      final todo = _pendingFiles(recs, prefix, videos);
       if (todo.isEmpty) return;
       await api.authorize();
       final taken = {for (final r in recs.values) r.fileName: r.id};
@@ -1290,18 +1400,80 @@ class AppState extends ChangeNotifier {
       _status(todo.length);
       for (final item in todo) {
         final album = albums.firstWhere((a) => a.id == decided[item.id]!.albumId);
-        var name = b2Path(b2, album, item.name);
+        var name = storePath(prefix, album, item.name);
         final owner = taken[name];
         if (owner != null && owner != item.id) name = withSuffix(name, item.id);
         final old = recs[item.id];
         final fileId = old == null ? await api.upload(item, name) : await api.move(old, name);
         if (old != null) taken.remove(old.fileName);
         taken[name] = item.id;
-        final rec = B2Record(id: item.id, fileId: fileId, fileName: name);
+        final rec = FileRecord(id: item.id, fileId: fileId, fileName: name);
         recs[item.id] = rec;
-        await db.put('b2', rec.id, rec.toJson());
+        await db.put(table, rec.id, rec.toJson());
         _done++;
         _status(todo.length - ++here);
+      }
+    } finally {
+      api.close();
+    }
+  }
+
+  /// Uploads kept photos to Google Photos into albums Winnow makes there (same names); photos refiled in Winnow move
+  /// between those albums.
+  Future<void> _syncGoogle() async {
+    final recs = await _gRecords();
+    final todo = _pendingGoogle(recs);
+    if (todo.isEmpty) return;
+    final api = await GPhotosApi.connect();
+    if (api == null) {
+      if (_background) return;
+      throw Exception('sign in again (Settings > Google Photos)');
+    }
+    try {
+      var here = 0;
+      _status(todo.length);
+      final byAlbum = <String, List<Item>>{};
+      for (final i in todo) {
+        byAlbum.putIfAbsent(decided[i.id]!.albumId!, () => []).add(i);
+      }
+      for (final entry in byAlbum.entries) {
+        final album = albums.where((a) => a.id == entry.key).firstOrNull;
+        if (album == null) continue;
+        final gid = await api.ensureAlbum(album);
+        await db.put('albums', album.id, album.toJson());
+        // Already in Google, filed elsewhere: out of the old album, into this one.
+        final moving = entry.value.where((i) => recs[i.id] != null).toList();
+        final byOld = <String, List<String>>{};
+        for (final i in moving) {
+          final old = albums.where((a) => a.id == recs[i.id]!.albumId).firstOrNull?.googleAlbumId;
+          if (old != null) byOld.putIfAbsent(old, () => []).add(recs[i.id]!.mediaItemId);
+        }
+        for (final o in byOld.entries) {
+          await api.remove(o.key, o.value);
+        }
+        if (moving.isNotEmpty) await api.add(gid, [for (final i in moving) recs[i.id]!.mediaItemId]);
+        for (final i in moving) {
+          recs[i.id]!.albumId = album.id;
+          await db.put('gphotos', i.id, recs[i.id]!.toJson());
+          _done++;
+          _status(todo.length - ++here);
+        }
+        // New: upload, then create in batches of 50 straight into the album.
+        final fresh = entry.value.where((i) => recs[i.id] == null).toList();
+        for (var b = 0; b < fresh.length; b += 50) {
+          final batch = fresh.sublist(b, (b + 50).clamp(0, fresh.length));
+          final uploads = [for (final i in batch) (token: await api.upload(i), name: i.name)];
+          final ids = await api.create(uploads, gid);
+          for (var k = 0; k < batch.length && k < ids.length; k++) {
+            final id = ids[k];
+            if (id == null) continue;
+            final rec = GRecord(id: batch[k].id, mediaItemId: id, albumId: album.id);
+            recs[rec.id] = rec;
+            await db.put('gphotos', rec.id, rec.toJson());
+            _done++;
+            _status(todo.length - ++here);
+          }
+        }
       }
     } finally {
       api.close();
@@ -1312,37 +1484,48 @@ class AppState extends ChangeNotifier {
   /// phone's trash (30 days to restore). Photos restored from there are never removed again. Not in the background:
   /// Android may ask to confirm.
   Future<void> _freeUp() async {
-    if (freeUp == 'off' || _background || !(_immichOn || _b2On)) return;
+    if (freeUp == 'off' || _background || !anyIntegration) return;
     final now = DateTime.now().millisecondsSinceEpoch;
     final before = freeUp == '30d' ? now - 30 * day : now;
     final freed = ((await db.getMeta<List>('freed')) ?? []).cast<String>().toSet();
     final ups = {for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)};
-    final b2s = {for (final j in await db.all('b2')) B2Record.fromJson(j).id: B2Record.fromJson(j)};
+    final b2s = await _files('b2');
+    final davs = await _files('webdav');
+    final gs = await _gRecords();
     final candidates = items.where((i) {
-      final d = decided[i.id];
-      if (d == null || d.decision != Decision.keep || d.albumId == null) return false;
-      if (freed.contains(i.id) || i.taken >= before) return false;
-      if (_immichOn && ups[i.id]?.syncedAlbumId != d.albumId) return false;
-      if (_b2On && (b2s[i.id] == null || !_b2At(b2s[i.id]!, i, d.albumId!))) return false;
+      if (!_keptFiled(i, true) || freed.contains(i.id) || i.taken >= before) return false;
+      final album = decided[i.id]!.albumId!;
+      if (_immichOn && ups[i.id]?.syncedAlbumId != album) return false;
+      if (_b2On && (b2s[i.id] == null || !_fileAt(b2s[i.id]!, i, album, b2.prefix))) return false;
+      if (_davOn && (davs[i.id] == null || !_fileAt(davs[i.id]!, i, album, webdav.folder))) return false;
+      if (_googleOn && gs[i.id]?.albumId != album) return false;
       return true;
     }).take(300).toList();
     if (candidates.isEmpty) return;
     final safe = <Item>[];
     final immichApi = _immichOn ? ImmichApi(immich) : null;
     final b2Api = _b2On ? B2Api(b2) : null;
+    final davApi = _davOn ? WebDavApi(webdav) : null;
+    final gApi = _googleOn ? await GPhotosApi.connect() : null;
+    if (_googleOn && gApi == null) return;
     try {
-      if (b2Api != null) await b2Api.authorize();
+      await b2Api?.authorize();
+      await davApi?.authorize();
       for (final i in candidates) {
         if (immichApi != null) {
           final a = await immichApi.call('GET', '/assets/${ups[i.id]!.assetId}') as Map;
           if (a['isTrashed'] == true) continue;
         }
         if (b2Api != null && !await b2Api.exists(b2s[i.id]!)) continue;
+        if (davApi != null && !await davApi.exists(davs[i.id]!)) continue;
+        if (gApi != null && !await gApi.exists(gs[i.id]!.mediaItemId)) continue;
         safe.add(i);
       }
     } finally {
       immichApi?.close();
       b2Api?.close();
+      davApi?.close();
+      gApi?.close();
     }
     if (safe.isEmpty) return;
     final moved = await media.trash(safe);

@@ -204,31 +204,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text('Immich'),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
               Text(
-                !s.immich.enabled ? 'Off' : (sync.error.isNotEmpty ? 'Error' : (sync.pending > 0 ? '${sync.pending} to upload' : 'Up to date')),
+                !s.immich.enabled ? 'Off' : (s.errorFor('Immich').isNotEmpty ? 'Error' : (sync.pending > 0 ? '${sync.pending} to upload' : 'Up to date')),
                 style: const TextStyle(color: C.muted),
               ),
               const Icon(Icons.chevron_right, color: C.muted),
             ]),
             onTap: () => s.go(Screen.immich),
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Backblaze B2'),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(
-                !s.b2.enabled ? 'Off' : (sync.error.isNotEmpty ? 'Error' : (sync.pending > 0 ? '${sync.pending} to upload' : 'Up to date')),
-                style: const TextStyle(color: C.muted),
-              ),
-              const Icon(Icons.chevron_right, color: C.muted),
-            ]),
-            onTap: () => s.go(Screen.b2),
-          ),
-          const ListTile(
-            contentPadding: EdgeInsets.zero,
-            enabled: false,
-            title: Text('Google Photos'),
-            trailing: Text('Coming later', style: TextStyle(color: C.muted)),
-          ),
+          for (final (screen, name, key, on) in [
+            (Screen.b2, 'Backblaze B2', 'B2', s.b2.enabled),
+            (Screen.webdav, 'ownCloud / Nextcloud', 'WebDAV', s.webdav.enabled),
+            (Screen.google, 'Google Photos', 'Google Photos', s.google.enabled),
+          ])
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(name),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(
+                  !on ? 'Off' : (s.errorFor(key).isNotEmpty ? 'Error' : (sync.pending > 0 ? '${sync.pending} to upload' : 'Up to date')),
+                  style: const TextStyle(color: C.muted),
+                ),
+                const Icon(Icons.chevron_right, color: C.muted),
+              ]),
+              onTap: () => s.go(screen),
+            ),
           _h3('Free up space'),
           _p('Once every integration that is on has a kept photo (checked on the server), it moves to the phone\'s trash, where it can be restored for 30 days. Photos you restore are never removed again.'),
           Choices(
@@ -464,7 +463,7 @@ class _ImmichScreenState extends State<ImmichScreen> {
               '${sync.running ? 'Uploading… ${sync.pending} to go' : sync.waitingWifi ? '${sync.pending} waiting for Wi-Fi' : (sync.pending > 0 ? '${sync.pending} waiting' : 'Everything kept is in Immich.')}${sync.done > 0 ? ' · ${sync.done} done this session' : ''}',
               style: const TextStyle(color: C.muted),
             ),
-            if (sync.error.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(sync.error, style: const TextStyle(color: C.trash))),
+            if (s.errorFor('Immich').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(s.errorFor('Immich'), style: const TextStyle(color: C.trash))),
             const SizedBox(height: 8),
             Btn('Upload now', onTap: sync.running || !ready ? null : s.runSync),
           ],

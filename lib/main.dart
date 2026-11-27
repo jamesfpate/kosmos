@@ -4,12 +4,12 @@ import 'package:flutter/rendering.dart';
 import 'background.dart';
 import 'fx.dart';
 import 'state.dart';
-import 'ui/b2_screen.dart';
 import 'ui/common.dart';
 import 'ui/cull.dart';
 import 'ui/grid.dart';
 import 'ui/screens.dart';
 import 'ui/settings.dart';
+import 'ui/stores.dart';
 
 const version = String.fromEnvironment('WINNOW_VERSION', defaultValue: '0.0.0-dev');
 
@@ -156,6 +156,8 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                   Screen.settings => SettingsScreen(s),
                   Screen.immich => ImmichScreen(s),
                   Screen.b2 => B2Screen(s),
+                  Screen.webdav => WebDavScreen(s),
+                  Screen.google => GoogleScreen(s),
                 },
               ),
             ),

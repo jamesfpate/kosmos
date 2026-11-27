@@ -21,6 +21,8 @@ dependencies:
   photo_manager_image_provider: ^2.2.0
   sqflite: ^2.4.6
   video_player: ^2.14.1
+  winnow_native:
+    path: packages/winnow_native
   workmanager: ^0.10.0
 
 dev_dependencies:

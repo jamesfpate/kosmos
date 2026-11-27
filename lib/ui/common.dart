@@ -32,6 +32,8 @@ String dayOf(int ms) => fmtDay.format(DateTime.fromMillisecondsSinceEpoch(ms));
 String timeOf(int ms) => fmtTime.format(DateTime.fromMillisecondsSinceEpoch(ms));
 
 /// The top bar on every screen: single/grid switch, title, uploads, trash, settings.
+const _integrationPages = {Screen.immich, Screen.b2, Screen.webdav, Screen.google};
+
 class TopBar extends StatelessWidget {
   const TopBar(this.s, {super.key, required this.title, this.subtitle});
 
@@ -62,14 +64,22 @@ class TopBar extends StatelessWidget {
             ]),
           ),
         ),
-        if ((s.immich.enabled || s.b2.enabled) && (sync.pending > 0 || sync.running || sync.error.isNotEmpty))
+        if (s.anyIntegration && (sync.pending > 0 || sync.running || sync.error.isNotEmpty))
           Pulse(
             on: sync.running,
             child: Pill(
               icon: Icons.arrow_upward,
               label: sync.error.isNotEmpty ? '!' : '${sync.pending}',
               color: sync.error.isNotEmpty ? C.trash : null,
-              onTap: () => s.go(s.immich.enabled || !s.b2.enabled ? Screen.immich : Screen.b2),
+              onTap: () => s.go(s.immich.enabled
+                  ? Screen.immich
+                  : s.b2.enabled
+                      ? Screen.b2
+                      : s.webdav.enabled
+                          ? Screen.webdav
+                          : s.google.enabled
+                              ? Screen.google
+                              : Screen.immich),
             ),
           ),
         Pill(
@@ -80,8 +90,8 @@ class TopBar extends StatelessWidget {
         ),
         Pill(
           icon: Icons.settings_outlined,
-          on: s.screen == Screen.settings || s.screen == Screen.immich || s.screen == Screen.b2,
-          onTap: () => s.screen == Screen.immich || s.screen == Screen.b2 ? s.go(Screen.settings) : s.toggleScreen(Screen.settings),
+          on: s.screen == Screen.settings || _integrationPages.contains(s.screen),
+          onTap: () => _integrationPages.contains(s.screen) ? s.go(Screen.settings) : s.toggleScreen(Screen.settings),
         ),
       ]),
     );

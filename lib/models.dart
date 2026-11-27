@@ -70,6 +70,7 @@ class Album {
     required this.lastUsedAt,
     this.monthly = false,
     this.immichAlbumId,
+    this.googleAlbumId,
     this.autoDate = false,
     this.staleTags = const [],
   });
@@ -99,6 +100,9 @@ class Album {
   /// The matching Immich album, once created or found.
   String? immichAlbumId;
 
+  /// The Google Photos album Winnow made for it.
+  String? googleAlbumId;
+
   Map<String, Object?> toJson() => {
         'id': id,
         'name': name,
@@ -108,6 +112,7 @@ class Album {
         'lastUsedAt': lastUsedAt,
         if (monthly) 'monthly': true,
         if (immichAlbumId != null) 'immichAlbumId': immichAlbumId,
+        if (googleAlbumId != null) 'googleAlbumId': googleAlbumId,
         if (autoDate) 'autoDate': true,
         if (staleTags.isNotEmpty) 'staleTags': staleTags,
       };
@@ -121,6 +126,7 @@ class Album {
         lastUsedAt: (j['lastUsedAt'] as num?)?.toInt() ?? 0,
         monthly: j['monthly'] == true || j['everyday'] == true,
         immichAlbumId: j['immichAlbumId'] as String?,
+        googleAlbumId: j['googleAlbumId'] as String?,
         autoDate: j['autoDate'] == true,
         staleTags: ((j['staleTags'] as List?) ?? []).cast<String>(),
       );

@@ -95,6 +95,7 @@ class _AlbumSheetState extends State<_AlbumSheet> {
         // Not "used" until a photo goes in, so creating an album doesn't change the default.
         lastUsedAt: e?.lastUsedAt ?? 0,
         immichAlbumId: e?.immichAlbumId,
+        googleAlbumId: e?.googleAlbumId,
       ),
     );
   }

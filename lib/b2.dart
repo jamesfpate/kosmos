@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:photo_manager/photo_manager.dart';
 
 import 'models.dart';
+import 'store.dart';
 
 // Backblaze B2 (native API v3): kept photos are uploaded straight from the phone into
 // <prefix>YYYY/YYYY-MM name/file (dated albums) or <prefix>Albums/name/file (undated). A photo that moves to another
@@ -82,42 +83,11 @@ class B2Config {
         );
 }
 
-/// A photo in B2: where it is now.
-class B2Record {
-  B2Record({required this.id, required this.fileId, required this.fileName});
-
-  final String id;
-  final String fileId;
-  final String fileName;
-
-  Map<String, Object?> toJson() => {'id': id, 'fileId': fileId, 'fileName': fileName};
-
-  static B2Record fromJson(Map<String, Object?> j) =>
-      B2Record(id: '${j['id']}', fileId: j['fileId'] as String, fileName: j['fileName'] as String);
-}
-
-/// Where a photo filed into [album] goes in the bucket (before any name clash suffix).
-String b2Path(B2Config c, Album album, String fileName) {
-  var p = c.prefix.trim();
-  if (p.isNotEmpty && !p.endsWith('/')) p = '$p/';
-  final safe = albumTitle(album).replaceAll('/', '-').trim();
-  final folder = album.start == null ? 'Albums/$safe' : '${DateTime.fromMillisecondsSinceEpoch(album.start!).year}/$safe';
-  return '$p$folder/${fileName.replaceAll('/', '-')}';
-}
-
-/// Inserts a suffix before the extension: `IMG_1.jpg` -> `IMG_1_tag.jpg`.
-String withSuffix(String path, String tag) {
-  final dot = path.lastIndexOf('.');
-  final slash = path.lastIndexOf('/');
-  if (dot <= slash) return '${path}_$tag';
-  return '${path.substring(0, dot)}_$tag${path.substring(dot)}';
-}
-
 // Test builds can point this at a mock (--dart-define=B2_AUTH_URL=...).
 const _authUrl = String.fromEnvironment('B2_AUTH_URL',
     defaultValue: 'https://api.backblazeb2.com/b2api/v3/b2_authorize_account');
 
-class B2Api {
+class B2Api implements FileStore {
   B2Api(this.cfg);
 
   final B2Config cfg;
@@ -129,6 +99,7 @@ class B2Api {
   String? _uploadToken;
 
   /// Signs in and finds the bucket. Returns the bucket name (the key may be limited to one bucket).
+  @override
   Future<String> authorize() async {
     final basic = base64Encode(utf8.encode('${cfg.keyId.trim()}:${cfg.appKey.trim()}'));
     final res = await _client.get(Uri.parse(_authUrl),
@@ -169,6 +140,7 @@ class B2Api {
   }
 
   /// Uploads the original file to [fileName]. Returns the B2 file id.
+  @override
   Future<String> upload(Item item, String fileName) async {
     final file = await item.entity.originFile;
     if (file == null) throw Exception('could not read ${item.name}');
@@ -202,14 +174,16 @@ class B2Api {
   }
 
   /// Moves a file: copy to the new name, hide the old one. Returns the new file id.
-  Future<String> move(B2Record r, String fileName) async {
+  @override
+  Future<String> move(FileRecord r, String fileName) async {
     final copied = await _call('b2_copy_file', {'sourceFileId': r.fileId, 'fileName': fileName});
     await _call('b2_hide_file', {'bucketId': _bucketId, 'fileName': r.fileName});
     return copied['fileId'] as String;
   }
 
   /// Whether the file is still there (for freeing up space).
-  Future<bool> exists(B2Record r) async {
+  @override
+  Future<bool> exists(FileRecord r) async {
     try {
       final info = await _call('b2_get_file_info', {'fileId': r.fileId});
       return info['action'] == 'upload';
@@ -219,6 +193,7 @@ class B2Api {
     }
   }
 
+  @override
   void close() {
     _client.close();
     PhotoManager.clearFileCache();

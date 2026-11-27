@@ -3,8 +3,6 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 
-import 'b2.dart';
-import 'immich.dart';
 import 'state.dart';
 
 // Upload while Winnow is closed (Android WorkManager, about every 15 minutes, when the network allows).
@@ -29,14 +27,10 @@ Future<void> initBackground() async {
   await Workmanager().initialize(backgroundMain);
 }
 
-/// Registers or cancels the periodic upload to match the integrations' settings: runs if any integration that's on
-/// wants background upload; only while charging / only on Wi-Fi when every such integration asks for that.
-Future<void> scheduleBackground(ImmichConfig c, B2Config b) async {
+/// Registers or cancels the periodic upload: runs if any integration that's on wants background upload (one entry
+/// each in [wants]); only while charging / only on Wi-Fi when every one of them asks for that.
+Future<void> scheduleBackground(List<({String bg, bool wifi})> wants) async {
   if (!Platform.isAndroid) return;
-  final wants = [
-    if (c.enabled && c.ready && c.background != 'off') (bg: c.background, wifi: c.wifiOnly),
-    if (b.enabled && b.ready && b.background != 'off') (bg: b.background, wifi: b.wifiOnly),
-  ];
   try {
     if (wants.isEmpty) {
       await Workmanager().cancelByUniqueName(_task);

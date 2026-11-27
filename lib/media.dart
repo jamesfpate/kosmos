@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:winnow_native/winnow_native.dart';
 
 import 'models.dart';
 
@@ -25,21 +25,10 @@ Future<Access> requestAccess() async => _map(await PhotoManager.requestPermissio
 
 Future<void> openSettings() => PhotoManager.openSetting();
 
-const _channel = MethodChannel('winnow/media');
-
 /// Android's "media management" special access: trash without a confirm dialog each time.
-Future<bool> canManageMedia() async {
-  if (!Platform.isAndroid) return false;
-  try {
-    return await _channel.invokeMethod<bool>('canManageMedia') ?? false;
-  } catch (_) {
-    return false;
-  }
-}
+Future<bool> canManageMedia() => WinnowNative.canManageMedia();
 
-Future<void> openManageMedia() async {
-  if (Platform.isAndroid) await _channel.invokeMethod<void>('openManageMedia');
-}
+Future<void> openManageMedia() => WinnowNative.openManageMedia();
 
 /// For the background task (no activity): don't ask Android for the permission state before each call.
 Future<void> skipPermissionCheck() => PhotoManager.setIgnorePermissionCheck(true);
