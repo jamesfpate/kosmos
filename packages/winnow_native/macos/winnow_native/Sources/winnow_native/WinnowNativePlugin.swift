@@ -18,11 +18,17 @@ public class WinnowNativePlugin: NSObject, FlutterPlugin {
     switch call.method {
     case "probe":
       let paths = args["paths"] as? [String] ?? []
-      run(result) { paths.map { Self.probe($0) ?? NSNull() } }
+      run(result) { paths.map { path -> Any in
+        if let info = Self.probe(path) { return info }
+        return NSNull()
+      } }
     case "thumb":
       let path = args["path"] as? String ?? ""
       let size = args["size"] as? Int ?? 512
-      run(result) { Self.thumb(path, size).map { FlutterStandardTypedData(bytes: $0) } ?? NSNull() }
+      run(result) {
+        if let data = Self.thumb(path, size) { return FlutterStandardTypedData(bytes: data) }
+        return NSNull()
+      }
     case "trash":
       let paths = args["paths"] as? [String] ?? []
       run(result) {
