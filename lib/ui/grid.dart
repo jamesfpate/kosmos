@@ -79,7 +79,7 @@ class _GridScreenState extends State<GridScreen> {
     String chipLabel(Album a) => a.monthly && months > 1 ? 'By month ($months)' : albumTitle(a);
     if (s.screen == Screen.explore && isImmichView(s.gridView)) {
       return Column(children: [
-        TopBar(s, title: Logo(busy: s.sync.running), subtitle: const Text('Immich')),
+        TopBar(s, title: const Logo(tap: true), subtitle: const Text('Immich')),
         _viewBar(context),
         const SizedBox(height: 6),
         Expanded(child: RemoteExplorer(s, key: ValueKey(s.gridView), view: s.gridView)),
@@ -88,7 +88,7 @@ class _GridScreenState extends State<GridScreen> {
     return Column(children: [
       TopBar(
         s,
-        title: Logo(busy: s.sync.running),
+        title: const Logo(tap: true),
         subtitle: Text(
             (s.screen == Screen.explore ? '${s.backlog.length} photos' : '${s.unreviewedCount} unreviewed')),
       ),

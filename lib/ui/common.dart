@@ -274,13 +274,18 @@ class AlbumChip extends StatelessWidget {
   }
 }
 
-/// The Winnow wordmark: the two n's offset, one dropped and one raised, like grain being winnowed. With [busy] (a
-/// sync running) the letters ripple in a wave.
+/// The Winnow wordmark: the two n's offset, one dropped and one raised, like grain being winnowed. With [busy] (loading)
+/// the letters ripple in a wave; with [tap], a tap plays one wave.
 class Logo extends StatefulWidget {
-  const Logo({super.key, this.size = 22, this.busy = false});
+  const Logo({super.key, this.size = 22, this.busy = false, this.tap = false});
 
   final double size;
+
+  /// Waves continuously (loading).
   final bool busy;
+
+  /// At rest; a tap plays one wave.
+  final bool tap;
 
   @override
   State<Logo> createState() => _LogoState();
@@ -310,6 +315,24 @@ class _LogoState extends State<Logo> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final row = _letters();
+    if (!widget.tap) return row;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _anim.isAnimating ? null : _anim.forward(from: 0),
+      child: row,
+    );
+  }
+
+  double _wave(double shift, int i) {
+    if (widget.busy) return shift * 1.2 * sin(2 * pi * _anim.value - i * 0.9);
+    if (!_anim.isAnimating) return 0;
+    // One tap: a single wave that starts and ends at rest.
+    final t = _anim.value;
+    return shift * 1.2 * sin(pi * t) * sin(2 * pi * t * 1.5 - i * 0.9);
+  }
+
+  Widget _letters() {
     final style = TextStyle(fontSize: widget.size, fontWeight: FontWeight.w800, color: C.text, height: 1);
     final accent = style.copyWith(color: C.accent);
     final shift = widget.size * 0.14;
@@ -321,7 +344,7 @@ class _LogoState extends State<Logo> with SingleTickerProviderStateMixin {
       builder: (context, _) => Row(mainAxisSize: MainAxisSize.min, children: [
         for (var i = 0; i < letters.length; i++)
           Transform.translate(
-            offset: Offset(0, base[i] + (widget.busy ? shift * 1.2 * sin(2 * pi * _anim.value - i * 0.9) : 0)),
+            offset: Offset(0, base[i] + _wave(shift, i)),
             child: Text(letters[i], style: i == 2 || i == 3 ? accent : style),
           ),
       ]),

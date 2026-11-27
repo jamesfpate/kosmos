@@ -50,7 +50,7 @@ class _CullScreenState extends State<CullScreen> {
     final target = s.target;
     return Column(children: [
       TopBar(s,
-          title: Logo(busy: s.sync.running),
+          title: const Logo(tap: true),
           subtitle: Text(cur == null ? 'All caught up' : '${s.queue.length} left')),
       Align(alignment: Alignment.centerLeft, child: Label(sel.isNotEmpty && !s.burstAll ? 'Choose album for ${sel.length}' : 'Choose album')),
       const SizedBox(height: 4),
