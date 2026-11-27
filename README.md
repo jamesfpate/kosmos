@@ -1,7 +1,7 @@
 # Winnow
 
 App for culling photos before they're backed up (Android, iPhone, Mac, Windows, Linux): swipe to delete or file into
-an album, review bursts together, file older photos in a grid, and upload only what was kept to
+an album (🔍 searches them all; long-press a photo for full size), review bursts together, file older photos in a grid, and upload only what was kept to
 [Immich](https://immich.app), Google Photos (Android), PhotoPrism, Synology Photos or file storage (Nextcloud/WebDAV,
 SFTP, S3, B2, Dropbox, OneDrive).
 
@@ -23,7 +23,7 @@ Apple albums aren't a backup, so Free up space doesn't count them. No keywords/c
 
 ## Desktop (Mac, Windows, Linux)
 Each release also has `winnow-X.Y.Z-mac.zip`, `-windows.zip` and `-linux.tar.gz`. Pick a folder of photos (subfolders
-included; a Mac can review its Photos library instead, see above); swipe or use the keyboard (← delete, → keep, ↓ later, Space play, Z undo). Kept photos sync to the same
+included; a Mac can review its Photos library instead, see above); swipe or use the keyboard (← delete, → keep, ↓ later, Space play, Z undo, / search albums). Kept photos sync to the same
 targets as on the phone, while the app is open. Deletes go to the Trash / Recycle Bin. Files stay where they are.
 - Mac: not notarized, so the first launch is blocked. Right-click Winnow.app → Open, or
   `xattr -dr com.apple.quarantine /Applications/Winnow.app`. Thumbnails, dates and HEIC/RAW come from macOS itself.

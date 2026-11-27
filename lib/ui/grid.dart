@@ -122,6 +122,19 @@ class _GridScreenState extends State<GridScreen> {
           ),
           const SizedBox(width: 6),
           AlbumChip(
+            label: '',
+            icon: Icons.search,
+            onTap: () async {
+              final f = await findAlbum(context, s.gridAlbums, label: chipLabel);
+              if (f == null || !context.mounted) return;
+              final a = f.album;
+              if (a == null) return newAlbum(context, s, s.gridOldest, fileAfter: s.gridSel.isNotEmpty, grid: true, name: f.create);
+              final id = a.monthly ? monthAlbumId : a.id;
+              s.gridSel.isNotEmpty ? await s.fileGrid(id) : s.chooseGrid(id);
+            },
+          ),
+          const SizedBox(width: 6),
+          AlbumChip(
             label: '+',
             dashed: true,
             // Dated from the selected photos (oldest); with none selected yet, from the first photo filed into it.

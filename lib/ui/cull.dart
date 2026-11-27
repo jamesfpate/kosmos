@@ -76,9 +76,22 @@ class _CullScreenState extends State<CullScreen> {
         const SingleActivator(LogicalKeyboardKey.keyZ): undo,
         const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): undo,
         const SingleActivator(LogicalKeyboardKey.keyZ, control: true): undo,
+        const SingleActivator(LogicalKeyboardKey.slash): () => search(context),
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () => search(context),
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => search(context),
       },
       child: Focus(autofocus: true, child: _body(context)),
     );
+  }
+
+  /// Album search: picks the album for this photo, or starts a new one with the typed name.
+  Future<void> search(BuildContext context) async {
+    final g = s.group;
+    if (g.isEmpty) return;
+    final f = await findAlbum(context, s.barAlbums);
+    if (f == null || !context.mounted) return;
+    if (f.album != null) return s.choose(f.album!.id);
+    await newAlbum(context, s, g.first.taken, name: f.create);
   }
 
   Widget _body(BuildContext context) {
@@ -114,7 +127,11 @@ class _CullScreenState extends State<CullScreen> {
                   ),
               ]),
             ),
-          if (s.barAlbums.isNotEmpty) const SizedBox(width: 6),
+          if (s.barAlbums.isNotEmpty) ...[
+            const SizedBox(width: 6),
+            AlbumChip(label: '', icon: Icons.search, onTap: cur == null ? null : () => search(context)),
+          ],
+          const SizedBox(width: 6),
           AlbumChip(
             key: chipKeys.putIfAbsent('new', GlobalKey.new),
             label: s.barAlbums.isEmpty ? '+ New album' : '+ New',

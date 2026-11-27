@@ -236,9 +236,17 @@ class Choices<T> extends StatelessWidget {
 /// Album chip in the album bars. The target is green with an arrow.
 class AlbumChip extends StatelessWidget {
   const AlbumChip(
-      {super.key, required this.label, this.target = false, this.hover = false, this.onTap, this.onLongPress, this.dashed = false});
+      {super.key,
+      required this.label,
+      this.icon,
+      this.target = false,
+      this.hover = false,
+      this.onTap,
+      this.onLongPress,
+      this.dashed = false});
 
   final String label;
+  final IconData? icon;
   final bool target;
   final bool hover;
   final bool dashed;
@@ -262,11 +270,12 @@ class AlbumChip extends StatelessWidget {
           onLongPress: onLongPress,
           child: Container(
             height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: EdgeInsets.symmetric(horizontal: label.isEmpty ? 10 : 14),
             alignment: Alignment.center,
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               if (target) ...[Icon(Icons.arrow_forward, size: 18, color: fg), const SizedBox(width: 4)],
-              Text(label, style: TextStyle(color: fg, fontWeight: target ? FontWeight.w700 : null)),
+              if (icon != null) Icon(icon, size: 20, color: fg),
+              if (label.isNotEmpty) Text(label, style: TextStyle(color: fg, fontWeight: target ? FontWeight.w700 : null)),
             ]),
           ),
         ),

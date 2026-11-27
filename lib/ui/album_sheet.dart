@@ -12,20 +12,22 @@ final _dateStart = RegExp(
 
 /// New album: optional dates (start = the photo's day), a fixed YYYY-MM prefix, and the name.
 /// [photoDate] null: no photo chosen yet, so a dated album takes its date from the first photo filed into it.
-/// With [existing]: edit that album (name, dates, end) instead.
-Future<Album?> showAlbumSheet(BuildContext context, int? photoDate, {Album? existing}) => showModalBottomSheet<Album>(
+/// With [existing]: edit that album (name, dates, end) instead. [name] starts the name field off.
+Future<Album?> showAlbumSheet(BuildContext context, int? photoDate, {Album? existing, String? name}) =>
+    showModalBottomSheet<Album>(
       context: context,
       isScrollControlled: true,
       backgroundColor: C.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _AlbumSheet(photoDate, existing),
+      builder: (_) => _AlbumSheet(photoDate, existing, name),
     );
 
 class _AlbumSheet extends StatefulWidget {
-  const _AlbumSheet(this.photoDate, this.existing);
+  const _AlbumSheet(this.photoDate, this.existing, this.name);
 
   final int? photoDate;
   final Album? existing;
+  final String? name;
 
   @override
   State<_AlbumSheet> createState() => _AlbumSheetState();
@@ -53,6 +55,7 @@ class _AlbumSheetState extends State<_AlbumSheet> {
         end = DateTime(x.year, x.month, x.day);
       }
     }
+    if (widget.name != null) name.text = widget.name!;
     name.addListener(() => setState(() {}));
   }
 
@@ -215,7 +218,112 @@ Future<void> editAlbum(BuildContext context, AppState s, Album a) async {
 }
 
 /// Opens the sheet and creates the album (filing into it right after when asked).
-Future<void> newAlbum(BuildContext context, AppState s, int? photoDate, {bool fileAfter = false, bool grid = false}) async {
-  final a = await showAlbumSheet(context, photoDate);
+Future<void> newAlbum(BuildContext context, AppState s, int? photoDate,
+    {bool fileAfter = false, bool grid = false, String? name}) async {
+  final a = await showAlbumSheet(context, photoDate, name: name);
   if (a != null) await s.createAlbum(a, fileAfter: fileAfter, grid: grid);
+}
+
+/// What the album search chose: an album, or a name to start a new one with.
+typedef Found = ({Album? album, String? create});
+
+/// Album search: every album in [albums] (already in bar order), narrowed as you type; each word has to appear in the
+/// title. With no exact match, the typed text can start a new album.
+Future<Found?> findAlbum(BuildContext context, List<Album> albums, {String Function(Album)? label}) =>
+    showModalBottomSheet<Found>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: C.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _FindAlbum(albums, label ?? albumTitle),
+    );
+
+class _FindAlbum extends StatefulWidget {
+  const _FindAlbum(this.albums, this.label);
+
+  final List<Album> albums;
+  final String Function(Album) label;
+
+  @override
+  State<_FindAlbum> createState() => _FindAlbumState();
+}
+
+class _FindAlbumState extends State<_FindAlbum> {
+  final query = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    query.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    query.dispose();
+    super.dispose();
+  }
+
+  List<Album> get hits {
+    final words = query.text.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    return [
+      for (final a in widget.albums)
+        if (words.every(albumTitle(a).toLowerCase().contains)) a,
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final found = hits;
+    final typed = query.text.trim();
+    final exact = found.any((a) => a.name.toLowerCase() == typed.toLowerCase() || albumTitle(a).toLowerCase() == typed.toLowerCase());
+    final h = MediaQuery.sizeOf(context).height;
+    return Padding(
+      padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: MediaQuery.viewInsetsOf(context).bottom + 12),
+      child: SizedBox(
+        height: h * 0.6,
+        child: Column(children: [
+          TextField(
+            controller: query,
+            autofocus: true,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) {
+              if (found.isNotEmpty) {
+                Navigator.pop(context, (album: found.first, create: null));
+              } else if (typed.isNotEmpty) {
+                Navigator.pop(context, (album: null, create: typed));
+              }
+            },
+            decoration: InputDecoration(
+              hintText: 'Search albums',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView(children: [
+              for (final a in found)
+                ListTile(
+                  dense: true,
+                  leading: Icon(a.monthly ? Icons.calendar_month : (a.start == null ? Icons.label_outline : Icons.photo_album_outlined),
+                      color: C.muted),
+                  title: Text(widget.label(a)),
+                  onTap: () => Navigator.pop(context, (album: a, create: null)),
+                ),
+              if (typed.isNotEmpty && !exact)
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.add, color: C.accent),
+                  title: Text('New album “$typed”', style: const TextStyle(color: C.accent)),
+                  onTap: () => Navigator.pop(context, (album: null, create: typed)),
+                ),
+              if (found.isEmpty && typed.isEmpty)
+                const Padding(padding: EdgeInsets.all(16), child: Text('No albums yet', style: TextStyle(color: C.muted))),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
 }
