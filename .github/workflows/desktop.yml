@@ -143,6 +143,17 @@ jobs:
           flutter build ios --simulator --debug -t integration_test/apple_test.dart
           xcrun simctl install "$SIM" build/ios/iphonesimulator/Runner.app
           xcrun simctl privacy "$SIM" grant photos net.jamespate.winnow
+          # `simctl privacy` doesn't reach Photos' read-write check on current runtimes: write the grant into the
+          # simulator's privacy database too, with it shut down so it's read fresh on boot.
+          xcrun simctl shutdown "$SIM"
+          db="$HOME/Library/Developer/CoreSimulator/Devices/$SIM/data/Library/TCC/TCC.db"
+          echo "before:"; sqlite3 "$db" "select service, client, auth_value, auth_reason from access" || true
+          for svc in kTCCServicePhotos kTCCServicePhotosAdd; do
+            sqlite3 "$db" "insert or replace into access (service, client, client_type, auth_value, auth_reason, auth_version, indirect_object_identifier, flags, last_modified) values ('$svc', 'net.jamespate.winnow', 0, 2, 2, 1, 'UNUSED', 0, strftime('%s','now'))"
+          done
+          echo "after:"; sqlite3 "$db" "select service, client, auth_value, auth_reason from access"
+          xcrun simctl boot "$SIM"
+          xcrun simctl bootstatus "$SIM" -b >/dev/null
           out="$RUNNER_TEMP/test.log"; : > "$out"
           xcrun simctl spawn "$SIM" log stream --style compact --predicate 'process == "Runner"' >> "$out" 2>&1 &
           xcrun simctl launch --console-pty "$SIM" net.jamespate.winnow >> "$out" 2>&1 &
