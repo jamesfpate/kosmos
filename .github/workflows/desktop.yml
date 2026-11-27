@@ -132,6 +132,9 @@ jobs:
           ffmpeg -loglevel error -f lavfi -i "testsrc=size=1600x1200" -frames:v 1 "$s/winnow-ci.jpg"
           ffmpeg -loglevel error -f lavfi -i "testsrc=size=640x360:rate=30:duration=2" -c:v libx264 -pix_fmt yuv420p "$s/winnow-ci.mp4"
           xcrun simctl addmedia "$sim" "$s/winnow-ci.jpg" "$s/winnow-ci.mp4"
+          # A grant only sticks once the app is installed (the test run installs over it, keeping the grant).
+          flutter build ios --simulator --debug
+          xcrun simctl install "$sim" build/ios/iphonesimulator/Runner.app
           xcrun simctl privacy "$sim" grant photos net.jamespate.winnow
           echo "SIM=$sim" >> "$GITHUB_ENV"
 
