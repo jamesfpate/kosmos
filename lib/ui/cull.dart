@@ -136,6 +136,7 @@ class _CullScreenState extends State<CullScreen> {
                 trashLabel: s.isGroup ? (s.burstAll ? 'Delete all ${g.length}' : 'Delete ${sel.length}') : 'Delete',
                 onSwipe: decide,
                 onTap: s.isGroup ? () => s.toggleCheck(cur.id) : null,
+                onLongPress: () => FullView.open(context, g, cur),
                 onDrag: (p) => setState(() => hover = p == null ? null : targetAt(p)),
                 onDrop: (p) {
                   final t = targetAt(p);
@@ -259,6 +260,7 @@ class _CullScreenState extends State<CullScreen> {
     final checked = s.selected.contains(item.id);
     return GestureDetector(
       onTap: () => i == s.focus ? s.toggleCheck(item.id) : s.setFocus(i),
+      onLongPress: () => FullView.open(context, s.group, item),
       child: SizedBox(
         width: item.aspect * h,
         height: h,
@@ -330,6 +332,7 @@ class SwipeCard extends StatefulWidget {
     required this.child,
     required this.onSwipe,
     this.onTap,
+    this.onLongPress,
     this.onDrag,
     this.onDrop,
     this.keepLabel = 'Keep',
@@ -343,6 +346,9 @@ class SwipeCard extends StatefulWidget {
   /// [fx]: play the trace (buttons); a swipe already flew the card off.
   final Future<void> Function(Dir, bool fx) onSwipe;
   final VoidCallback? onTap;
+
+  /// Full-size view (a press that doesn't move; moving first is a swipe).
+  final VoidCallback? onLongPress;
   final void Function(Offset?)? onDrag;
   final bool Function(Offset)? onDrop;
   final String keepLabel;
@@ -397,6 +403,7 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
         final hint = _pos.dy.abs() > _pos.dx.abs() ? 0.0 : min(1.0, _pos.dx.abs() / 120);
         return GestureDetector(
           onTap: widget.onTap,
+          onLongPress: _leaving ? null : widget.onLongPress,
           onPanStart: (d) {
             final x = d.globalPosition.dx;
             if (widget.disabled || _leaving || x < edge || x > MediaQuery.sizeOf(context).width - edge) return;

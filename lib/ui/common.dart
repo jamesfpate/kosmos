@@ -684,3 +684,114 @@ Widget pagerKeys(BuildContext context, PageController pages, Widget child) => Ca
       },
       child: Focus(autofocus: true, child: child),
     );
+
+/// Full-size view of [items] from the swipe card: pinch or double-tap to zoom, swipe for the next one, tap or Esc to
+/// close.
+class FullView extends StatefulWidget {
+  const FullView(this.items, {super.key, this.start = 0});
+
+  final List<Item> items;
+  final int start;
+
+  static Future<void> open(BuildContext context, List<Item> items, Item at) => Navigator.of(context).push(
+        MaterialPageRoute<void>(fullscreenDialog: true, builder: (_) => FullView(items, start: max(0, items.indexOf(at)))),
+      );
+
+  @override
+  State<FullView> createState() => _FullViewState();
+}
+
+class _FullViewState extends State<FullView> {
+  late final PageController _pages = PageController(initialPage: widget.start);
+  late int index = widget.start;
+  final _zoom = TransformationController();
+  bool zoomed = false;
+  String? playing;
+  TapDownDetails? _tap;
+
+  @override
+  void initState() {
+    super.initState();
+    _zoom.addListener(() {
+      final z = _zoom.value.getMaxScaleOnAxis() > 1.01;
+      if (z != zoomed) setState(() => zoomed = z);
+    });
+  }
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    _zoom.dispose();
+    super.dispose();
+  }
+
+  void _doubleTap() {
+    if (zoomed) {
+      _zoom.value = Matrix4.identity();
+      return;
+    }
+    final p = _tap?.localPosition ?? Offset.zero;
+    _zoom.value = Matrix4.identity()
+      ..translateByDouble(-p.dx * 1.5, -p.dy * 1.5, 0, 1)
+      ..scaleByDouble(2.5, 2.5, 1, 1);
+  }
+
+  Widget _page(Item item) {
+    if (item.isVideo) {
+      return Stack(alignment: Alignment.center, children: [
+        Preview(item, play: playing == item.id, onStop: () => setState(() => playing = null)),
+        if (playing != item.id) PlayButton(seconds: item.duration, onTap: () => setState(() => playing = item.id)),
+      ]);
+    }
+    return GestureDetector(
+      onTap: () => Navigator.maybePop(context),
+      onDoubleTapDown: (d) => _tap = d,
+      onDoubleTap: _doubleTap,
+      child: InteractiveViewer(
+        transformationController: _zoom,
+        maxScale: 8,
+        child: SizedBox.expand(
+          child: Image(image: media.thumbImage(item, 4096), fit: BoxFit.contain, gaplessPlayback: true),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.items[index];
+    return pagerKeys(context, _pages, Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(children: [
+          PageView.builder(
+            controller: _pages,
+            scrollBehavior: pagerScroll,
+            physics: zoomed ? const NeverScrollableScrollPhysics() : null,
+            itemCount: widget.items.length,
+            onPageChanged: (i) => setState(() {
+              index = i;
+              playing = null;
+              _zoom.value = Matrix4.identity();
+            }),
+            itemBuilder: (_, i) => _page(widget.items[i]),
+          ),
+          Positioned(
+            top: 4,
+            left: 12,
+            right: 4,
+            child: Row(children: [
+              Expanded(
+                child: Text(
+                  '${dayOf(item.taken)} · ${timeOf(item.taken)}${widget.items.length > 1 ? '  ·  ${index + 1} of ${widget.items.length}' : ''}',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, shadows: [Shadow(blurRadius: 4)]),
+                ),
+              ),
+              IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.maybePop(context)),
+            ]),
+          ),
+        ]),
+      ),
+    ));
+  }
+}
