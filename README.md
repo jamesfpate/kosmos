@@ -1,7 +1,7 @@
 # Winnow
 
 App for culling photos before they're backed up (Android, iPhone, Mac, Windows, Linux): swipe to delete or file into
-an album (🔍 searches them all; long-press a photo for full size), review bursts together, file older photos in a grid, and upload only what was kept to
+an album (🔍 searches them all; long-press a photo for full size; everything else goes to the year's catch-all album, or the month's if set), review bursts together, file older photos in a grid, and upload only what was kept to
 [Immich](https://immich.app), Google Photos (Android), PhotoPrism, Synology Photos or file storage (Nextcloud/WebDAV,
 SFTP, S3, B2, Dropbox, OneDrive).
 

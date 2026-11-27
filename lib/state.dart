@@ -76,6 +76,9 @@ class AppState extends ChangeNotifier {
   bool gridAutoTrash = false;
   bool newestFirst = false;
 
+  /// Catch-all albums cover a year ("2026"), else a month ("2026-10").
+  bool byYear = true;
+
   /// Keep / delete animation (trace) before a decision is saved (setting).
   bool animations = true;
 
@@ -174,6 +177,7 @@ class AppState extends ChangeNotifier {
         return changed();
       }
       albums = [for (final j in await db.all('albums')) Album.fromJson(j)];
+      _catchAll(m);
       await reload();
       mode = switch (m['mode']) { 'grid' => Screen.grid, 'explore' => Screen.explore, _ => Screen.cull };
       exploreView = (m['exploreView'] as String?) ?? 'all';
@@ -224,10 +228,12 @@ class AppState extends ChangeNotifier {
     // No screen here: photo_manager's permission check needs one (it crashes), so skip it. Without access the photo
     // list comes back empty and nothing uploads.
     await media.skipPermissionCheck();
-    _loadSettings(await db.allMeta());
+    final m = await db.allMeta();
+    _loadSettings(m);
     if (!anyIntegration) return;
     _background = true;
     albums = [for (final j in await db.all('albums')) Album.fromJson(j)];
+    _catchAll(m);
     await reload();
     await runSync();
   }
@@ -396,14 +402,37 @@ class AppState extends ChangeNotifier {
 
   // ---------------------------------------------------------------- albums
 
+  /// Year or month catch-alls: as set, else by year unless month albums are already in use (an older install).
+  void _catchAll(Map<String, Object?> m) =>
+      byYear = switch (m['catchAll']) { 'year' => true, 'month' => false, _ => !albums.any((a) => a.monthly) };
+
+  Future<void> setCatchAll({required bool year}) async {
+    byYear = year;
+    await _set('catchAll', year ? 'year' : 'month');
+  }
+
   int get _monthUsed => albums.where((a) => a.monthly).fold(0, (m, a) => max(m, a.lastUsedAt));
 
-  /// That month's album, or a stand-in (id [monthAlbumId]) until the first photo is filed into it.
-  Album monthChip(int t) {
-    final start = startOfMonth(t);
-    return albums.where((a) => a.monthly && a.start == start).firstOrNull ??
-        Album(id: monthAlbumId, name: '', start: start, end: endOfMonth(t), createdAt: 0, lastUsedAt: _monthUsed, monthly: true);
+  int _catchStart(int t, bool year) => year ? startOfYear(t) : startOfMonth(t);
+
+  Album? _catchFound(int t, bool year) {
+    final start = _catchStart(t, year);
+    return albums.where((a) => a.monthly && !a.retired && a.yearly == year && a.start == start).firstOrNull;
   }
+
+  /// The catch-all album for [t] (its year's or month's), or a stand-in (id [monthAlbumId]) until the first photo is
+  /// filed into it.
+  Album monthChip(int t) =>
+      _catchFound(t, byYear) ??
+      Album(
+          id: monthAlbumId,
+          name: '',
+          start: _catchStart(t, byYear),
+          end: byYear ? endOfYear(t) : endOfMonth(t),
+          createdAt: 0,
+          lastUsedAt: _monthUsed,
+          monthly: true,
+          yearly: byYear);
 
   /// Albums by last use; the month album sits wherever its last use puts it. New, unused albums sort by creation.
   List<Album> recentFor(int? t) {
@@ -463,17 +492,61 @@ class AppState extends ChangeNotifier {
     changed();
   }
 
-  /// The catch-all "YYYY-MM" album for the month of [t], created on first use.
-  Future<Album> monthAlbumFor(int t) async {
-    final start = startOfMonth(t);
-    final found = albums.where((a) => a.monthly && a.start == start).firstOrNull;
+  /// The catch-all album ("2026", or "2026-10" by month) for [t], created on first use.
+  Future<Album> monthAlbumFor(int t) => _catchAlbum(t, byYear);
+
+  Future<Album> _catchAlbum(int t, bool year) async {
+    final found = _catchFound(t, year);
     if (found != null) return found;
+    final start = _catchStart(t, year);
+    // Back to months after a merge: the old month album (and its albums in the targets) comes back.
+    final old = albums.where((a) => a.monthly && a.retired && a.yearly == year && a.start == start).firstOrNull;
+    if (old != null) {
+      old.retired = false;
+      await db.put('albums', old.id, old.toJson());
+      return old;
+    }
     final now = DateTime.now().millisecondsSinceEpoch;
     final a = Album(
-        id: _uuid(), name: '', start: start, end: endOfMonth(t), createdAt: now, lastUsedAt: now, monthly: true);
+        id: _uuid(),
+        name: '',
+        start: start,
+        end: year ? endOfYear(t) : endOfMonth(t),
+        createdAt: now,
+        lastUsedAt: now,
+        monthly: true,
+        yearly: year);
     albums = [...albums, a];
     await db.put('albums', a.id, a.toJson());
     return a;
+  }
+
+  /// Month albums still in use (for the merge offer).
+  int get monthAlbumCount => albums.where((a) => a.monthly && !a.yearly && !a.retired).length;
+
+  /// Moves every photo in a month album into its year's album and retires the month albums; the next sync moves the
+  /// photos in each target too (and deletes the emptied month albums in Immich). Returns how many photos moved.
+  Future<int> mergeMonths() async {
+    final months = {for (final a in albums.where((a) => a.monthly && !a.yearly && !a.retired)) a.id: a};
+    if (months.isEmpty) return 0;
+    final moved = <DecisionRecord>[];
+    for (final j in await db.all('decisions')) {
+      final d = DecisionRecord.fromJson(j);
+      final m = months[d.albumId];
+      if (m == null) continue;
+      final year = await _catchAlbum(m.start!, true);
+      moved.add(DecisionRecord(id: d.id, decision: d.decision, decidedAt: d.decidedAt, albumId: year.id));
+    }
+    await db.putAll('decisions', {for (final r in moved) r.id: r.toJson()});
+    decided = {...decided, for (final r in moved) if (decided.containsKey(r.id)) r.id: r};
+    for (final a in months.values) {
+      a.retired = true;
+    }
+    await db.putAll('albums', {for (final a in months.values) a.id: a.toJson()});
+    undoStack.clear();
+    changed();
+    runSync();
+    return moved.length;
   }
 
   /// Saves an edited album. In Immich the album is renamed and its photos move to the new tag right away when
@@ -754,7 +827,9 @@ class AppState extends ChangeNotifier {
     return t == null ? recent : [t, ...recent.where((a) => a.id != t.id)];
   }
 
-  Set<String> get gridMonthsChosen => {for (final i in gridChosen) monthPrefix(i.taken)};
+  /// The catch-all periods (years or months) the chosen photos fall in.
+  Set<String> get gridMonthsChosen =>
+      {for (final i in gridChosen) byYear ? '${DateTime.fromMillisecondsSinceEpoch(i.taken).year}' : monthPrefix(i.taken)};
 
   ({int lo, int hi}) get selSpan {
     var lo = -1, hi = -1;
@@ -1045,10 +1120,28 @@ class AppState extends ChangeNotifier {
   // ---------------------------------------------------------------- Immich
 
   /// Shares every album already in Immich with the share-with users (new ones are shared as they sync).
-  /// Reads an Immich album name the way Winnow writes them: "2026-11 Thanksgiving" (dated), "2026-11" (the month's
-  /// album) or anything else (undated). Dates come from the album's photos when they fall in that month.
+  /// Reads an Immich album name the way Winnow writes them: "2026-11 Thanksgiving" (dated), "2026-11" or "2026" (the
+  /// month's or year's album) or anything else (undated). Dates come from the album's photos when they fall in that
+  /// month.
   Album _fromImmich(String id, String name, DateTime? from, DateTime? to, Album? base) {
     final now = DateTime.now().millisecondsSinceEpoch;
+    final y = RegExp(r'^(19|20)\d\d$').hasMatch(name.trim()) ? DateTime(int.parse(name.trim())).millisecondsSinceEpoch : null;
+    if (y != null) {
+      return Album(
+        id: base?.id ?? _uuid(),
+        name: '',
+        start: y,
+        end: endOfYear(y),
+        createdAt: base?.createdAt ?? now,
+        lastUsedAt: base?.lastUsedAt ?? 0,
+        monthly: true,
+        yearly: true,
+        immichAlbumId: id,
+        googleAlbumId: base?.googleAlbumId,
+        remoteIds: base?.remoteIds ?? const {},
+        syncedTitles: base?.syncedTitles ?? const {},
+      );
+    }
     final m = RegExp(r'^(\d{4})-(\d{2})(?:\s+(.+))?$').firstMatch(name.trim());
     int? start, end;
     var label = name.trim();
@@ -1096,7 +1189,8 @@ class AppState extends ChangeNotifier {
         if (albums.any((a) => a.immichAlbumId == r.id)) continue;
         final parsed = _fromImmich(r.id, r.name, r.start, r.end, null);
         final same = albums
-            .where((a) => a.immichAlbumId == null && albumTitle(a) == albumTitle(parsed) && a.monthly == parsed.monthly)
+            .where((a) =>
+                a.immichAlbumId == null && !a.retired && albumTitle(a) == albumTitle(parsed) && a.monthly == parsed.monthly)
             .firstOrNull;
         if (same != null) {
           same.immichAlbumId = r.id;
@@ -1406,13 +1500,16 @@ class AppState extends ChangeNotifier {
         final old = r.syncedAlbumId;
         if (old != null && old != decided[item.id]!.albumId) moved.putIfAbsent(old, () => []).add(r.assetId);
       }
+      final taken = {for (final i in todo) records[i.id]!.assetId: i.taken};
       for (final entry in moved.entries) {
         final old = albums.where((a) => a.id == entry.key).firstOrNull;
         if (old == null) continue;
         if (old.immichAlbumId != null) {
           await api.call('DELETE', '/albums/${old.immichAlbumId}/assets', {'ids': entry.value});
         }
-        await api.call('DELETE', '/tags/${await api.ensureTag(albumTag(old))}/assets', {'ids': entry.value});
+        for (final t in _byTag(old, entry.value, taken).entries) {
+          await api.call('DELETE', '/tags/${await api.ensureTag(t.key)}/assets', {'ids': t.value});
+        }
       }
       for (final entry in byAlbum.entries) {
         final album = albums.where((a) => a.id == entry.key).firstOrNull;
@@ -1422,7 +1519,9 @@ class AppState extends ChangeNotifier {
         await api.share(immichId);
         final ids = [for (final r in entry.value) r.assetId];
         await api.addToAlbum(immichId, ids);
-        await api.tag(await api.ensureTag(albumTag(album)), ids);
+        for (final t in _byTag(album, ids, taken).entries) {
+          await api.tag(await api.ensureTag(t.key), t.value);
+        }
         if (album.staleTags.isNotEmpty) {
           final all = [
             for (final j in await db.all('uploads'))
@@ -1443,9 +1542,37 @@ class AppState extends ChangeNotifier {
         }
         _status(todo.length - here);
       }
+      await _dropRetired(api, records.values);
       await _pullAlbumNames(api);
     } finally {
       api.close();
+    }
+  }
+
+  /// [ids] by the Immich tag each gets in [a] (a year album tags each photo by its month).
+  Map<String, List<String>> _byTag(Album a, List<String> ids, Map<String, int> taken) {
+    final out = <String, List<String>>{};
+    for (final id in ids) {
+      out.putIfAbsent(photoTag(a, taken[id]), () => []).add(id);
+    }
+    return out;
+  }
+
+  /// Deletes the Immich albums of month albums merged into years once nothing is left in them.
+  Future<void> _dropRetired(ImmichApi api, Iterable<UploadRecord> records) async {
+    for (final a in albums.where((a) => a.retired && a.immichAlbumId != null)) {
+      if (records.any((r) => r.syncedAlbumId == a.id)) continue;
+      Map? info;
+      try {
+        info = await api.call('GET', '/albums/${a.immichAlbumId}?withoutAssets=true') as Map?;
+      } catch (_) {
+        // Already gone.
+      }
+      // Something else was put in it in Immich: leave it.
+      if (info != null && (info['assetCount'] as num? ?? 0) > 0) continue;
+      if (info != null) await api.call('DELETE', '/albums/${a.immichAlbumId}');
+      a.immichAlbumId = null;
+      await db.put('albums', a.id, a.toJson());
     }
   }
 

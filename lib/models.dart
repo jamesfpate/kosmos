@@ -124,6 +124,8 @@ class Album {
     required this.createdAt,
     required this.lastUsedAt,
     this.monthly = false,
+    this.yearly = false,
+    this.retired = false,
     this.immichAlbumId,
     this.googleAlbumId,
     this.remoteIds = const {},
@@ -151,8 +153,15 @@ class Album {
   /// When a photo last went in (0 = never used; creating an album doesn't count).
   int lastUsedAt;
 
-  /// The month's catch-all album (empty name, dates = the month), created on first use.
+  /// A catch-all album (empty name, dates = its month, or its year when [yearly]), created on first use. Photos
+  /// that aren't part of anything in particular go here.
   final bool monthly;
+
+  /// A catch-all for the whole year rather than a month.
+  final bool yearly;
+
+  /// A month catch-all merged into its year's: hidden, kept only so the targets can move its photos out.
+  bool retired;
 
   /// The matching Immich album, once created or found.
   String? immichAlbumId;
@@ -174,6 +183,8 @@ class Album {
         'createdAt': createdAt,
         'lastUsedAt': lastUsedAt,
         if (monthly) 'monthly': true,
+        if (yearly) 'yearly': true,
+        if (retired) 'retired': true,
         if (immichAlbumId != null) 'immichAlbumId': immichAlbumId,
         if (googleAlbumId != null) 'googleAlbumId': googleAlbumId,
         if (remoteIds.isNotEmpty) 'remoteIds': remoteIds,
@@ -190,6 +201,8 @@ class Album {
         createdAt: (j['createdAt'] as num?)?.toInt() ?? 0,
         lastUsedAt: (j['lastUsedAt'] as num?)?.toInt() ?? 0,
         monthly: j['monthly'] == true || j['everyday'] == true,
+        yearly: j['yearly'] == true,
+        retired: j['retired'] == true,
         immichAlbumId: j['immichAlbumId'] as String?,
         googleAlbumId: j['googleAlbumId'] as String?,
         remoteIds: ((j['remoteIds'] as Map?) ?? {}).cast<String, String>(),
@@ -232,20 +245,35 @@ String monthPrefix(int ms) {
 
 String albumTitle(Album a) {
   if (a.start == null) return a.name;
+  if (a.yearly) return '${DateTime.fromMillisecondsSinceEpoch(a.start!).year}';
   return a.name.isEmpty ? monthPrefix(a.start!) : '${monthPrefix(a.start!)} ${a.name}';
 }
 
-/// Immich tag: Albums/2026/11/Thanksgiving; undated Albums/Kids school; month albums Albums/2026/11.
+/// Immich tag: Albums/2026/11/Thanksgiving; undated Albums/Kids school; month albums Albums/2026/11; year albums
+/// Albums/2026 (each photo also gets its month's tag, see [photoTag]).
 String albumTag(Album a) {
   if (a.start == null) return 'Albums/${a.name}';
   final d = DateTime.fromMillisecondsSinceEpoch(a.start!);
+  if (a.yearly) return 'Albums/${d.year}';
   return ['Albums', '${d.year}', two(d.month), if (a.name.isNotEmpty) a.name].join('/');
+}
+
+/// The Immich tag for a photo taken at [taken] in album [a]: a year album still tags by month, so the months can be
+/// browsed under Albums/2026.
+String photoTag(Album a, int? taken) {
+  if (!a.yearly || taken == null) return albumTag(a);
+  final d = DateTime.fromMillisecondsSinceEpoch(taken);
+  return 'Albums/${d.year}/${two(d.month)}';
 }
 
 int startOfMonth(int ms) {
   final d = DateTime.fromMillisecondsSinceEpoch(ms);
   return DateTime(d.year, d.month).millisecondsSinceEpoch;
 }
+
+int startOfYear(int ms) => DateTime(DateTime.fromMillisecondsSinceEpoch(ms).year).millisecondsSinceEpoch;
+
+int endOfYear(int ms) => DateTime(DateTime.fromMillisecondsSinceEpoch(ms).year + 1).millisecondsSinceEpoch - 1;
 
 int endOfMonth(int ms) {
   final d = DateTime.fromMillisecondsSinceEpoch(ms);

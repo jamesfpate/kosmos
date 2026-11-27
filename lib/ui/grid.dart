@@ -84,7 +84,7 @@ class _GridScreenState extends State<GridScreen> {
     final target = s.gridTarget;
     final doomed = s.gridDoomed;
     final months = s.gridMonthsChosen.length;
-    String chipLabel(Album a) => a.monthly && months > 1 ? 'By month ($months)' : albumTitle(a);
+    String chipLabel(Album a) => a.monthly && months > 1 ? '${s.byYear ? 'By year' : 'By month'} ($months)' : albumTitle(a);
     if (s.screen == Screen.explore && isImmichView(s.gridView)) {
       return Column(children: [
         TopBar(s, title: const Logo(tap: true), subtitle: const Text('Immich')),

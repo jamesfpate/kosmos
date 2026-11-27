@@ -200,7 +200,8 @@ class _StoreScreenState extends State<StoreScreen> implements SignInUi {
     return _page(s, def.title, c.enabled, def.library ? 'Filing kept photos' : 'Backing up kept photos', [
       for (final t in def.intro) _muted(t),
       if (!def.isAlbums)
-        _muted('Layout: ${_slash(c.folder)}2026/2026-11 Thanksgiving/IMG_1234.jpg; undated albums under ${_slash(c.folder)}Albums/.'),
+        _muted(
+            'Layout: ${_slash(c.folder)}2026/2026-11 Thanksgiving/IMG_1234.jpg; the year\'s catch-all straight in ${_slash(c.folder)}2026/ (by month: 2026/2026-11/); undated albums under ${_slash(c.folder)}Albums/.'),
       if (def.signIn != null)
         if (c['refreshToken'].isNotEmpty)
           Row(children: [

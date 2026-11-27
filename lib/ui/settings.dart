@@ -103,6 +103,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _merge() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Merge month albums?'),
+        content: const Text(
+            'Photos in "2026-10"-style albums move into that year\'s album, here and in each target on the next sync. Emptied month albums are deleted in Immich; Apple Photos, Google Photos, PhotoPrism and Synology keep them, empty.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Merge')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final n = await s.mergeMonths();
+    if (mounted) toast(context, 'Moved $n photos into year albums');
+  }
+
   Future<void> _import() async {
     try {
       final picked = await FilePicker.pickFile();
@@ -162,6 +180,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _h3('Order'),
           _p('Which photos come first, everywhere: swiping one by one, bursts and the grid.'),
           Choices(options: const [(false, 'Oldest first'), (true, 'Newest first')], value: s.newestFirst, onPick: s.setOrder),
+          _h3('Catch-all album'),
+          _p('Where kept photos go when they aren\'t part of an event album: one album a year ("2026") or a month ("2026-10"). In Immich a year album still tags each photo by month.'),
+          Choices(options: const [(true, 'Yearly'), (false, 'Monthly')], value: s.byYear, onPick: (v) => s.setCatchAll(year: v)),
+          if (s.byYear && s.monthAlbumCount > 0) ...[
+            const SizedBox(height: 6),
+            Btn('Merge ${s.monthAlbumCount} month album${s.monthAlbumCount == 1 ? '' : 's'} into years', onTap: _merge),
+          ],
           _h3('Keep / delete animation'),
           _p('The outlines in the photo trace up (keep) or down (delete); deleted photos fade out. Off: decisions are instant.'),
           Choices(options: const [(true, 'On'), (false, 'Off')], value: s.animations, onPick: s.setAnimations),

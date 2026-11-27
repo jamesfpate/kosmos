@@ -278,7 +278,10 @@ String storePath(String folder, Album album, String fileName) {
   var p = folder.trim();
   if (p.isNotEmpty && !p.endsWith('/')) p = '$p/';
   final safe = albumTitle(album).replaceAll('/', '-').trim();
-  final dir = album.start == null ? 'Albums/$safe' : '${DateTime.fromMillisecondsSinceEpoch(album.start!).year}/$safe';
+  // A year's catch-all is the year folder itself, next to that year's event folders.
+  final dir = album.start == null
+      ? 'Albums/$safe'
+      : (album.yearly ? safe : '${DateTime.fromMillisecondsSinceEpoch(album.start!).year}/$safe');
   return '$p$dir/${fileName.replaceAll('/', '-')}';
 }
 
