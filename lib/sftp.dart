@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:dartssh2/dartssh2.dart';
@@ -128,6 +129,33 @@ class SftpApi extends FileStore {
       return true;
     } on SftpStatusError {
       return false;
+    }
+  }
+
+  @override
+  Future<List<RemoteFile>> list(String dir) async {
+    final s = await _connect();
+    final List<SftpName> names;
+    try {
+      names = await s.listdir(dir.isEmpty ? '.' : dir);
+    } on SftpStatusError {
+      return [];
+    }
+    return [
+      for (final e in names)
+        if (e.filename != '.' && e.filename != '..' && !e.attr.isDirectory && e.attr.size != null)
+          RemoteFile(dir.isEmpty ? e.filename : '$dir/${e.filename}', dir.isEmpty ? e.filename : '$dir/${e.filename}',
+              e.attr.size!),
+    ];
+  }
+
+  @override
+  Future<Uint8List> head(RemoteFile f, int n) async {
+    final file = await (await _connect()).open(f.path);
+    try {
+      return await file.readBytes(length: min(n, f.size));
+    } finally {
+      await file.close();
     }
   }
 

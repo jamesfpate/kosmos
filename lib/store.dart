@@ -1,3 +1,9 @@
+import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
+
 import 'models.dart';
 
 // File stores (Backblaze B2, WebDAV / Nextcloud, S3-compatible, SFTP): kept photos are copied into the same folder
@@ -55,6 +61,21 @@ class AlbumRecord {
       AlbumRecord(id: '${j['id']}', remoteId: j['remoteId'] as String, albumId: j['albumId'] as String?);
 }
 
+/// A file already in a file store, from a folder listing. [path] is in the form [FileStore.upload] takes; [id] is what
+/// [FileStore.upload] would have returned for it. The hashes are the store's own, when it keeps one (lowercase hex).
+class RemoteFile {
+  const RemoteFile(this.path, this.id, this.size, {this.sha1, this.md5, this.dropbox});
+
+  final String path;
+  final String id;
+  final int size;
+  final String? sha1;
+  final String? md5;
+  final String? dropbox;
+
+  String get name => path.split('/').last;
+}
+
 abstract class FileStore {
   /// Signs in / checks the connection. Returns a short description of where files go.
   Future<String> authorize();
@@ -67,6 +88,12 @@ abstract class FileStore {
 
   /// Whether the file is still there (before freeing up space).
   Future<bool> exists(FileRecord r);
+
+  /// The files directly in folder [dir] (paths in the same form as [upload]'s), none when it doesn't exist yet.
+  Future<List<RemoteFile>> list(String dir);
+
+  /// The first [n] bytes of [f] (fewer if it's shorter).
+  Future<Uint8List> head(RemoteFile f, int n);
 
   /// After a photo was uploaded or moved into album [now] (it was in [before]): stores with albums file it there.
   Future<void> filed(FileRecord now, FileRecord? before) async {}
@@ -252,4 +279,53 @@ String withSuffix(String path, String tag) {
   final slash = path.lastIndexOf('/');
   if (dot <= slash) return '${path}_$tag';
   return '${path.substring(0, dot)}_$tag${path.substring(dot)}';
+}
+
+/// A short tag for [id] to tell apart two photos with the same name (ids can be long, or paths on a computer).
+String clashTag(String id) => RegExp(r'^[A-Za-z0-9]{1,12}$').hasMatch(id) ? id : '${sha1.convert(id.codeUnits)}'.substring(0, 8);
+
+/// The folder part of a store path (no trailing slash).
+String dirOf(String path) => path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+
+/// The first [n] bytes of a stream; stops reading (and cancels it) once it has them.
+Future<Uint8List> takeBytes(Stream<List<int>> s, int n) async {
+  final b = BytesBuilder(copy: false);
+  await for (final c in s) {
+    b.add(c);
+    if (b.length >= n) break;
+  }
+  final out = b.takeBytes();
+  return out.length > n ? Uint8List.sublistView(out, 0, n) : out;
+}
+
+/// Dropbox's content hash: SHA-256 of the SHA-256s of each 4 MB block.
+Future<String> dropboxHash(File f) async {
+  final blocks = <int>[];
+  final raf = await f.open();
+  try {
+    while (true) {
+      final b = await raf.read(4 * 1024 * 1024);
+      if (b.isEmpty) break;
+      blocks.addAll(sha256.convert(b).bytes);
+    }
+  } finally {
+    await raf.close();
+  }
+  return '${sha256.convert(blocks)}';
+}
+
+/// Whether [r] holds the same bytes as [local] ([size] long): by the store's hash when it has one, else the first 64 KB.
+Future<bool> sameFile(FileStore api, File local, int size, RemoteFile r) async {
+  if (r.size != size) return false;
+  if (r.sha1 != null) return '${await sha1.bind(local.openRead()).first}' == r.sha1;
+  if (r.md5 != null) return '${await md5.bind(local.openRead()).first}' == r.md5;
+  if (r.dropbox != null) return await dropboxHash(local) == r.dropbox;
+  final n = min(size, 64 * 1024);
+  final mine = await takeBytes(local.openRead(0, n), n);
+  final theirs = await api.head(r, n);
+  if (theirs.length != mine.length) return false;
+  for (var i = 0; i < n; i++) {
+    if (mine[i] != theirs[i]) return false;
+  }
+  return true;
 }

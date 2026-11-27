@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -165,6 +166,54 @@ class S3Api extends FileStore {
     if (res.statusCode == 404) return false;
     _check(res, 'checking ${r.fileName}');
     return true;
+  }
+
+  @override
+  Future<List<RemoteFile>> list(String dir) async {
+    final prefix = '${objectKey(dir)}/';
+    final out = <RemoteFile>[];
+    String? token;
+    do {
+      final uri = Uri.parse('$_endpoint${_path('')}').replace(queryParameters: {
+        'list-type': '2',
+        'prefix': prefix,
+        'delimiter': '/',
+        'continuation-token': ?token,
+      });
+      final req = http.Request('GET', uri)..headers.addAll(_sign('GET', uri, _empty));
+      final res = await http.Response.fromStream(await _client.send(req));
+      _check(res, 'listing $dir');
+      for (final m in RegExp(r'<Contents>(.*?)</Contents>', dotAll: true).allMatches(res.body)) {
+        String? tag(String t) => RegExp('<$t>([^<]*)</$t>').firstMatch(m[1]!)?[1];
+        final key = _xml(tag('Key') ?? '');
+        final size = int.tryParse(tag('Size') ?? '');
+        if (key.isEmpty || size == null || key.endsWith('/')) continue;
+        // A single-part upload's ETag is its MD5; a multipart one's has a "-parts" suffix and isn't.
+        final etag = _xml(tag('ETag') ?? '').replaceAll('"', '').toLowerCase();
+        final name = key.substring(prefix.length);
+        final path = dir.isEmpty ? name : '$dir/$name';
+        out.add(RemoteFile(path, key, size, md5: RegExp(r'^[0-9a-f]{32}$').hasMatch(etag) ? etag : null));
+      }
+      token = res.body.contains('<IsTruncated>true</IsTruncated>')
+          ? _xml(RegExp(r'<NextContinuationToken>([^<]*)</NextContinuationToken>').firstMatch(res.body)?[1] ?? '')
+          : null;
+      if (token != null && token.isEmpty) token = null;
+    } while (token != null);
+    return out;
+  }
+
+  static String _xml(String s) => s
+      .replaceAll('&quot;', '"')
+      .replaceAll('&apos;', "'")
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&amp;', '&');
+
+  @override
+  Future<Uint8List> head(RemoteFile f, int n) async {
+    final res = await _send('GET', f.path, {'range': 'bytes=0-${n - 1}'});
+    _check(res, 'reading ${f.path}');
+    return res.bodyBytes.length > n ? Uint8List.sublistView(res.bodyBytes, 0, n) : res.bodyBytes;
   }
 
   @override

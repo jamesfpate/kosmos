@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -187,6 +188,40 @@ class OneDriveApi extends FileStore {
       if (e.status == 404) return false;
       rethrow;
     }
+  }
+
+  @override
+  Future<List<RemoteFile>> list(String dir) async {
+    final key = objectKey(dir);
+    final out = <RemoteFile>[];
+    String? url = '${key.isEmpty ? '/me/drive/root' : '/me/drive/root:/${_enc(key)}:'}/children?\$select=id,name,size,file&\$top=1000';
+    try {
+      while (url != null) {
+        final page = await _call('GET', url);
+        for (final f in (page['value'] as List).cast<Map>()) {
+          if (f['file'] == null) continue;
+          final name = f['name'] as String;
+          // OneDrive for Business keeps a SHA-1; personal OneDrive only its own quickXorHash (not checked here).
+          final sha = '${((f['file'] as Map)['hashes'] as Map?)?['sha1Hash'] ?? ''}'.toLowerCase();
+          out.add(RemoteFile(dir.isEmpty ? name : '$dir/$name', '${f['id']}', (f['size'] as num).toInt(),
+              sha1: sha.length == 40 ? sha : null));
+        }
+        url = page['@odata.nextLink'] as String?;
+      }
+    } on OneDriveError catch (e) {
+      if (e.status == 404) return [];
+      rethrow;
+    }
+    return out;
+  }
+
+  @override
+  Future<Uint8List> head(RemoteFile f, int n) async {
+    final req = http.Request('GET', Uri.parse('$_graph/me/drive/items/${f.id}/content'))
+      ..headers.addAll({'Authorization': 'Bearer $_token', 'Range': 'bytes=0-${n - 1}'});
+    final res = await _client.send(req);
+    if (res.statusCode >= 400) throw OneDriveError(res.statusCode, 'reading ${f.path}');
+    return takeBytes(res.stream, n);
   }
 
   @override

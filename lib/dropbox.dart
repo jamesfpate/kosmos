@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -161,6 +162,38 @@ class DropboxApi extends FileStore {
       if (e.status == 409 && e.body.contains('not_found')) return false;
       rethrow;
     }
+  }
+
+  @override
+  Future<List<RemoteFile>> list(String dir) async {
+    final out = <RemoteFile>[];
+    Map<String, Object?> page;
+    try {
+      page = await _rpc('files/list_folder', {'path': _path(dir), 'limit': 2000});
+    } on DropboxError catch (e) {
+      if (e.status == 409 && e.body.contains('not_found')) return [];
+      rethrow;
+    }
+    while (true) {
+      for (final f in (page['entries'] as List).cast<Map>()) {
+        if (f['.tag'] != 'file') continue;
+        final name = f['name'] as String;
+        out.add(RemoteFile(dir.isEmpty ? name : '$dir/$name', '${f['id']}', (f['size'] as num).toInt(),
+            dropbox: f['content_hash'] as String?));
+      }
+      if (page['has_more'] != true) break;
+      page = await _rpc('files/list_folder/continue', {'cursor': page['cursor']});
+    }
+    return out;
+  }
+
+  @override
+  Future<Uint8List> head(RemoteFile f, int n) async {
+    final req = http.Request('POST', Uri.parse('$_content/2/files/download'))
+      ..headers.addAll({'Authorization': 'Bearer $_token', 'Dropbox-API-Arg': _arg({'path': f.id}), 'Range': 'bytes=0-${n - 1}'});
+    final res = await _client.send(req);
+    if (res.statusCode >= 400) throw DropboxError(res.statusCode, 'reading ${f.path}');
+    return takeBytes(res.stream, n);
   }
 
   @override

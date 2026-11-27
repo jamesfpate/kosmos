@@ -1255,8 +1255,8 @@ class AppState extends ChangeNotifier {
   bool _fileAt(FileRecord r, Item i, String albumId, String prefix) {
     final album = albums.where((a) => a.id == albumId).firstOrNull;
     if (album == null) return true;
-    final base = storePath(prefix, album, i.name);
-    return r.fileName == base || r.fileName == withSuffix(base, i.id);
+    // Any name in the album's folder: the file may carry a clash suffix, or be one that was already there.
+    return dirOf(r.fileName) == dirOf(storePath(prefix, album, i.name));
   }
 
   List<Item> _pendingGoogle(Map<String, GRecord> recs) =>
@@ -1504,15 +1504,35 @@ class AppState extends ChangeNotifier {
       if (todo.isEmpty) return;
       await api.authorize();
       final taken = {for (final r in recs.values) r.fileName: r.id};
+      // What's already in each destination folder, listed once per sync, by file name.
+      final listed = <String, Map<String, RemoteFile>>{};
+      Future<Map<String, RemoteFile>> there(String dir) async =>
+          listed[dir] ??= {for (final f in await api.list(dir)) f.name: f};
       var here = 0;
       _status(todo.length);
       for (final item in todo) {
         final album = albums.firstWhere((a) => a.id == decided[item.id]!.albumId);
         var name = storePath(c.folder, album, item.name);
-        final owner = taken[name];
-        if (owner != null && owner != item.id) name = withSuffix(name, item.id);
+        final dir = dirOf(name);
+        final inDir = await there(dir);
         final old = recs[item.id];
-        final fileId = old == null ? await api.upload(item, name) : await api.move(old, name);
+        String fileId;
+        final match = old == null ? await _alreadyThere(api, item, inDir.values, taken) : null;
+        if (match != null) {
+          // The same file is already there (an earlier upload, another device): keep it, don't upload a copy.
+          name = match.path;
+          fileId = match.id;
+        } else {
+          // Never overwrite a different file with the same name.
+          bool clash(String n) => inDir.containsKey(n.split('/').last) || (taken[n] != null && taken[n] != item.id);
+          if (clash(name)) name = withSuffix(name, clashTag(item.id));
+          for (var k = 2; clash(name); k++) {
+            name = withSuffix(storePath(c.folder, album, item.name), '${clashTag(item.id)}_$k');
+          }
+          fileId = old == null ? await api.upload(item, name) : await api.move(old, name);
+          if (old != null) listed[dirOf(old.fileName)]?.remove(old.fileName.split('/').last);
+          inDir[name.split('/').last] = RemoteFile(name, fileId, -1);
+        }
         if (old != null) taken.remove(old.fileName);
         taken[name] = item.id;
         final rec = FileRecord(id: item.id, fileId: fileId, fileName: name, album: albumTitle(album));
@@ -1526,6 +1546,20 @@ class AppState extends ChangeNotifier {
     } finally {
       api.close();
     }
+  }
+
+  /// A file among [files] with the same bytes as [item] that no other photo's record points at, if any (same name
+  /// checked first).
+  Future<RemoteFile?> _alreadyThere(FileStore api, Item item, Iterable<RemoteFile> files, Map<String, String> taken) async {
+    final local = await item.file();
+    if (local == null) return null;
+    final size = await local.length();
+    final candidates = files.where((f) => f.size == size && (taken[f.path] == null || taken[f.path] == item.id)).toList()
+      ..sort((a, b) => (a.name == item.name ? 0 : 1).compareTo(b.name == item.name ? 0 : 1));
+    for (final f in candidates) {
+      if (await sameFile(api, local, size, f)) return f;
+    }
+    return null;
   }
 
   /// Uploads kept photos to Google Photos into albums Winnow makes there (same names); photos refiled in Winnow move

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -38,6 +39,7 @@ class B2Api extends FileStore {
   final StoreConfig cfg;
   final _client = http.Client();
   String? _apiUrl;
+  String? _downloadUrl;
   String? _token;
   String? _bucketId;
   String? _uploadUrl;
@@ -52,6 +54,7 @@ class B2Api extends FileStore {
     final j = _decode(res);
     final storage = (j['apiInfo'] as Map)['storageApi'] as Map;
     _apiUrl = storage['apiUrl'] as String;
+    _downloadUrl = storage['downloadUrl'] as String?;
     _token = j['authorizationToken'] as String;
     final allowed = (storage['allowed'] as Map?) ?? {};
     final buckets = (allowed['buckets'] as List?)?.cast<Map>() ?? const [];
@@ -136,6 +139,40 @@ class B2Api extends FileStore {
       if (e.status == 404 || e.status == 400) return false;
       rethrow;
     }
+  }
+
+  @override
+  Future<List<RemoteFile>> list(String dir) async {
+    final prefix = '${objectKey(dir)}/';
+    final out = <RemoteFile>[];
+    String? next;
+    do {
+      final page = await _call('b2_list_file_names', {
+        'bucketId': _bucketId,
+        'prefix': prefix,
+        'delimiter': '/',
+        'maxFileCount': 1000,
+        'startFileName': ?next,
+      });
+      for (final f in (page['files'] as List).cast<Map>()) {
+        if (f['action'] != 'upload') continue;
+        final name = (f['fileName'] as String).substring(prefix.length);
+        final sha = '${f['contentSha1'] ?? ''}'.replaceFirst('unverified:', '').toLowerCase();
+        out.add(RemoteFile(dir.isEmpty ? name : '$dir/$name', f['fileId'] as String, (f['contentLength'] as num).toInt(),
+            sha1: RegExp(r'^[0-9a-f]{40}$').hasMatch(sha) ? sha : null));
+      }
+      next = page['nextFileName'] as String?;
+    } while (next != null);
+    return out;
+  }
+
+  @override
+  Future<Uint8List> head(RemoteFile f, int n) async {
+    final req = http.Request('GET', Uri.parse('$_downloadUrl/b2api/v3/b2_download_file_by_id?fileId=${Uri.encodeQueryComponent(f.id)}'))
+      ..headers.addAll({'Authorization': _token!, 'Range': 'bytes=0-${n - 1}'});
+    final res = await _client.send(req);
+    if (res.statusCode >= 400) throw B2Error(res.statusCode, 'reading ${f.path}');
+    return takeBytes(res.stream, n);
   }
 
   @override

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -130,6 +131,34 @@ class WebDavApi extends FileStore {
     if (res.statusCode == 404) return false;
     _check(res, 'checking ${r.fileName}');
     return true;
+  }
+
+  @override
+  Future<List<RemoteFile>> list(String dir) async {
+    final res = await _send('PROPFIND', _uri(dir), headers: {'Depth': '1'});
+    if (res.statusCode == 404) return [];
+    _check(res, 'listing $dir');
+    final out = <RemoteFile>[];
+    final tag = r'(?:[\w-]+:)?';
+    for (final m in RegExp('<${tag}response[ >](.*?)</${tag}response>', dotAll: true).allMatches(res.body)) {
+      final r = m[1]!;
+      if (RegExp('<${tag}collection\\s*/?>').hasMatch(r)) continue;
+      final href = RegExp('<${tag}href>([^<]*)</${tag}href>').firstMatch(r)?[1];
+      final size = int.tryParse(RegExp('<${tag}getcontentlength>([^<]*)</${tag}getcontentlength>').firstMatch(r)?[1] ?? '');
+      if (href == null || size == null) continue;
+      final name = Uri.decodeComponent(href.replaceAll(RegExp(r'/+$'), '').split('/').last);
+      final path = dir.isEmpty ? name : '$dir/$name';
+      out.add(RemoteFile(path, path, size));
+    }
+    return out;
+  }
+
+  @override
+  Future<Uint8List> head(RemoteFile f, int n) async {
+    final req = http.Request('GET', _uri(f.path))..headers.addAll({..._auth, 'Range': 'bytes=0-${n - 1}'});
+    final res = await _client.send(req);
+    if (res.statusCode >= 400) throw Exception('WebDAV ${res.statusCode} reading ${f.path}');
+    return takeBytes(res.stream, n);
   }
 
   Uri _album(String title, [String? file]) =>
