@@ -490,15 +490,16 @@ class AppState extends ChangeNotifier {
   }
 
   /// Swipe right / Keep files into the target album; left / Delete trashes.
-  Future<void> decide(Dir dir) async {
+  Future<void> decide(Dir dir, {bool fx = true}) async {
     final t = target;
     if (t == null) return;
-    await file(dir, t.id);
+    await file(dir, t.id, fx: fx);
   }
 
   /// Records a decision for the photo on screen, or for a burst: all (or none) checked = the whole burst; else the
   /// checked ones, plus the rest the opposite way (setting). Leftovers stay on screen (same album) until decided.
-  Future<void> file(Dir dir, String albumId) async {
+  /// [fx]: play the trace first (buttons, not swipes).
+  Future<void> file(Dir dir, String albumId, {bool fx = true}) async {
     final g = group;
     var keep = <Item>[], del = <Item>[];
     if (g.length > 1) {
@@ -518,7 +519,7 @@ class AppState extends ChangeNotifier {
       dir == Dir.right ? keep = [current!] : del = [current!];
     }
     if (keep.isEmpty && del.isEmpty || animating) return;
-    await _play({for (final i in keep) i.id: true, for (final i in del) i.id: false});
+    if (fx) await _play({for (final i in keep) i.id: true, for (final i in del) i.id: false});
     final done = {for (final i in [...keep, ...del]) i.id};
     final remaining = g.where((i) => !done.contains(i.id)).toList();
     final keepChoice = chosenId;

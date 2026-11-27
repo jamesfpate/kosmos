@@ -416,16 +416,37 @@ class Preview extends StatefulWidget {
 class _PreviewState extends State<Preview> {
   VideoPlayerController? _video;
 
+  /// The shape of the frame actually shown. Android sometimes reports a video's size unrotated (or not at all), so
+  /// the decoded thumbnail decides, not the library's width and height.
+  double? _aspect;
+  ImageStream? _stream;
+  late final _listener = ImageStreamListener((info, _) {
+    final w = info.image.width, h = info.image.height;
+    if (w > 0 && h > 0 && mounted) setState(() => _aspect = (w / h).clamp(0.4, 2.5));
+  });
+
+  ImageProvider get _image => AssetEntityImageProvider(widget.item.entity, isOriginal: false, thumbnailSize: const ThumbnailSize(1600, 1600));
+
+  void _watch() {
+    _stream?.removeListener(_listener);
+    _stream = _image.resolve(ImageConfiguration.empty)..addListener(_listener);
+  }
+
   @override
   void didUpdateWidget(Preview oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.play && _video == null) _start();
     if (!widget.play || oldWidget.item.id != widget.item.id) _stop();
+    if (oldWidget.item.id != widget.item.id) {
+      _aspect = null;
+      _watch();
+    }
   }
 
   @override
   void initState() {
     super.initState();
+    _watch();
     if (widget.play) _start();
   }
 
@@ -452,6 +473,7 @@ class _PreviewState extends State<Preview> {
   @override
   void dispose() {
     _stop();
+    _stream?.removeListener(_listener);
     super.dispose();
   }
 
@@ -459,11 +481,19 @@ class _PreviewState extends State<Preview> {
   Widget build(BuildContext context) {
     final v = _video;
     if (widget.play && v != null && v.value.isInitialized) {
-      return Column(mainAxisSize: MainAxisSize.min, children: [
-        Flexible(
-          child: GestureDetector(
-            onTap: () => setState(() => v.value.isPlaying ? v.pause() : v.play()),
-            child: AspectRatio(aspectRatio: v.value.aspectRatio, child: VideoPlayer(v)),
+      // VideoPlayer turns the picture by rotationCorrection itself, so a quarter turn swaps the shape.
+      final size = v.value.size;
+      final turned = v.value.rotationCorrection % 180 != 0;
+      final ar = size.width > 0 && size.height > 0
+          ? (turned ? size.height / size.width : size.width / size.height)
+          : _aspect ?? widget.item.aspect;
+      return Column(children: [
+        Expanded(
+          child: Center(
+            child: GestureDetector(
+              onTap: () => setState(() => v.value.isPlaying ? v.pause() : v.play()),
+              child: AspectRatio(aspectRatio: ar, child: VideoPlayer(v)),
+            ),
           ),
         ),
         VideoProgressIndicator(v, allowScrubbing: true, padding: const EdgeInsets.symmetric(vertical: 8)),
@@ -473,10 +503,8 @@ class _PreviewState extends State<Preview> {
     final photo = Stack(fit: StackFit.expand, children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: AssetEntityImage(
-              widget.item.entity,
-              isOriginal: false,
-              thumbnailSize: const ThumbnailSize(1600, 1600),
+            child: Image(
+              image: _image,
               fit: BoxFit.cover,
               gaplessPlayback: true,
               errorBuilder: (_, e, _) => Padding(
@@ -509,7 +537,7 @@ class _PreviewState extends State<Preview> {
         ]);
     return Center(
       child: AspectRatio(
-        aspectRatio: widget.item.aspect,
+        aspectRatio: _aspect ?? widget.item.aspect,
         child: widget.fx == null ? photo : TraceFx(item: widget.item, keep: widget.fx!, radius: 12, child: photo),
       ),
     );

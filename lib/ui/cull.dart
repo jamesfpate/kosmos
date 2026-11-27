@@ -37,9 +37,9 @@ class _CullScreenState extends State<CullScreen> {
     return null;
   }
 
-  Future<void> decide(Dir dir) async {
+  Future<void> decide(Dir dir, bool fx) async {
     playing = null;
-    await s.decide(dir);
+    await s.decide(dir, fx: fx);
   }
 
   @override
@@ -100,7 +100,7 @@ class _CullScreenState extends State<CullScreen> {
                     return false;
                   }
                   if (t != null) {
-                    s.file(Dir.right, t);
+                    s.file(Dir.right, t, fx: false);
                     return true;
                   }
                   return false;
@@ -295,7 +295,8 @@ class SwipeCard extends StatefulWidget {
   /// Changes when a new photo or burst comes up; the card starts fresh in the middle.
   final String cardId;
   final Widget child;
-  final Future<void> Function(Dir) onSwipe;
+  /// [fx]: play the trace (buttons); a swipe already flew the card off.
+  final Future<void> Function(Dir, bool fx) onSwipe;
   final VoidCallback? onTap;
   final void Function(Offset?)? onDrag;
   final bool Function(Offset)? onDrop;
@@ -315,6 +316,7 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
 
   late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 180));
   Offset _pos = Offset.zero;
+  double _w = 0;
   Offset _from = Offset.zero;
   Offset _to = Offset.zero;
   bool _dragging = false;
@@ -346,7 +348,7 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
-        final w = box.maxWidth;
+        final w = _w = box.maxWidth;
         final hint = _pos.dy.abs() > _pos.dx.abs() ? 0.0 : min(1.0, _pos.dx.abs() / 120);
         return GestureDetector(
           onTap: widget.onTap,
@@ -375,7 +377,7 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
               return reset();
             }
             if (_pos.dx.abs() > w * 0.3 || (v.dx.abs() > 800 && _pos.dx.abs() > 40)) {
-              fling(_pos.dx > 0 ? Dir.right : Dir.left);
+              fling(_pos.dx > 0 ? Dir.right : Dir.left, fx: false);
             } else {
               reset();
             }
@@ -421,15 +423,26 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
     _anim.forward(from: 0);
   }
 
-  /// Animate the card off screen, then report the decision. Also used by the buttons.
-  /// Settles the card back in place and reports the decision (the trace then plays on the photo). Also used by the
-  /// buttons.
-  Future<void> fling(Dir dir) async {
+  /// Reports the decision. A swipe ([fx] false) flies the card off first; the buttons settle it in place and the
+  /// trace plays on the photo.
+  Future<void> fling(Dir dir, {bool fx = true}) async {
     if (_leaving) return;
     _leaving = true;
-    _animate(Offset.zero);
-    await widget.onSwipe(dir);
-    if (mounted) reset();
+    if (fx) {
+      _animate(Offset.zero);
+    } else {
+      _from = _pos;
+      _to = Offset((dir == Dir.right ? 1 : -1) * _w * 1.4, _pos.dy);
+      await _anim.forward(from: 0);
+    }
+    await widget.onSwipe(dir, fx);
+    if (!mounted) return;
+    if (fx) return reset();
+    _anim.stop();
+    setState(() {
+      _pos = Offset.zero;
+      _leaving = false;
+    });
   }
 
   void reset() {

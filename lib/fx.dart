@@ -11,8 +11,8 @@ import 'models.dart';
 /// blue→pink, delete from the top down in dark red→orange), then deleted photos fade out in place; kept ones stay.
 /// Values tuned in the motion demo.
 class Motion {
-  static const traceMs = 420.0;
-  static const fadeMs = 320.0;
+  static const traceMs = 300.0;
+  static const fadeMs = 220.0;
 
   /// The fade starts this far into the trace.
   static const fadeStart = 0.7;
