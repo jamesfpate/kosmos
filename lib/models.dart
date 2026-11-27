@@ -71,6 +71,8 @@ class Album {
     this.monthly = false,
     this.immichAlbumId,
     this.googleAlbumId,
+    this.remoteIds = const {},
+    this.syncedTitles = const {},
     this.autoDate = false,
     this.staleTags = const [],
   });
@@ -103,6 +105,12 @@ class Album {
   /// The Google Photos album Winnow made for it.
   String? googleAlbumId;
 
+  /// Its album in each album service (PhotoPrism, Synology Photos), by service key.
+  Map<String, String> remoteIds;
+
+  /// The title each album service (and Google, as 'google') last got for it: a different title now means a rename.
+  Map<String, String> syncedTitles;
+
   Map<String, Object?> toJson() => {
         'id': id,
         'name': name,
@@ -113,6 +121,8 @@ class Album {
         if (monthly) 'monthly': true,
         if (immichAlbumId != null) 'immichAlbumId': immichAlbumId,
         if (googleAlbumId != null) 'googleAlbumId': googleAlbumId,
+        if (remoteIds.isNotEmpty) 'remoteIds': remoteIds,
+        if (syncedTitles.isNotEmpty) 'syncedTitles': syncedTitles,
         if (autoDate) 'autoDate': true,
         if (staleTags.isNotEmpty) 'staleTags': staleTags,
       };
@@ -127,6 +137,8 @@ class Album {
         monthly: j['monthly'] == true || j['everyday'] == true,
         immichAlbumId: j['immichAlbumId'] as String?,
         googleAlbumId: j['googleAlbumId'] as String?,
+        remoteIds: ((j['remoteIds'] as Map?) ?? {}).cast<String, String>(),
+        syncedTitles: ((j['syncedTitles'] as Map?) ?? {}).cast<String, String>(),
         autoDate: j['autoDate'] == true,
         staleTags: ((j['staleTags'] as List?) ?? []).cast<String>(),
       );

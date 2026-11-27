@@ -24,6 +24,37 @@ class FileRecord {
       );
 }
 
+/// Album-based services (PhotoPrism, Synology Photos): upload, then file into albums of the same names.
+abstract class AlbumService {
+  /// Signs in. Returns a short description of the account / server.
+  Future<String> authorize();
+
+  /// Uploads the original into the service, straight into [albumId] when it can. Returns the photo's id there.
+  Future<String> upload(Item item, String albumId);
+
+  /// The service's album for [title]: [known] (renamed to [title] if needed) when it still exists, else a new one.
+  Future<String> ensureAlbum(String title, String? known);
+
+  Future<void> add(String albumId, List<String> ids);
+  Future<void> remove(String albumId, List<String> ids);
+  Future<bool> exists(String id);
+  void close();
+}
+
+/// A photo in an album service and the Winnow album it was last filed into there.
+class AlbumRecord {
+  AlbumRecord({required this.id, required this.remoteId, this.albumId});
+
+  final String id;
+  final String remoteId;
+  String? albumId;
+
+  Map<String, Object?> toJson() => {'id': id, 'remoteId': remoteId, if (albumId != null) 'albumId': albumId};
+
+  static AlbumRecord fromJson(Map<String, Object?> j) =>
+      AlbumRecord(id: '${j['id']}', remoteId: j['remoteId'] as String, albumId: j['albumId'] as String?);
+}
+
 abstract class FileStore {
   /// Signs in / checks the connection. Returns a short description of where files go.
   Future<String> authorize();
@@ -133,7 +164,8 @@ class StoreDef {
     required this.label,
     required this.intro,
     required this.fields,
-    required this.make,
+    this.make,
+    this.albums,
     this.folderLabel = 'Folder',
   });
 
@@ -149,8 +181,31 @@ class StoreDef {
   final List<FieldDef> fields;
   final String folderLabel;
 
-  /// [remember] saves a value into the store's settings (e.g. a server's host key, the first time).
-  final FileStore Function(StoreConfig c, void Function(String key, String value) remember) make;
+  /// A folder-based store's client. [remember] saves a value into its settings (e.g. a server's host key).
+  final FileStore Function(StoreConfig c, void Function(String key, String value) remember)? make;
+
+  /// An album-based service's client (instead of [make]).
+  final AlbumService Function(StoreConfig c, void Function(String key, String value) remember)? albums;
+
+  bool get isAlbums => albums != null;
+
+  /// Signs in / checks the connection, whichever kind it is.
+  Future<String> test(StoreConfig c, void Function(String, String) remember) async {
+    if (albums != null) {
+      final a = albums!(c, remember);
+      try {
+        return await a.authorize();
+      } finally {
+        a.close();
+      }
+    }
+    final f = make!(c, remember);
+    try {
+      return await f.authorize();
+    } finally {
+      f.close();
+    }
+  }
 
   bool ready(StoreConfig c) => fields.every((f) => f.optional || c[f.key].trim().isNotEmpty);
 }

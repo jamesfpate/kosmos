@@ -1014,6 +1014,8 @@ class AppState extends ChangeNotifier {
       monthly: monthly,
       immichAlbumId: id,
       googleAlbumId: base?.googleAlbumId,
+      remoteIds: base?.remoteIds ?? const {},
+      syncedTitles: base?.syncedTitles ?? const {},
       staleTags: base?.staleTags ?? const [],
     );
   }
@@ -1235,7 +1237,9 @@ class AppState extends ChangeNotifier {
       n += _pendingUploads({for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)}).length;
     }
     for (final d in _storesOn) {
-      n += _pendingFiles(await _files(d.key), store(d.key).folder, store(d.key).videos).length;
+      n += d.isAlbums
+          ? _pendingAlbums(await _albumRecords(d.key), store(d.key).videos).length
+          : _pendingFiles(await _files(d.key), store(d.key).folder, store(d.key).videos).length;
     }
     if (_googleOn) n += _pendingGoogle(await _gRecords()).length;
     return n;
@@ -1288,7 +1292,7 @@ class AppState extends ChangeNotifier {
         errors.clear();
         if (doImmich) await run('Immich', _syncImmich);
         for (final d in doStores) {
-          await run(d.label, () => _syncFiles(d));
+          await run(d.label, () => d.isAlbums ? _syncAlbums(d) : _syncFiles(d));
         }
         if (doGoogle) await run('Google Photos', _syncGoogle);
       } while (_syncAgain);
@@ -1378,7 +1382,84 @@ class AppState extends ChangeNotifier {
   }
 
   /// A file store's client; values it learns (an SFTP host key) are saved into its settings.
-  FileStore _make(StoreDef def) => def.make(store(def.key), (k, v) => saveStore(def.key, fields: {k: v}));
+  FileStore _make(StoreDef def) => def.make!(store(def.key), (k, v) => saveStore(def.key, fields: {k: v}));
+
+  /// Albums a service already has under an older title (renamed in Winnow since).
+  List<Album> _renamedFor(String key, String? Function(Album) remoteId) => [
+        for (final a in albums)
+          if (remoteId(a) != null && a.syncedTitles[key] != null && a.syncedTitles[key] != albumTitle(a)) a,
+      ];
+
+  Future<void> _markSynced(Album a, String key) async {
+    a.syncedTitles = {...a.syncedTitles, key: albumTitle(a)};
+    await db.put('albums', a.id, a.toJson());
+  }
+
+  AlbumService _makeAlbums(StoreDef def) => def.albums!(store(def.key), (k, v) => saveStore(def.key, fields: {k: v}));
+
+  Future<Map<String, AlbumRecord>> _albumRecords(String table) async =>
+      {for (final j in await db.all(table)) AlbumRecord.fromJson(j).id: AlbumRecord.fromJson(j)};
+
+  List<Item> _pendingAlbums(Map<String, AlbumRecord> recs, bool videos) =>
+      items.where((i) => _keptFiled(i, videos) && recs[i.id]?.albumId != decided[i.id]!.albumId).toList();
+
+  /// Uploads kept photos to an album service (PhotoPrism, Synology Photos) into albums of the same names; photos
+  /// refiled in Winnow move between those albums, renamed albums are renamed there.
+  Future<void> _syncAlbums(StoreDef def) async {
+    final c = store(def.key);
+    final recs = await _albumRecords(def.key);
+    final todo = _pendingAlbums(recs, c.videos);
+    final renamed = _renamedFor(def.key, (a) => a.remoteIds[def.key]);
+    if (todo.isEmpty && renamed.isEmpty) return;
+    final api = _makeAlbums(def);
+    try {
+      await api.authorize();
+      for (final a in renamed) {
+        final rid = await api.ensureAlbum(albumTitle(a), a.remoteIds[def.key]);
+        a.remoteIds = {...a.remoteIds, def.key: rid};
+        await _markSynced(a, def.key);
+      }
+      var here = 0;
+      _status(todo.length);
+      final byAlbum = <String, List<Item>>{};
+      for (final i in todo) {
+        byAlbum.putIfAbsent(decided[i.id]!.albumId!, () => []).add(i);
+      }
+      for (final entry in byAlbum.entries) {
+        final album = albums.where((a) => a.id == entry.key).firstOrNull;
+        if (album == null) continue;
+        final rid = await api.ensureAlbum(albumTitle(album), album.remoteIds[def.key]);
+        album.remoteIds = {...album.remoteIds, def.key: rid};
+        await _markSynced(album, def.key);
+        // Already there, filed elsewhere: out of the old album, into this one.
+        final moving = entry.value.where((i) => recs[i.id] != null).toList();
+        final byOld = <String, List<String>>{};
+        for (final i in moving) {
+          final old = albums.where((a) => a.id == recs[i.id]!.albumId).firstOrNull?.remoteIds[def.key];
+          if (old != null && old != rid) byOld.putIfAbsent(old, () => []).add(recs[i.id]!.remoteId);
+        }
+        for (final o in byOld.entries) {
+          await api.remove(o.key, o.value);
+        }
+        if (moving.isNotEmpty) await api.add(rid, [for (final i in moving) recs[i.id]!.remoteId]);
+        for (final i in moving) {
+          recs[i.id]!.albumId = album.id;
+          await db.put(def.key, i.id, recs[i.id]!.toJson());
+          _done++;
+          _status(todo.length - ++here);
+        }
+        for (final i in entry.value.where((i) => recs[i.id] == null)) {
+          final rec = AlbumRecord(id: i.id, remoteId: await api.upload(i, rid), albumId: album.id);
+          recs[i.id] = rec;
+          await db.put(def.key, rec.id, rec.toJson());
+          _done++;
+          _status(todo.length - ++here);
+        }
+      }
+    } finally {
+      api.close();
+    }
+  }
 
   /// Uploads kept photos to a file store (B2, WebDAV, S3, SFTP) at their album's path; photos whose album changed (or was
   /// renamed) move there.
@@ -1421,13 +1502,18 @@ class AppState extends ChangeNotifier {
   Future<void> _syncGoogle() async {
     final recs = await _gRecords();
     final todo = _pendingGoogle(recs);
-    if (todo.isEmpty) return;
+    final renamed = _renamedFor('google', (a) => a.googleAlbumId);
+    if (todo.isEmpty && renamed.isEmpty) return;
     final api = await GPhotosApi.connect();
     if (api == null) {
       if (_background) return;
       throw Exception('sign in again (Settings > Google Photos)');
     }
     try {
+      for (final a in renamed) {
+        await api.ensureAlbum(a);
+        await _markSynced(a, 'google');
+      }
       var here = 0;
       _status(todo.length);
       final byAlbum = <String, List<Item>>{};
@@ -1438,7 +1524,7 @@ class AppState extends ChangeNotifier {
         final album = albums.where((a) => a.id == entry.key).firstOrNull;
         if (album == null) continue;
         final gid = await api.ensureAlbum(album);
-        await db.put('albums', album.id, album.toJson());
+        await _markSynced(album, 'google');
         // Already in Google, filed elsewhere: out of the old album, into this one.
         final moving = entry.value.where((i) => recs[i.id] != null).toList();
         final byOld = <String, List<String>>{};
@@ -1487,13 +1573,18 @@ class AppState extends ChangeNotifier {
     final before = freeUp == '30d' ? now - 30 * day : now;
     final freed = ((await db.getMeta<List>('freed')) ?? []).cast<String>().toSet();
     final ups = {for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)};
-    final files = {for (final d in _storesOn) d.key: await _files(d.key)};
+    final files = {for (final d in _storesOn) if (!d.isAlbums) d.key: await _files(d.key)};
+    final remote = {for (final d in _storesOn) if (d.isAlbums) d.key: await _albumRecords(d.key)};
     final gs = await _gRecords();
     final candidates = items.where((i) {
       if (!_keptFiled(i, true) || freed.contains(i.id) || i.taken >= before) return false;
       final album = decided[i.id]!.albumId!;
       if (_immichOn && ups[i.id]?.syncedAlbumId != album) return false;
       for (final d in _storesOn) {
+        if (d.isAlbums) {
+          if (remote[d.key]![i.id]?.albumId != album) return false;
+          continue;
+        }
         final r = files[d.key]![i.id];
         if (r == null || !_fileAt(r, i, album, store(d.key).folder)) return false;
       }
@@ -1503,11 +1594,15 @@ class AppState extends ChangeNotifier {
     if (candidates.isEmpty) return;
     final safe = <Item>[];
     final immichApi = _immichOn ? ImmichApi(immich) : null;
-    final storeApis = {for (final d in _storesOn) d.key: _make(d)};
+    final storeApis = {for (final d in _storesOn) if (!d.isAlbums) d.key: _make(d)};
+    final albumApis = {for (final d in _storesOn) if (d.isAlbums) d.key: _makeAlbums(d)};
     final gApi = _googleOn ? await GPhotosApi.connect() : null;
     if (_googleOn && gApi == null) return;
     try {
       for (final a in storeApis.values) {
+        await a.authorize();
+      }
+      for (final a in albumApis.values) {
         await a.authorize();
       }
       for (final i in candidates) {
@@ -1522,6 +1617,10 @@ class AppState extends ChangeNotifier {
             break;
           }
         }
+        for (final e in albumApis.entries) {
+          if (!everywhere) break;
+          if (!await e.value.exists(remote[e.key]![i.id]!.remoteId)) everywhere = false;
+        }
         if (!everywhere) continue;
         if (gApi != null && !await gApi.exists(gs[i.id]!.mediaItemId)) continue;
         safe.add(i);
@@ -1529,6 +1628,9 @@ class AppState extends ChangeNotifier {
     } finally {
       immichApi?.close();
       for (final a in storeApis.values) {
+        a.close();
+      }
+      for (final a in albumApis.values) {
         a.close();
       }
       gApi?.close();

@@ -117,14 +117,11 @@ class _StoreScreenState extends State<StoreScreen> {
   Future<void> _test() async {
     await _save();
     setState(() => _msg = 'Checking…');
-    final api = def.make(s.store(def.key), (k, v) => s.saveStore(def.key, fields: {k: v}));
     try {
-      final where = await api.authorize();
+      final where = await def.test(s.store(def.key), (k, v) => s.saveStore(def.key, fields: {k: v}));
       setState(() => _msg = 'Connected · $where');
     } catch (e) {
       setState(() => _msg = "Can't connect: ${'$e'.replaceFirst('Exception: ', '')}");
-    } finally {
-      api.close();
     }
   }
 
@@ -133,11 +130,12 @@ class _StoreScreenState extends State<StoreScreen> {
     final c = s.store(def.key);
     return _page(s, def.title, c.enabled, 'Backing up kept photos', [
       for (final t in def.intro) _muted(t),
-      _muted('Layout: ${c.folder}2026/2026-11 Thanksgiving/IMG_1234.jpg; undated albums under ${c.folder}Albums/.'),
+      if (!def.isAlbums)
+        _muted('Layout: ${c.folder}2026/2026-11 Thanksgiving/IMG_1234.jpg; undated albums under ${c.folder}Albums/.'),
       for (final f in def.fields)
         _field(f.label, _c[f.key]!, f.hint, _save,
             secret: f.secret, type: f.url ? TextInputType.url : (f.lines > 1 ? TextInputType.multiline : null), lines: f.lines),
-      _field(def.folderLabel, _folder, 'Photos/', _save),
+      if (!def.isAlbums) _field(def.folderLabel, _folder, 'Photos/', _save),
       if (c['hostKey'].isNotEmpty)
         Padding(
           padding: const EdgeInsets.only(top: 8),

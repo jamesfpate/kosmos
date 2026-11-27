@@ -96,6 +96,8 @@ class _AlbumSheetState extends State<_AlbumSheet> {
         lastUsedAt: e?.lastUsedAt ?? 0,
         immichAlbumId: e?.immichAlbumId,
         googleAlbumId: e?.googleAlbumId,
+        remoteIds: e?.remoteIds ?? const {},
+        syncedTitles: e?.syncedTitles ?? const {},
       ),
     );
   }
