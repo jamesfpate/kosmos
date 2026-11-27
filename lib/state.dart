@@ -423,10 +423,13 @@ class AppState extends ChangeNotifier {
     return recentFor(t).where((a) => a.id == chosenId).firstOrNull ?? suggestFor(t);
   }
 
+  /// The chosen album first, then the photo's month album (so it's always in view), then the rest by last use.
   List<Album> get barAlbums {
     final t = target;
     final recent = recentFor(group.firstOrNull?.taken);
-    return t == null ? recent : [t, ...recent.where((a) => a.id != t.id)];
+    final month = recent.where((a) => a.monthly).firstOrNull;
+    final front = [?t, if (month != null && month.id != t?.id) month];
+    return [...front, ...recent.where((a) => !front.any((f) => f.id == a.id))];
   }
 
   void choose(String id) {

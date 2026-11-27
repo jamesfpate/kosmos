@@ -483,12 +483,9 @@ class _PreviewState extends State<Preview> {
   Widget build(BuildContext context) {
     final v = _video;
     if (widget.play && v != null && v.value.isInitialized) {
-      // VideoPlayer turns the picture by rotationCorrection itself, so a quarter turn swaps the shape.
+      // The reported size is already the upright shape; VideoPlayer turns the picture into it by rotationCorrection.
       final size = v.value.size;
-      final turned = v.value.rotationCorrection % 180 != 0;
-      final ar = size.width > 0 && size.height > 0
-          ? (turned ? size.height / size.width : size.width / size.height)
-          : _aspect ?? widget.item.aspect;
+      final ar = size.width > 0 && size.height > 0 ? size.width / size.height : _aspect ?? widget.item.aspect;
       return Column(children: [
         Expanded(
           child: Center(

@@ -94,23 +94,30 @@ class _CullScreenState extends State<CullScreen> {
       const SizedBox(height: 4),
       SizedBox(
         height: 44,
-        child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final a in s.barAlbums)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: AlbumChip(
-                key: chipKeys.putIfAbsent(a.id, GlobalKey.new),
-                label: albumTitle(a),
-                target: a.id == target?.id,
-                hover: hover == a.id,
-                // Tap picks it; tapping the current album again (or a long press) edits it.
-                onTap: () => a.id == target?.id ? editAlbum(context, s, a) : s.choose(a.id),
-                onLongPress: () => editAlbum(context, s, a),
-              ),
+        // The new-album chip sits outside the scrolling list, so it's always in view.
+        child: Row(children: [
+          if (s.barAlbums.isNotEmpty)
+            Flexible(
+              child: ListView(scrollDirection: Axis.horizontal, shrinkWrap: true, children: [
+                for (final a in s.barAlbums)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: AlbumChip(
+                      key: chipKeys.putIfAbsent(a.id, GlobalKey.new),
+                      label: albumTitle(a),
+                      target: a.id == target?.id,
+                      hover: hover == a.id,
+                      // Tap picks it; tapping the current album again (or a long press) edits it.
+                      onTap: () => a.id == target?.id ? editAlbum(context, s, a) : s.choose(a.id),
+                      onLongPress: () => editAlbum(context, s, a),
+                    ),
+                  ),
+              ]),
             ),
+          if (s.barAlbums.isNotEmpty) const SizedBox(width: 6),
           AlbumChip(
             key: chipKeys.putIfAbsent('new', GlobalKey.new),
-            label: '+ New album',
+            label: s.barAlbums.isEmpty ? '+ New album' : '+ New',
             dashed: true,
             hover: hover == 'new',
             onTap: cur == null ? null : () => newAlbum(context, s, g.first.taken),
