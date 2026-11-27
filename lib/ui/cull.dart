@@ -25,7 +25,22 @@ class _CullScreenState extends State<CullScreen> {
   String? hover;
   String? playing;
 
+  /// The album search; the keyboard shortcuts are off while it's typing.
+  final searching = FocusNode();
+
   AppState get s => widget.s;
+
+  @override
+  void initState() {
+    super.initState();
+    searching.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    searching.dispose();
+    super.dispose();
+  }
 
   /// Album chip under a drag point (chips grow a little vertically so they're easy to hit).
   String? targetAt(Offset p) {
@@ -65,7 +80,7 @@ class _CullScreenState extends State<CullScreen> {
     }
 
     return CallbackShortcuts(
-      bindings: {
+      bindings: searching.hasFocus ? const {} : {
         const SingleActivator(LogicalKeyboardKey.arrowLeft): () => fling(Dir.left),
         const SingleActivator(LogicalKeyboardKey.backspace): () => fling(Dir.left),
         const SingleActivator(LogicalKeyboardKey.delete): () => fling(Dir.left),
@@ -76,22 +91,12 @@ class _CullScreenState extends State<CullScreen> {
         const SingleActivator(LogicalKeyboardKey.keyZ): undo,
         const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): undo,
         const SingleActivator(LogicalKeyboardKey.keyZ, control: true): undo,
-        const SingleActivator(LogicalKeyboardKey.slash): () => search(context),
-        const SingleActivator(LogicalKeyboardKey.keyF, meta: true): () => search(context),
-        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () => search(context),
+        const SingleActivator(LogicalKeyboardKey.slash): searching.requestFocus,
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true): searching.requestFocus,
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): searching.requestFocus,
       },
       child: Focus(autofocus: true, child: _body(context)),
     );
-  }
-
-  /// Album search: picks the album for this photo, or starts a new one with the typed name.
-  Future<void> search(BuildContext context) async {
-    final g = s.group;
-    if (g.isEmpty) return;
-    final f = await findAlbum(context, s.barAlbums);
-    if (f == null || !context.mounted) return;
-    if (f.album != null) return s.choose(f.album!.id);
-    await newAlbum(context, s, g.first.taken, name: f.create);
   }
 
   Widget _body(BuildContext context) {
@@ -105,41 +110,17 @@ class _CullScreenState extends State<CullScreen> {
           subtitle: Text(cur == null ? 'All caught up' : '${s.queue.length} left')),
       Align(alignment: Alignment.centerLeft, child: Label(sel.isNotEmpty && !s.burstAll ? 'Choose album for ${sel.length}' : 'Choose album')),
       const SizedBox(height: 4),
-      SizedBox(
-        height: 44,
-        // The new-album chip sits outside the scrolling list, so it's always in view.
-        child: Row(children: [
-          if (s.barAlbums.isNotEmpty)
-            Flexible(
-              child: ListView(scrollDirection: Axis.horizontal, shrinkWrap: true, children: [
-                for (final a in s.barAlbums)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: AlbumChip(
-                      key: chipKeys.putIfAbsent(a.id, GlobalKey.new),
-                      label: albumTitle(a),
-                      target: a.id == target?.id,
-                      hover: hover == a.id,
-                      // Tap picks it; tapping the current album again (or a long press) edits it.
-                      onTap: () => a.id == target?.id ? editAlbum(context, s, a) : s.choose(a.id),
-                      onLongPress: () => editAlbum(context, s, a),
-                    ),
-                  ),
-              ]),
-            ),
-          if (s.barAlbums.isNotEmpty) ...[
-            const SizedBox(width: 6),
-            AlbumChip(label: '', icon: Icons.search, onTap: cur == null ? null : () => search(context)),
-          ],
-          const SizedBox(width: 6),
-          AlbumChip(
-            key: chipKeys.putIfAbsent('new', GlobalKey.new),
-            label: s.barAlbums.isEmpty ? '+ New album' : '+ New',
-            dashed: true,
-            hover: hover == 'new',
-            onTap: cur == null ? null : () => newAlbum(context, s, g.first.taken),
-          ),
-        ]),
+      AlbumBar(
+        albums: s.barAlbums,
+        label: albumTitle,
+        isTarget: (a) => a.id == target?.id,
+        onPick: (a) => a.id == target?.id ? editAlbum(context, s, a) : s.choose(a.id),
+        onEdit: (a) => editAlbum(context, s, a),
+        onNew: cur == null ? null : (name) => newAlbum(context, s, g.first.taken, name: name),
+        newLabel: s.barAlbums.isEmpty ? '+ New album' : '+ New',
+        focus: searching,
+        chipKey: (id) => chipKeys.putIfAbsent(id, GlobalKey.new),
+        hover: hover,
       ),
       const SizedBox(height: 8),
       Expanded(

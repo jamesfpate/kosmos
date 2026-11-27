@@ -38,8 +38,15 @@ class _GridScreenState extends State<GridScreen> {
   // Two-finger pinch: spread for bigger thumbnails, pinch for smaller.
   final _pointers = <int, Offset>{};
   double? _pinchBase;
+  final searching = FocusNode();
 
   AppState get s => widget.s;
+
+  @override
+  void dispose() {
+    searching.dispose();
+    super.dispose();
+  }
 
   List<_Entry> _entries(double width) {
     final out = <_Entry>[];
@@ -101,46 +108,17 @@ class _GridScreenState extends State<GridScreen> {
             : 'Choose album for ${sel.length}${doomed.isNotEmpty ? ' · deletes ${doomed.length} in red' : ''}'),
       ),
       const SizedBox(height: 4),
-      SizedBox(
-        height: 44,
-        child: Row(children: [
-          Expanded(
-            child: ListView(scrollDirection: Axis.horizontal, children: [
-              for (final a in s.gridAlbums)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: AlbumChip(
-                    label: chipLabel(a),
-                    target: a.id == target?.id,
-                    onTap: () => sel.isNotEmpty
-                        ? s.fileGrid(a.monthly ? monthAlbumId : a.id)
-                        : (a.id == target?.id ? editAlbum(context, s, a) : s.chooseGrid(a.monthly ? monthAlbumId : a.id)),
-                    onLongPress: () => editAlbum(context, s, a),
-                  ),
-                ),
-            ]),
-          ),
-          const SizedBox(width: 6),
-          AlbumChip(
-            label: '',
-            icon: Icons.search,
-            onTap: () async {
-              final f = await findAlbum(context, s.gridAlbums, label: chipLabel);
-              if (f == null || !context.mounted) return;
-              final a = f.album;
-              if (a == null) return newAlbum(context, s, s.gridOldest, fileAfter: s.gridSel.isNotEmpty, grid: true, name: f.create);
-              final id = a.monthly ? monthAlbumId : a.id;
-              s.gridSel.isNotEmpty ? await s.fileGrid(id) : s.chooseGrid(id);
-            },
-          ),
-          const SizedBox(width: 6),
-          AlbumChip(
-            label: '+',
-            dashed: true,
-            // Dated from the selected photos (oldest); with none selected yet, from the first photo filed into it.
-            onTap: () => newAlbum(context, s, s.gridOldest, fileAfter: sel.isNotEmpty, grid: true),
-          ),
-        ]),
+      AlbumBar(
+        albums: s.gridAlbums,
+        label: chipLabel,
+        isTarget: (a) => a.id == target?.id,
+        onPick: (a) => sel.isNotEmpty
+            ? s.fileGrid(a.monthly ? monthAlbumId : a.id)
+            : (a.id == target?.id ? editAlbum(context, s, a) : s.chooseGrid(a.monthly ? monthAlbumId : a.id)),
+        onEdit: (a) => editAlbum(context, s, a),
+        // Dated from the selected photos (oldest); with none selected yet, from the first photo filed into it.
+        onNew: (name) => newAlbum(context, s, s.gridOldest, fileAfter: sel.isNotEmpty, grid: true, name: name),
+        focus: searching,
       ),
       // Selection, right above the photos: count, select between (fill the gaps), clear.
       SizedBox(
