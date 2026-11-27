@@ -1,8 +1,12 @@
 // Apple Photos library checks on an iOS simulator (CI adds sample media and grants photo access first): Winnow sees
 // the library, and keeps Apple albums in step (make, find again, rename, add, remove).
 //   xcrun simctl addmedia <sim> photo.jpg clip.mp4
+//   flutter build ios --simulator --debug -t integration_test/apple_test.dart
+//   xcrun simctl install <sim> build/ios/iphonesimulator/Runner.app
 //   xcrun simctl privacy <sim> grant photos net.jamespate.winnow
-//   flutter test integration_test/apple_test.dart -d <sim>
+//   xcrun simctl launch --console-pty <sim> net.jamespate.winnow
+// (Granted before launch: the app reads its photo permission once, so `flutter test`, which launches it, can't be
+// granted in time.)
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -27,13 +31,7 @@ void main() {
   testWidgets('sees the library', (_) async {
     expect(media.useFolders, isFalse);
     expect(media.appleLibrary, isTrue);
-    // The workflow grants access from outside while this runs.
-    var access = await media.getAccess();
-    for (var i = 0; i < 120 && access != media.Access.granted; i++) {
-      await Future<void>.delayed(const Duration(seconds: 1));
-      access = await media.getAccess();
-    }
-    expect(access, media.Access.granted, reason: 'the workflow grants photo access');
+    expect(await media.getAccess(), media.Access.granted, reason: 'the workflow grants photo access before launch');
     items = await media.loadItems(await Db.open(), const []);
     expect(items.where((i) => !i.isVideo), isNotEmpty, reason: 'the sample photo is in the library');
     expect(items.where((i) => i.isVideo), isNotEmpty, reason: 'the sample video is in the library');

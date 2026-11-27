@@ -97,6 +97,7 @@ jobs:
 
   ios:
     runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
@@ -132,17 +133,27 @@ jobs:
           ffmpeg -loglevel error -f lavfi -i "testsrc=size=1600x1200" -frames:v 1 "$s/winnow-ci.jpg"
           ffmpeg -loglevel error -f lavfi -i "testsrc=size=640x360:rate=30:duration=2" -c:v libx264 -pix_fmt yuv420p "$s/winnow-ci.mp4"
           xcrun simctl addmedia "$sim" "$s/winnow-ci.jpg" "$s/winnow-ci.mp4"
-          # A grant only sticks once the app is installed (the test run installs over it, keeping the grant).
-          flutter build ios --simulator --debug
-          xcrun simctl install "$sim" build/ios/iphonesimulator/Runner.app
-          xcrun simctl privacy "$sim" grant photos net.jamespate.winnow
           echo "SIM=$sim" >> "$GITHUB_ENV"
 
+      # The app reads its photo permission once at launch, and `flutter test` installs and launches it itself, too
+      # soon for a grant to land. So the test is built as the app, installed, granted, and only then launched; its
+      # results come out on the console.
       - name: iPhone integration test
         run: |
-          # The test run installs the app again; keep granting photo access until the test sees it.
-          ( for i in $(seq 1 150); do xcrun simctl privacy "$SIM" grant photos net.jamespate.winnow 2>/dev/null; sleep 2; done ) &
-          flutter test integration_test/apple_test.dart -d "$SIM"
+          flutter build ios --simulator --debug -t integration_test/apple_test.dart
+          xcrun simctl install "$SIM" build/ios/iphonesimulator/Runner.app
+          xcrun simctl privacy "$SIM" grant photos net.jamespate.winnow
+          out="$RUNNER_TEMP/test.log"; : > "$out"
+          xcrun simctl spawn "$SIM" log stream --style compact --predicate 'process == "Runner"' >> "$out" 2>&1 &
+          xcrun simctl launch --console-pty "$SIM" net.jamespate.winnow >> "$out" 2>&1 &
+          for i in $(seq 1 120); do
+            grep -qE "All tests passed|Some tests failed|tests? failed" "$out" && break
+            sleep 5
+          done
+          xcrun simctl terminate "$SIM" net.jamespate.winnow || true
+          kill %1 %2 2>/dev/null || true
+          grep -q "All tests passed" "$out" && { grep -E "[0-9]{2}:[0-9]{2} \+" "$out" | tail -5; exit 0; }
+          tail -120 "$out"; exit 1
 
       - name: Build (unsigned)
         run: |
