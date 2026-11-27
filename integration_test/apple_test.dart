@@ -27,7 +27,13 @@ void main() {
   testWidgets('sees the library', (_) async {
     expect(media.useFolders, isFalse);
     expect(media.appleLibrary, isTrue);
-    expect(await media.getAccess(), media.Access.granted, reason: 'the workflow grants photo access first');
+    // The workflow grants access from outside while this runs.
+    var access = await media.getAccess();
+    for (var i = 0; i < 120 && access != media.Access.granted; i++) {
+      await Future<void>.delayed(const Duration(seconds: 1));
+      access = await media.getAccess();
+    }
+    expect(access, media.Access.granted, reason: 'the workflow grants photo access');
     items = await media.loadItems(await Db.open(), const []);
     expect(items.where((i) => !i.isVideo), isNotEmpty, reason: 'the sample photo is in the library');
     expect(items.where((i) => i.isVideo), isNotEmpty, reason: 'the sample video is in the library');

@@ -139,7 +139,10 @@ jobs:
           echo "SIM=$sim" >> "$GITHUB_ENV"
 
       - name: iPhone integration test
-        run: flutter test integration_test/apple_test.dart -d "$SIM"
+        run: |
+          # The test run installs the app again; keep granting photo access until the test sees it.
+          ( for i in $(seq 1 150); do xcrun simctl privacy "$SIM" grant photos net.jamespate.winnow 2>/dev/null; sleep 2; done ) &
+          flutter test integration_test/apple_test.dart -d "$SIM"
 
       - name: Build (unsigned)
         run: |
