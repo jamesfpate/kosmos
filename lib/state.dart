@@ -423,12 +423,21 @@ class AppState extends ChangeNotifier {
     return recentFor(t).where((a) => a.id == chosenId).firstOrNull ?? suggestFor(t);
   }
 
-  /// The chosen album first, then the photo's month album (so it's always in view), then the rest by last use.
+  /// The chosen album first, then the photo's month album (so it's always in view), then albums that match the
+  /// photo's date (their dates cover it, or they hold a photo within 5 days), then the rest by last use.
   List<Album> get barAlbums {
     final t = target;
-    final recent = recentFor(group.firstOrNull?.taken);
+    final taken = group.firstOrNull?.taken;
+    final recent = recentFor(taken);
     final month = recent.where((a) => a.monthly).firstOrNull;
-    final front = [?t, if (month != null && month.id != t?.id) month];
+    bool covers(Album a) => taken != null && a.start != null && a.start! <= taken && (a.end == null || taken <= a.end!);
+    final matches = taken == null
+        ? const <Album>[]
+        : [...recent.where((a) => !a.monthly && covers(a)), ...recent.where((a) => !a.monthly && !covers(a) && _near(a, taken))];
+    final front = <Album>[];
+    for (final a in [?t, ?month, ...matches]) {
+      if (!front.any((f) => f.id == a.id)) front.add(a);
+    }
     return [...front, ...recent.where((a) => !front.any((f) => f.id == a.id))];
   }
 
