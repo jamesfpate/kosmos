@@ -974,13 +974,24 @@ class AppState extends ChangeNotifier {
     if (save) db.setMeta('gridFrac', gridFrac);
   }
 
+  /// Shows or hides a folder's photos. Instant: the queue is rebuilt from what's loaded (no library reload).
   Future<void> toggleFolder(String bucket) async {
+    final head = queue.firstOrNull?.id;
     hidden = {...hidden};
-    if (!hidden.remove(bucket)) hidden.add(bucket);
-    queue = queue.where(shown).toList();
-    _nextCard();
+    final showing = hidden.remove(bucket);
+    if (!showing) hidden.add(bucket);
+    if (showing) {
+      // Its photos rejoin the queue, as new photos do on a reload.
+      final queued = {for (final i in queue) i.id};
+      final back = items.where((i) => i.bucket == bucket && !queued.contains(i.id) && inCull(i)).toList();
+      queue = newestFirst ? [...back, ...queue] : [...queue, ...back];
+    } else {
+      queue = queue.where(shown).toList();
+    }
+    // Only a new card in front loses the album picked for the old one.
+    if (queue.firstOrNull?.id != head) _nextCard();
+    changed();
     await db.setMeta('hiddenBuckets', hidden.toList());
-    await reload();
   }
 
   List<(String, int)> get buckets {
