@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -164,7 +165,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _h3('Keep / delete animation'),
           _p('The outlines in the photo trace up (keep) or down (delete); deleted photos fade out. Off: decisions are instant.'),
           Choices(options: const [(true, 'On'), (false, 'Off')], value: s.animations, onPick: s.setAnimations),
-          if (media.desktop) ...[
+          if (Platform.isMacOS) ...[
+            _h3('Review'),
+            _p('Folders on this Mac, or the Photos library (deletes go to Recently Deleted, albums are kept in Photos).'),
+            Choices(options: const [(true, 'Folders'), (false, 'Photos library')], value: media.useFolders, onPick: (v) => s.setSource(folders: v)),
+          ],
+          if (media.useFolders) ...[
             _h3('Photo folders'),
             _p('Winnow reviews the photos and videos in these folders and their subfolders.'),
             for (final f in s.folders)
@@ -179,8 +185,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             Btn('Add folder', icon: Icons.create_new_folder_outlined, onTap: () => pickFolder(s)),
           ],
-          _h3(media.desktop ? 'Subfolders' : 'Folders'),
-          _p('Unticked folders are skipped when culling and in the grid.'),
+          // Apple's library has no folders.
+          if (!media.appleLibrary) _h3(media.useFolders ? 'Subfolders' : 'Folders'),
+          if (!media.appleLibrary) _p('Unticked folders are skipped when culling and in the grid.'),
+          if (!media.appleLibrary)
           for (final (bucket, count) in s.buckets)
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
@@ -228,8 +236,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => s.go(Screen.immich),
           ),
           for (final (open, name, key, on) in [
-            if (!media.desktop) (() => s.go(Screen.google), 'Google Photos', 'Google Photos', s.google.enabled),
-            for (final d in storeDefs.where((d) => d.available))
+            if (Platform.isAndroid) (() => s.go(Screen.google), 'Google Photos', 'Google Photos', s.google.enabled),
+            for (final d in storeDefs.where((d) => d.offered))
               (() => s.openStore(d.key), d.title, d.label, s.store(d.key).enabled),
           ])
             ListTile(
@@ -245,7 +253,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: open,
             ),
           _h3('Free up space'),
-          _p(media.desktop
+          _p(media.appleLibrary
+              ? 'Once every backup that is on has a kept photo (checked on the server), it moves to Recently Deleted in Photos, where it can be restored for 30 days. Apple Photos albums don\'t count as a backup. Photos you restore are never removed again.'
+              : media.useFolders
               ? 'Once every integration that is on has a kept photo (checked on the server), it moves to the Trash, where it can be restored. Photos you restore are never removed again.'
               : 'Once every integration that is on has a kept photo (checked on the server), it moves to the phone\'s trash, where it can be restored for 30 days. Photos you restore are never removed again.'),
           Choices(
@@ -253,7 +263,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: s.freeUp,
             onPick: s.setFreeUp,
           ),
-          if (s.freeUp != 'off' && !media.desktop) ...[
+          if (s.freeUp != 'off' && Platform.isAndroid) ...[
             const SizedBox(height: 6),
             FutureBuilder(
               future: media.canManageMedia(),
@@ -437,6 +447,8 @@ class _ImmichScreenState extends State<ImmichScreen> {
             onPick: (v) => s.saveImmich(wifiOnly: v),
           ),
           const SizedBox(height: 12),
+          ],
+          if (media.backgroundUploads) ...[
           const Text('Upload in the background', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           const Text('Keeps uploading when Winnow is closed, about every 15 minutes.', style: TextStyle(color: C.muted)),

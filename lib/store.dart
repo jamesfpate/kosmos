@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
+import 'media.dart' as media;
 import 'models.dart';
 
 // File stores (Backblaze B2, WebDAV / Nextcloud, S3-compatible, SFTP): kept photos are copied into the same folder
@@ -212,7 +213,15 @@ class StoreDef {
     this.signIn,
     this.available = true,
     this.folderLabel = 'Folder',
+    this.library = false,
+    this.backup = true,
   });
+
+  /// Works on the device's own Apple Photos library (Apple albums): only offered when reviewing one.
+  final bool library;
+
+  /// Holds a copy of the photos. False for Apple albums: they're the same photos, so Free up space doesn't count them.
+  final bool backup;
 
   /// False when this build can't offer it (OneDrive/Dropbox without their app ids): hidden from Settings.
   final bool available;
@@ -258,7 +267,10 @@ class StoreDef {
     }
   }
 
-  bool ready(StoreConfig c) => fields.every((f) => f.optional || c[f.key].trim().isNotEmpty);
+  /// Can be used here: its build settings are in and it fits what's being reviewed.
+  bool get offered => available && (!library || media.appleLibrary);
+
+  bool ready(StoreConfig c) => offered && fields.every((f) => f.optional || c[f.key].trim().isNotEmpty);
 }
 
 /// Where a photo filed into [album] goes: `folder/YYYY/YYYY-MM name/file` (dated) or `folder/Albums/name/file`.

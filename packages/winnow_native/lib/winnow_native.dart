@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-/// Winnow's native calls: Android (registered as a plugin, so they also work in the background upload task) and macOS.
+/// Winnow's native calls: Android (registered as a plugin, so they also work in the background upload task), macOS and
+/// iOS.
 class WinnowNative {
   static const _channel = MethodChannel('winnow_native');
 
@@ -31,7 +32,7 @@ class WinnowNative {
 
   /// Opens a web page in the browser.
   static Future<void> openUrl(String url) async {
-    if (Platform.isAndroid || Platform.isMacOS) return _channel.invokeMethod<void>('openUrl', {'url': url});
+    if (Platform.isAndroid || Platform.isMacOS || Platform.isIOS) return _channel.invokeMethod<void>('openUrl', {'url': url});
     if (Platform.isLinux) await Process.run('xdg-open', [url]);
     if (Platform.isWindows) await Process.run('explorer', [url]);
   }
@@ -50,4 +51,21 @@ class WinnowNative {
   /// macOS: moves files to the Trash. Returns the paths moved.
   static Future<List<String>> trash(List<String> paths) async =>
       await _channel.invokeListMethod<String>('trash', {'paths': paths}) ?? [];
+
+  /// iOS and macOS: the Photos album [known] when it still exists (renamed to [title] if needed), else the album
+  /// already called [title], else a new one. Returns its id.
+  static Future<String> albumEnsure(String title, String? known) async =>
+      (await _channel.invokeMethod<String>('albumEnsure', {'title': title, 'known': known}))!;
+
+  /// iOS and macOS: adds library photos (by id) to a Photos album.
+  static Future<void> albumAdd(String album, List<String> assets) =>
+      _channel.invokeMethod<void>('albumAdd', {'album': album, 'assets': assets});
+
+  /// iOS and macOS: removes library photos from a Photos album (they stay in the library).
+  static Future<void> albumRemove(String album, List<String> assets) =>
+      _channel.invokeMethod<void>('albumRemove', {'album': album, 'assets': assets});
+
+  /// iOS and macOS: whether a photo is still in the library.
+  static Future<bool> assetExists(String id) async =>
+      await _channel.invokeMethod<bool>('assetExists', {'id': id}) ?? false;
 }

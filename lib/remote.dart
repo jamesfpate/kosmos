@@ -181,8 +181,8 @@ class ImmichBrowser extends ChangeNotifier {
         _notify();
         final bytes = Uint8List.fromList(await api.download(a.id));
         final String id;
-        if (media.desktop) {
-          // On a computer: into "From Immich" in the first folder being reviewed, dated as taken.
+        if (media.useFolders) {
+          // On a computer reviewing folders: into "From Immich" in the first folder being reviewed, dated as taken.
           final dir = Directory(p.join(s.folders.first, 'From Immich'));
           await dir.create(recursive: true);
           var f = File(p.join(dir.path, a.name));
@@ -212,7 +212,7 @@ class ImmichBrowser extends ChangeNotifier {
         a.onPhone = true;
         saved++;
       }
-      message = 'Saved $saved to ${media.desktop ? 'From Immich' : 'the phone'}';
+      message = 'Saved $saved to ${media.useFolders ? 'From Immich' : media.appleLibrary ? 'Photos' : 'the phone'}';
       sel = {};
       await s.reload();
     } catch (e) {

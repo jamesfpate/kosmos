@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -162,12 +163,12 @@ class AppState extends ChangeNotifier {
       final m = await db.allMeta();
       _loadSettings(m);
       // A folder has no "new since" point: review all of it.
-      if (media.desktop && cutoff == null) {
+      if (media.useFolders && cutoff == null) {
         cutoff = 0;
         await db.setMeta('cutoff', 0);
       }
       // On a computer "access" is having picked a folder.
-      access = media.desktop ? (folders.isEmpty ? Access.prompt : Access.granted) : await media.getAccess();
+      access = media.useFolders ? (folders.isEmpty ? Access.prompt : Access.granted) : await media.getAccess();
       if (access != Access.granted) {
         screen = Screen.access;
         return changed();
@@ -212,6 +213,9 @@ class AppState extends ChangeNotifier {
     google = GPhotosConfig.fromJson((m['google'] as Map?)?.cast<String, Object?>());
     freeUp = (m['freeUp'] as String?) ?? 'off';
     folders = ((m['folders'] as List?) ?? []).cast<String>();
+    if (Platform.isMacOS) media.useFolders = m['source'] != 'library';
+    // Apple albums are on unless turned off: filing into albums in Photos is the point on an Apple library.
+    if (m['apple'] == null) stores = {...stores, 'apple': stores['apple']!.copyWith(enabled: true)};
   }
 
   /// The background upload task (no screen): load what's needed and sync once.
@@ -244,6 +248,19 @@ class AppState extends ChangeNotifier {
     await db.setMeta('folders', folders);
     if (folders.isEmpty) return init();
     await reload();
+  }
+
+  /// Mac: review folders, or the Photos library. Each has its own start point (a library is asked for one).
+  Future<void> setSource({required bool folders}) async {
+    if (media.useFolders == folders) return;
+    media.useFolders = folders;
+    await db.setMeta('source', folders ? 'folders' : 'library');
+    cutoff = null;
+    await db.setMeta('cutoff', null);
+    items = [];
+    screen = Screen.loading;
+    changed();
+    await init();
   }
 
   Future<void> requestAccess() async {
@@ -1225,7 +1242,7 @@ class AppState extends ChangeNotifier {
 
   bool get _immichOn => immich.enabled && immich.ready;
   List<StoreDef> get _storesOn => [for (final d in storeDefs) if (storeOn(d.key)) d];
-  bool get _googleOn => google.enabled && google.ready && !media.desktop; // sign-in needs Play Services
+  bool get _googleOn => google.enabled && google.ready && Platform.isAndroid; // sign-in needs Play Services
   /// The last sync's error for one integration ('' if it went fine), by the name it reports under.
   String errorFor(String name) =>
       sync.error.split('\n').where((l) => l.startsWith('$name: ')).map((l) => l.substring(name.length + 2)).join('\n');
@@ -1642,7 +1659,8 @@ class AppState extends ChangeNotifier {
   /// phone's trash (30 days to restore). Photos restored from there are never removed again. Not in the background:
   /// Android may ask to confirm.
   Future<void> _freeUp() async {
-    if (freeUp == 'off' || _background || !anyIntegration) return;
+    // Something that holds a copy has to be on (Apple albums are the same photos).
+    if (freeUp == 'off' || _background || !(_immichOn || _googleOn || _storesOn.any((d) => d.backup))) return;
     final now = DateTime.now().millisecondsSinceEpoch;
     final before = freeUp == '30d' ? now - 30 * day : now;
     final freed = ((await db.getMeta<List>('freed')) ?? []).cast<String>().toSet();

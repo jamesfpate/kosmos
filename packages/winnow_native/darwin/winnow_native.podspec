@@ -5,9 +5,9 @@
 Pod::Spec.new do |s|
   s.name             = 'winnow_native'
   s.version          = '0.0.1'
-  s.summary          = 'Winnow's macOS bits: photo metadata, thumbnails, Trash.'
+  s.summary          = 'Winnow's Apple bits: photo metadata, thumbnails, Trash (macOS); Photos albums (iOS and macOS).'
   s.description      = <<-DESC
-Winnow's macOS bits: photo metadata, thumbnails, Trash.
+Winnow's Apple bits: photo metadata, thumbnails, Trash (macOS); Photos albums (iOS and macOS).
                        DESC
   s.homepage         = 'https://github.com/jamesfpate/winnow'
   s.license          = { :type => 'Proprietary' }
@@ -22,10 +22,11 @@ Winnow's macOS bits: photo metadata, thumbnails, Trash.
   # see https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
   # s.resource_bundles = {'winnow_native_privacy' => ['winnow_native/Sources/winnow_native/PrivacyInfo.xcprivacy']}
 
-  s.dependency 'FlutterMacOS'
-
-  s.platform = :osx, '10.15'
+  s.ios.dependency 'Flutter'
+  s.osx.dependency 'FlutterMacOS'
+  s.ios.deployment_target = '13.0'
+  s.osx.deployment_target = '10.15'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
-  s.frameworks = 'AVFoundation', 'ImageIO', 'CoreGraphics'
+  s.frameworks = 'AVFoundation', 'ImageIO', 'CoreGraphics', 'Photos'
   s.swift_version = '5.0'
 end

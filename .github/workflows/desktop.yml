@@ -1,8 +1,10 @@
 name: Desktop
 
-# Mac, Windows and Linux builds. Push to main: zips as workflow artifacts. Tag v*: attached to the GitHub release.
-# The Mac job first runs integration_test/desktop_test.dart against real sample files (HEIC, EXIF, video), since the
-# native Mac code can't be exercised anywhere else.
+# Mac, Windows, Linux and iPhone builds. Push to main: zips as workflow artifacts. Tag v*: attached to the GitHub
+# release. The Mac job first runs integration_test/desktop_test.dart against real sample files (HEIC, EXIF, video),
+# and the iPhone job integration_test/apple_test.dart on a simulator with photo access granted, since the native Apple
+# code can't be exercised anywhere else. The iPhone build is unsigned (sideload with AltStore or Sideloadly, which
+# sign it with your Apple ID).
 on:
   push:
     branches: [main]
@@ -92,3 +94,64 @@ jobs:
         if: github.ref_type == 'tag'
         with:
           files: ${{ runner.temp }}/winnow-*
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.0
+          channel: stable
+          cache: true
+
+      - name: Version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            name="${GITHUB_REF_NAME#v}"
+            IFS=. read -r major minor patch <<< "$name"
+            code=$(( major * 10000 + minor * 100 + patch ))
+          else
+            name="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+            code=$GITHUB_RUN_NUMBER
+          fi
+          echo "WINNOW_VERSION_NAME=$name" >> "$GITHUB_ENV"
+          echo "WINNOW_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "DEFINES=--build-name $name --build-number $code --dart-define WINNOW_VERSION=$name --dart-define ONEDRIVE_CLIENT_ID=${{ vars.ONEDRIVE_CLIENT_ID }} --dart-define DROPBOX_APP_KEY=${{ vars.DROPBOX_APP_KEY }}" >> "$GITHUB_ENV"
+
+      - run: flutter pub get
+
+      - name: Simulator with sample media and photo access
+        run: |
+          sim=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in sorted(d.items(), reverse=True) if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
+          xcrun simctl boot "$sim"
+          xcrun simctl bootstatus "$sim" -b
+          brew install ffmpeg >/dev/null
+          s="$RUNNER_TEMP/samples"; mkdir -p "$s"
+          ffmpeg -loglevel error -f lavfi -i "testsrc=size=1600x1200" -frames:v 1 "$s/winnow-ci.jpg"
+          ffmpeg -loglevel error -f lavfi -i "testsrc=size=640x360:rate=30:duration=2" -c:v libx264 -pix_fmt yuv420p "$s/winnow-ci.mp4"
+          xcrun simctl addmedia "$sim" "$s/winnow-ci.jpg" "$s/winnow-ci.mp4"
+          xcrun simctl privacy "$sim" grant photos net.jamespate.winnow
+          echo "SIM=$sim" >> "$GITHUB_ENV"
+
+      - name: iPhone integration test
+        run: flutter test integration_test/apple_test.dart -d "$SIM"
+
+      - name: Build (unsigned)
+        run: |
+          flutter build ios --release --no-codesign $DEFINES
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R build/ios/iphoneos/Runner.app "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qr "$RUNNER_TEMP/winnow-$WINNOW_VERSION_NAME-ios-unsigned.ipa" Payload)
+
+      - uses: actions/upload-artifact@v4
+        if: github.ref_type != 'tag'
+        with:
+          name: winnow-iOS-${{ env.WINNOW_VERSION_CODE }}
+          path: ${{ runner.temp }}/winnow-*.ipa
+
+      - uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
+        with:
+          files: ${{ runner.temp }}/winnow-*.ipa

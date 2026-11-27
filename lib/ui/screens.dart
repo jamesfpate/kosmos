@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../media.dart' as media;
@@ -34,7 +36,16 @@ class AccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (media.desktop) {
+    // A Mac can review folders or its Photos library.
+    final other = !Platform.isMacOS
+        ? <Widget>[]
+        : [
+            const SizedBox(height: 8),
+            media.useFolders
+                ? Btn('Review the Photos library instead', onTap: () => s.setSource(folders: false))
+                : Btn('Review folders instead', onTap: () => s.setSource(folders: true)),
+          ];
+    if (media.useFolders) {
       return _centered([
         const Center(child: Logo(size: 34)),
         const SizedBox(height: 12),
@@ -42,18 +53,49 @@ class AccessScreen extends StatelessWidget {
             'uploaded unless you turn on an upload.'),
         const SizedBox(height: 12),
         Btn('Choose folder', bold: true, color: C.bg, bg: C.accent, onTap: () => pickFolder(s)),
+        ...other,
       ]);
     }
+    final apple = Platform.isIOS || Platform.isMacOS;
     final first = s.access == Access.prompt || (s.access == Access.denied && !s.askedAccess);
     if (first) {
       return _centered([
         const Center(child: Logo(size: 34)),
         const SizedBox(height: 12),
-        const Text('Winnow needs to see your photos and videos to sort them. Nothing leaves your phone unless you turn on an upload.'),
+        Text('Winnow needs to see your photos and videos to sort them. Nothing leaves your ${media.device} unless you '
+            'turn on an upload.'),
         const SizedBox(height: 12),
-        _steps(['Tap Allow access below.', 'Android asks about photos and videos: choose Allow all, not Select photos.']),
+        _steps([
+          'Tap Allow access below.',
+          if (Platform.isIOS) 'iOS asks about your photos: choose Allow Full Access, not Limited Access.',
+          if (Platform.isMacOS) 'macOS asks to let Winnow use Photos: choose Allow.',
+          if (!apple) 'Android asks about photos and videos: choose Allow all, not Select photos.',
+        ]),
         const SizedBox(height: 12),
         Btn('Allow access', bold: true, color: C.bg, bg: C.accent, onTap: s.requestAccess),
+        ...other,
+      ]);
+    }
+    if (apple) {
+      return _centered([
+        const Center(child: Logo(size: 34)),
+        const SizedBox(height: 12),
+        Text(s.access == Access.limited
+            ? 'Winnow can only see the photos you picked, so it would miss new ones.'
+            : 'Photo access is off.'),
+        const SizedBox(height: 12),
+        _steps(Platform.isIOS
+            ? ['Tap Open settings below.', 'Tap Photos, then Full Access.', 'Come back here.']
+            : [
+                'Open System Settings > Privacy & Security > Photos.',
+                'Turn on Winnow (choose Full Access if asked).',
+                'Come back here and tap Check again.',
+              ]),
+        const SizedBox(height: 12),
+        if (Platform.isIOS) Btn('Open settings', bold: true, color: C.bg, bg: C.accent, onTap: media.openSettings),
+        const SizedBox(height: 8),
+        Btn('Check again', onTap: s.init),
+        ...other,
       ]);
     }
     return _centered([

@@ -68,18 +68,20 @@ List<Widget> _options(
   required ValueChanged<bool> setWifi,
   required ValueChanged<String> setBackground,
   required ValueChanged<bool> setVideos,
+  // On the device itself (Apple albums): no network options, nothing is uploaded.
+  bool local = false,
 }) {
   final sync = s.sync;
   final error = s.errorFor(name);
   return [
     _choice('Upload', null, const [(true, 'On'), (false, 'Off')], enabled, setEnabled),
     // A computer uploads while Winnow is open, on whatever network it has.
-    if (!media.desktop) ...[
-      _choice('Upload on', null, const [(false, 'Any network'), (true, 'Wi-Fi only')], wifiOnly, setWifi),
+    if (!media.desktop && !local) _choice('Upload on', null, const [(false, 'Any network'), (true, 'Wi-Fi only')], wifiOnly, setWifi),
+    if (media.backgroundUploads && !local) ...[
       _choice('Upload in the background', 'Keeps uploading when Winnow is closed, about every 15 minutes.',
           const [('off', 'Off'), ('charging', 'While charging'), ('always', 'Always')], background, setBackground),
     ],
-    _choice('Videos', null, [(true, 'Upload'), (false, media.desktop ? 'Computer only' : 'Phone only')], videos, setVideos),
+    _choice('Videos', null, [(true, local ? 'Into albums' : 'Upload'), (false, local ? 'Leave out' : media.desktop ? 'Computer only' : 'Phone only')], videos, setVideos),
     if (enabled) ...[
       const SizedBox(height: 12),
       Text(
@@ -87,7 +89,7 @@ List<Widget> _options(
             ? 'Uploading… ${sync.pending} to go'
             : sync.waitingWifi
                 ? '${sync.pending} waiting for Wi-Fi'
-                : (sync.pending > 0 ? '${sync.pending} waiting' : 'Everything kept is backed up.'),
+                : (sync.pending > 0 ? '${sync.pending} waiting' : local ? 'Everything kept is in its album.' : 'Everything kept is backed up.'),
         style: const TextStyle(color: C.muted),
       ),
       if (error.isNotEmpty)
@@ -195,7 +197,7 @@ class _StoreScreenState extends State<StoreScreen> implements SignInUi {
   @override
   Widget build(BuildContext context) {
     final c = s.store(def.key);
-    return _page(s, def.title, c.enabled, 'Backing up kept photos', [
+    return _page(s, def.title, c.enabled, def.library ? 'Filing kept photos' : 'Backing up kept photos', [
       for (final t in def.intro) _muted(t),
       if (!def.isAlbums)
         _muted('Layout: ${_slash(c.folder)}2026/2026-11 Thanksgiving/IMG_1234.jpg; undated albums under ${_slash(c.folder)}Albums/.'),
@@ -223,7 +225,7 @@ class _StoreScreenState extends State<StoreScreen> implements SignInUi {
           ]),
         ),
       const SizedBox(height: 8),
-      Btn('Test connection', onTap: _test),
+      Btn(def.library ? 'Check access' : 'Test connection', onTap: _test),
       if (_msg.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: _muted(_msg)),
       ..._options(
         s,
@@ -232,6 +234,7 @@ class _StoreScreenState extends State<StoreScreen> implements SignInUi {
         wifiOnly: c.wifiOnly,
         background: c.background,
         videos: c.videos,
+        local: def.library,
         setEnabled: (on) async {
           await _save();
           if (on && !def.ready(s.store(def.key))) {

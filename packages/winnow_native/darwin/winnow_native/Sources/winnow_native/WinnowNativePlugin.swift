@@ -1,13 +1,24 @@
 import AVFoundation
+import ImageIO
+#if os(iOS)
+import Flutter
+import UIKit
+#else
 import Cocoa
 import FlutterMacOS
-import ImageIO
+#endif
 
-/// Winnow's macOS calls: photo/video metadata and thumbnails (ImageIO and AVFoundation decode HEIC, RAW and every
-/// video format the Mac plays, which Flutter's own decoders don't), and moving files to the Trash.
+/// Winnow's Apple calls. macOS: photo/video metadata and thumbnails for folders (ImageIO and AVFoundation decode HEIC,
+/// RAW and every video format the Mac plays, which Flutter's own decoders don't), and moving files to the Trash.
+/// iOS and macOS: albums in the Photos library (see Albums.swift).
 public class WinnowNativePlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
-    let channel = FlutterMethodChannel(name: "winnow_native", binaryMessenger: registrar.messenger)
+    #if os(iOS)
+    let messenger = registrar.messenger()
+    #else
+    let messenger = registrar.messenger
+    #endif
+    let channel = FlutterMethodChannel(name: "winnow_native", binaryMessenger: messenger)
     registrar.addMethodCallDelegate(WinnowNativePlugin(), channel: channel)
   }
 
@@ -29,16 +40,45 @@ public class WinnowNativePlugin: NSObject, FlutterPlugin {
         if let data = Self.thumb(path, size) { return FlutterStandardTypedData(bytes: data) }
         return NSNull()
       }
+    #if os(macOS)
     case "trash":
       let paths = args["paths"] as? [String] ?? []
       run(result) {
         paths.filter { (try? FileManager.default.trashItem(at: URL(fileURLWithPath: $0), resultingItemURL: nil)) != nil }
       }
+    #endif
     case "openUrl":
-      if let s = args["url"] as? String, let url = URL(string: s) { NSWorkspace.shared.open(url) }
+      if let s = args["url"] as? String, let url = URL(string: s) {
+        #if os(iOS)
+        UIApplication.shared.open(url)
+        #else
+        NSWorkspace.shared.open(url)
+        #endif
+      }
       result(nil)
+    case "albumEnsure":
+      let title = args["title"] as? String ?? ""
+      let known = args["known"] as? String
+      run(result) { Self.catching { try Albums.ensure(title: title, known: known) } }
+    case "albumAdd", "albumRemove":
+      let album = args["album"] as? String ?? ""
+      let assets = args["assets"] as? [String] ?? []
+      let add = call.method == "albumAdd"
+      run(result) { Self.catching { try Albums.change(album, assets, add: add); return NSNull() } }
+    case "assetExists":
+      let id = args["id"] as? String ?? ""
+      run(result) { Albums.exists(id) }
     default:
       result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// The value, or the error as a FlutterError (which the Dart side throws).
+  private static func catching(_ f: () throws -> Any) -> Any {
+    do {
+      return try f()
+    } catch {
+      return FlutterError(code: "photos", message: error.localizedDescription, details: nil)
     }
   }
 

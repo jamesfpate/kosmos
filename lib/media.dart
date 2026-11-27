@@ -13,6 +13,16 @@ import 'models.dart';
 /// On a computer Winnow reviews folders the user picks instead of a phone's photo library.
 final desktop = Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
+/// Whether Winnow reviews folders the user picks rather than the photo library: always on Windows and Linux, on a Mac
+/// unless it's set to the Photos library (AppState sets this from the settings).
+bool useFolders = desktop;
+
+/// Reviewing an Apple Photos library (iPhone, or a Mac set to it): Apple albums can be kept in step.
+bool get appleLibrary => (Platform.isIOS || Platform.isMacOS) && !useFolders;
+
+/// Uploads can carry on with the app closed (Android's WorkManager).
+final backgroundUploads = Platform.isAndroid;
+
 /// What to call the device in the UI.
 final device = desktop ? 'computer' : 'phone';
 
@@ -74,7 +84,7 @@ String _bucket(AssetEntity e) {
 
 /// Every image and video on the device (or in [folders], on a computer), oldest first.
 Future<List<Item>> loadItems(Db db, List<String> folders, {void Function(String status)? onProgress}) async {
-  if (desktop) return scanFolders(folders, db, onProgress: onProgress);
+  if (useFolders) return scanFolders(folders, db, onProgress: onProgress);
   final paths = await PhotoManager.getAssetPathList(
     onlyAll: true,
     type: RequestType.common,
@@ -99,10 +109,11 @@ Future<List<Item>> loadItems(Db db, List<String> folders, {void Function(String 
   return out;
 }
 
-/// Moves items to the system trash (Android 11+: one system confirm, recoverable for 30 days). Returns the ids moved.
+/// Moves items to the system trash (Android 11+: one system confirm; Apple: Recently Deleted, after Photos' own
+/// confirm; recoverable for 30 days). Returns the ids moved.
 Future<Set<String>> trash(List<Item> items) async {
   if (items.isEmpty) return {};
-  if (desktop) return trashFiles([for (final i in items) i.path!]);
+  if (useFolders) return trashFiles([for (final i in items) i.path!]);
   final entities = [for (final i in items) i.entity!];
   final ids = Platform.isAndroid
       ? await PhotoManager.editor.android.moveToTrash(entities)
