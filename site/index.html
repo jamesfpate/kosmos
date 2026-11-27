@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Winnow Photos: swipe to cull photos before they're backed up</title>
+<meta name="description" content="Swipe through new photos: keep into an album or delete. Winnow uploads only what you kept, into matching albums, to Immich, Google Photos, Apple Photos, PhotoPrism, Synology, Nextcloud, S3, SFTP, Dropbox or OneDrive. Free, no ads, no tracking.">
+<link rel="canonical" href="https://winnow.jamespate.net/">
+<link rel="icon" type="image/png" href="icon.png">
+<meta property="og:title" content="Winnow Photos">
+<meta property="og:description" content="Swipe to cull photos before they're backed up. Kept photos go into albums on your own server.">
+<meta property="og:image" content="https://winnow.jamespate.net/icon.png">
+<meta property="og:url" content="https://winnow.jamespate.net/">
+<meta name="theme-color" content="#0B0B0F">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Winnow Photos","operatingSystem":"Android, iOS, macOS, Windows, Linux","applicationCategory":"PhotographyApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://winnow.jamespate.net/","downloadUrl":"https://github.com/jamesfpate/winnow/releases/latest"}
+</script>
+<style>
+  :root {
+    --bg: #0B0B0F; --surface: #17161D; --line: #2A2833; --text: #E8E6EE; --muted: #8C8899;
+    --accent: #60A5FA; --keep: #4ADE80; --trash: #F87171;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  header { display: flex; align-items: center; gap: 10px; padding: 18px 0; }
+  header img { width: 36px; height: 36px; border-radius: 9px; }
+  header .name { font-weight: 800; font-size: 20px; letter-spacing: -0.01em; }
+  header nav { margin-left: auto; display: flex; gap: 18px; font-size: 15px; }
+  header nav a { color: var(--muted); text-decoration: none; }
+  header nav a:hover { color: var(--text); }
+
+  .hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; padding: 40px 0 56px; }
+  h1 { font-size: clamp(34px, 5.4vw, 56px); line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 18px; font-weight: 800; }
+  h1 em { font-style: normal; color: var(--keep); }
+  h1 s { text-decoration-color: var(--trash); text-decoration-thickness: 4px; color: var(--muted); }
+  .lede { font-size: 19px; color: var(--muted); margin: 0 0 28px; max-width: 34em; }
+  .lede strong { color: var(--text); font-weight: 600; }
+
+  .buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--text); text-decoration: none; font-weight: 600;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .btn small { font-weight: 400; color: inherit; opacity: 0.7; }
+  .fine { color: var(--muted); font-size: 14px; margin-top: 14px; }
+
+  /* The swipe demo: a phone with cards that fly right (keep) or left (delete). */
+  .phone {
+    position: relative; justify-self: center; width: min(300px, 80vw); aspect-ratio: 9 / 17.5;
+    border: 2px solid var(--line); border-radius: 36px; background: #000; padding: 14px; overflow: hidden;
+    box-shadow: 0 30px 80px -30px rgba(96, 165, 250, 0.35);
+  }
+  .chips { display: flex; gap: 6px; margin-bottom: 10px; }
+  .chip { font-size: 11px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
+  .chip.on { background: var(--keep); border-color: var(--keep); color: var(--bg); font-weight: 700; }
+  .stage { position: relative; height: calc(100% - 82px); }
+  .card {
+    position: absolute; inset: 0; border-radius: 16px; overflow: hidden;
+    display: flex; align-items: flex-end; padding: 12px; color: #fff; font-size: 12px; font-weight: 600;
+  }
+  .card .stamp {
+    position: absolute; top: 16px; padding: 4px 10px; border: 3px solid; border-radius: 8px;
+    font-size: 16px; font-weight: 800; letter-spacing: 0.05em; opacity: 0;
+  }
+  .card .stamp.keep { left: 14px; color: var(--keep); transform: rotate(-12deg); }
+  .card .stamp.del { right: 14px; color: var(--trash); transform: rotate(12deg); }
+  .card.go-keep { animation: keep 0.9s ease-in forwards; }
+  .card.go-keep .stamp.keep, .card.go-del .stamp.del { animation: stamp 0.9s forwards; }
+  .card.go-del { animation: del 0.9s ease-in forwards; }
+  @keyframes keep { 0% { transform: none; } 35% { transform: translateX(14%) rotate(4deg); } 100% { transform: translateX(140%) rotate(18deg); } }
+  @keyframes del { 0% { transform: none; } 35% { transform: translateX(-14%) rotate(-4deg); } 100% { transform: translateX(-140%) rotate(-18deg); opacity: 0.4; } }
+  @keyframes stamp { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 1; } }
+  .bar { display: flex; gap: 6px; margin-top: 10px; }
+  .bar span { flex: 1; text-align: center; font-size: 11px; padding: 8px 0; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+  .bar .k { background: var(--keep); color: var(--bg); font-weight: 700; border-color: var(--keep); }
+  .bar .d { color: var(--trash); }
+  @media (prefers-reduced-motion: reduce) { .card { animation: none !important; } }
+
+  section { padding: 48px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 22px; font-weight: 750; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .tile h3 { margin: 0 0 8px; font-size: 17px; }
+  .tile p { margin: 0; color: var(--muted); font-size: 15px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
+
+  .targets { display: flex; flex-wrap: wrap; gap: 8px; }
+  .targets span { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 15px; }
+
+  .dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .dl a { display: block; text-decoration: none; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .dl a:hover { border-color: var(--accent); }
+  .dl b { display: block; font-size: 16px; }
+  .dl span { color: var(--muted); font-size: 14px; }
+  #version { color: var(--muted); font-size: 14px; margin: -10px 0 18px; }
+
+  .faq details { border-bottom: 1px solid var(--line); padding: 14px 0; }
+  .faq summary { cursor: pointer; font-weight: 600; }
+  .faq p { color: var(--muted); margin: 10px 0 0; }
+
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 18px; }
+  footer a { color: var(--muted); }
+
+  @media (max-width: 820px) {
+    .hero { grid-template-columns: 1fr; gap: 36px; padding-top: 16px; }
+    .grid3 { grid-template-columns: 1fr; }
+    header nav { gap: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="icon.png" alt="">
+    <span class="name">Winnow</span>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/jamesfpate/winnow">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div>
+      <h1>Back up the photos you <em>keep</em>, <s>not every photo</s>.</h1>
+      <p class="lede">Swipe through new photos: right files it into an album, left deletes it. Winnow then uploads
+        <strong>only what you kept, into matching albums</strong>, on Immich, Google Photos, Apple Photos or your own server.</p>
+      <div class="buttons">
+        <a class="btn primary" id="get-android" href="https://github.com/jamesfpate/winnow/releases/latest">Get it for Android</a>
+        <a class="btn" href="#download">iPhone, Mac, Windows, Linux</a>
+      </div>
+      <p class="fine">Free. No ads, no tracking, no account. Your photos go only where you send them.</p>
+    </div>
+
+    <div class="phone" aria-label="Animation: photos swiped right into an album or left to delete">
+      <div class="chips"><span class="chip on">→ 2026-07 Hawaii</span><span class="chip">2026</span><span class="chip">+ New</span></div>
+      <div class="stage" id="stage"></div>
+      <div class="bar"><span class="d">← Delete</span><span class="k">→ Hawaii</span><span>Later</span></div>
+    </div>
+  </div>
+
+  <section id="how">
+    <h2>How it works</h2>
+    <div class="grid3">
+      <div class="tile">
+        <h3><span class="dot" style="background:var(--keep)"></span>Swipe, don't scroll</h3>
+        <p>One photo at a time, oldest or newest first. Bursts come up together so you keep the sharp one. Undo anything.</p>
+      </div>
+      <div class="tile">
+        <h3><span class="dot" style="background:var(--accent)"></span>Albums as you go</h3>
+        <p>Winnow suggests the album by date: the trip you made last week, or the year's catch-all. Search, or make a new one in a tap.</p>
+      </div>
+      <div class="tile">
+        <h3><span class="dot" style="background:var(--trash)"></span>Only keepers get backed up</h3>
+        <p>Deletes go to the phone's trash. Kept photos upload into the same albums on your server, and space is freed once they're safe.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Files into albums on</h2>
+    <div class="targets">
+      <span>Immich</span><span>Google Photos</span><span>Apple Photos</span><span>PhotoPrism</span><span>Synology Photos</span>
+      <span>Nextcloud / WebDAV</span><span>SFTP</span><span>S3</span><span>Backblaze B2</span><span>Dropbox</span><span>OneDrive</span>
+    </div>
+    <p class="fine">Several at once if you like. Rename an album and it's renamed everywhere; move a photo and it moves.
+      Already uploaded the same file? Winnow recognises it and doesn't upload it twice.</p>
+  </section>
+
+  <section id="download">
+    <h2>Download</h2>
+    <p id="version">Latest release</p>
+    <div class="dl">
+      <a id="dl-android" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Android</b><span>APK · Android 11+</span></a>
+      <a href="https://github.com/ImranR98/Obtainium"><b>Android, auto-updating</b><span>Obtainium: add github.com/jamesfpate/winnow</span></a>
+      <a id="dl-mac" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Mac</b><span>Folders or the Photos library</span></a>
+      <a id="dl-windows" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Windows</b><span>Zip, review any folder</span></a>
+      <a id="dl-linux" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Linux</b><span>tar.gz, review any folder</span></a>
+      <a id="dl-iphone" href="https://github.com/jamesfpate/winnow/releases/latest"><b>iPhone</b><span>Early: sideload with AltStore or Sideloadly</span></a>
+    </div>
+  </section>
+
+  <section class="faq">
+    <h2>Questions</h2>
+    <details><summary>Is it really free?</summary>
+      <p>Yes, everything. If it saves you time you can <a href="https://github.com/sponsors/jamesfpate">sponsor it</a>, or buy the Supporter thank-you in the Play Store version. Neither unlocks anything.</p></details>
+    <details><summary>Where do my photos go?</summary>
+      <p>Only to the services you set up, straight from your device. Winnow has no servers and collects nothing. <a href="privacy.html">Privacy policy</a>.</p></details>
+    <details><summary>Does it delete photos for good?</summary>
+      <p>No. Deleted photos go to the phone's Recently Deleted / Trash, and you review the trash in Winnow before anything is removed. "Free up space" only removes kept photos once every backup has them.</p></details>
+    <details><summary>Why not just use the cleaner apps in the store?</summary>
+      <p>They delete, then leave the rest in one pile. Winnow files what you keep into albums and gets them onto your server, without a weekly subscription.</p></details>
+    <details><summary>Is it open source?</summary>
+      <p>The source is on <a href="https://github.com/jamesfpate/winnow">GitHub</a> under the Functional Source License: free to use, change and share, not to resell. Each version becomes Apache 2.0 after two years.</p></details>
+  </section>
+
+  <footer>
+    <span>© 2026 James Pate</span>
+    <a href="privacy.html">Privacy</a>
+    <a href="https://github.com/jamesfpate/winnow">Source</a>
+    <a href="https://github.com/jamesfpate/winnow/issues">Report a problem</a>
+    <a href="https://github.com/sponsors/jamesfpate">Sponsor</a>
+  </footer>
+</div>
+
+<script>
+// Download links point straight at the latest release's files (falling back to the release page).
+fetch('https://api.github.com/repos/jamesfpate/winnow/releases/latest')
+  .then(r => r.ok ? r.json() : Promise.reject())
+  .then(rel => {
+    document.getElementById('version').textContent = 'Latest release: ' + rel.tag_name;
+    const find = re => (rel.assets.find(a => re.test(a.name)) || {}).browser_download_url;
+    const set = (id, re) => { const u = find(re); if (u) document.getElementById(id).href = u; };
+    set('dl-android', /\.apk$/); set('get-android', /\.apk$/); set('dl-mac', /-mac\.zip$/);
+    set('dl-windows', /-windows\.zip$/); set('dl-linux', /-linux\.tar\.gz$/); set('dl-iphone', /\.ipa$/);
+  })
+  .catch(() => {});
+
+// The swipe demo: a stack of photo cards, each kept (right) or deleted (left) in turn.
+(() => {
+  const stage = document.getElementById('stage');
+  const photos = [
+    ['linear-gradient(160deg,#0ea5e9,#22d3ee 55%,#fde68a)', 'Beach · Jul 12', true],
+    ['linear-gradient(160deg,#334155,#475569)', 'Blurry · Jul 12', false],
+    ['linear-gradient(160deg,#f97316,#db2777 60%,#4c1d95)', 'Sunset · Jul 12', true],
+    ['linear-gradient(160deg,#a3a3a3,#d4d4d4)', 'Screenshot · Jul 13', false],
+    ['linear-gradient(160deg,#16a34a,#65a30d 50%,#0f766e)', 'Hike · Jul 13', true],
+  ];
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const [bg, label] = photos[0];
+    stage.innerHTML = `<div class="card" style="background:${bg}">${label}</div>`;
+    return;
+  }
+  let i = 0;
+  const make = n => {
+    const [bg, label] = photos[n % photos.length];
+    const c = document.createElement('div');
+    c.className = 'card';
+    c.style.background = bg;
+    c.innerHTML = `<span class="stamp keep">KEEP</span><span class="stamp del">DELETE</span>${label}`;
+    stage.prepend(c);
+    return c;
+  };
+  let top = make(0); make(1);
+  setInterval(() => {
+    const keep = photos[i % photos.length][2];
+    top.classList.add(keep ? 'go-keep' : 'go-del');
+    const gone = top;
+    setTimeout(() => gone.remove(), 950);
+    i++;
+    top = stage.lastElementChild.previousElementSibling || stage.lastElementChild;
+    make(i + 1);
+  }, 1600);
+})();
+</script>
+</body>
+</html>

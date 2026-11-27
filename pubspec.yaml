@@ -41,7 +41,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-# App icon: `flutter pub run flutter_launcher_icons` regenerates the Android/iOS icons from assets/icon.
+# App icon: `flutter pub run flutter_launcher_icons` regenerates the Android/iOS/macOS/Windows icons from assets/icon.
 flutter_launcher_icons:
   android: true
   ios: true
@@ -51,3 +51,10 @@ flutter_launcher_icons:
   # Themed (single-colour) icons on Android 13+, used by Niagara and Pixel themed icons.
   adaptive_icon_monochrome: assets/icon/monochrome.png
   remove_alpha_ios: true
+  macos:
+    generate: true
+    image_path: assets/icon/icon.png
+  windows:
+    generate: true
+    image_path: assets/icon/icon.png
+    icon_size: 256

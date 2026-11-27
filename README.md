@@ -54,6 +54,13 @@ Tag `vX.Y.Z` and push the tag. CI signs with the keystore from the repo secrets 
 update; the keystore's backup lives outside this repo.
 The same release also gets `winnow-X.Y.Z.aab` (the Play Store bundle, signed with the same key as the upload key).
 
+## Website
+`site/` is https://winnow.jamespate.net: the Site workflow builds it into `ghcr.io/jamesfpate/winnow-site` (nginx) on
+changes, and the homelab serves it through the Cloudflare tunnel (stack `winnow-site` in jamesfpate/homelab; new images
+go live at its 03:00 auto-update, or redeploy the stack in Komodo). Plain HTML, no tracking; download buttons point at
+the latest release's files. `privacy.html` is the Play privacy policy
+URL; keep it in step with PRIVACY.md.
+
 ## Monitoring
 The Weekly stats workflow comments every Monday on the "Weekly stats" issue: downloads by platform, stars, forks,
 open issues, with the change since last week. Run it by hand from Actions any time.

@@ -1,0 +1,31 @@
+name: Site
+
+# Builds the website (site/) into ghcr.io/jamesfpate/winnow-site. The homelab pulls it at its 03:00 auto-update and
+# serves it at winnow.jamespate.net through the Cloudflare tunnel.
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/site.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: site
+          push: true
+          tags: |
+            ghcr.io/jamesfpate/winnow-site:latest
+            ghcr.io/jamesfpate/winnow-site:${{ github.sha }}
