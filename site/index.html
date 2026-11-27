@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Winnow Photos: swipe to cull photos before they're backed up</title>
-<meta name="description" content="Swipe through new photos: keep into an album or delete. Winnow uploads only what you kept, into matching albums, to Immich, Google Photos, Apple Photos, PhotoPrism, Synology, Nextcloud, S3, SFTP, Dropbox or OneDrive. Free, no ads, no tracking.">
+<title>Winnow: review your photos and sync the keepers into albums</title>
+<meta name="description" content="Winnow is a free photo review app for Android, iPhone, Mac, Windows and Linux. Swipe to keep or delete, file keepers into albums, and sync only those to Immich, Google Photos, Apple Photos, PhotoPrism, Synology Photos, Nextcloud, S3, SFTP, Backblaze B2, Dropbox or OneDrive.">
 <link rel="canonical" href="https://winnow.jamespate.net/">
 <link rel="icon" type="image/png" href="icon.png">
-<meta property="og:title" content="Winnow Photos">
-<meta property="og:description" content="Swipe to cull photos before they're backed up. Kept photos go into albums on your own server.">
+<meta property="og:title" content="Winnow">
+<meta property="og:description" content="Review your photos and sync the keepers, in albums, to Immich, Google Photos, Apple Photos or your own storage.">
 <meta property="og:image" content="https://winnow.jamespate.net/icon.png">
 <meta property="og:url" content="https://winnow.jamespate.net/">
 <meta name="theme-color" content="#0B0B0F">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Winnow Photos","operatingSystem":"Android, iOS, macOS, Windows, Linux","applicationCategory":"PhotographyApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://winnow.jamespate.net/","downloadUrl":"https://github.com/jamesfpate/winnow/releases/latest"}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Winnow","operatingSystem":"Android, iOS, macOS, Windows, Linux","applicationCategory":"PhotographyApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://winnow.jamespate.net/","downloadUrl":"https://github.com/jamesfpate/winnow/releases/latest"}
 </script>
 <style>
   :root {
@@ -37,9 +37,26 @@
   header nav a:hover { color: var(--text); }
 
   .hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; padding: 40px 0 56px; }
-  h1 { font-size: clamp(34px, 5.4vw, 56px); line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 18px; font-weight: 800; }
-  h1 em { font-style: normal; color: var(--keep); }
-  h1 s { text-decoration-color: var(--trash); text-decoration-thickness: 4px; color: var(--muted); }
+  .brand { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; }
+  .mark { width: clamp(72px, 9vw, 96px); height: auto; flex: none; overflow: visible; }
+  h1 { font-size: clamp(44px, 6.5vw, 68px); line-height: 1; letter-spacing: -0.03em; margin: 0; font-weight: 800; }
+  /* The app's wordmark: the two n's offset, one dropped and one raised, like grain being winnowed. */
+  h1 .n { display: inline-block; color: var(--accent); }
+  h1 .n1 { transform: translateY(0.08em); }
+  h1 .n2 { transform: translateY(-0.12em); }
+  .summary { font-size: clamp(20px, 2.4vw, 24px); line-height: 1.35; margin: 0 0 12px; font-weight: 600; max-width: 26em; }
+
+  /* Icon on load: the back card swings out from behind, the front card drops in, the W lands last. */
+  .mark .back { transform-origin: 512px 512px; animation: swing 0.9s cubic-bezier(.2,.8,.2,1.15) 0.15s both; }
+  .mark .front { transform-origin: 502px 522px; animation: drop 0.7s cubic-bezier(.2,.8,.2,1.1) both; }
+  .mark .w { transform-origin: 510px 540px; animation: pop 0.5s cubic-bezier(.2,.8,.3,1.4) 0.55s both; }
+  @keyframes swing { from { transform: rotate(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes drop { from { transform: translateY(-60px) scale(0.85); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+  h1 .n1 { animation: dropN 0.8s ease-out 0.7s both; }
+  h1 .n2 { animation: raiseN 0.8s ease-out 0.8s both; }
+  @keyframes dropN { from { transform: none; } to { transform: translateY(0.08em); } }
+  @keyframes raiseN { from { transform: none; } to { transform: translateY(-0.12em); } }
   .lede { font-size: 19px; color: var(--muted); margin: 0 0 28px; max-width: 34em; }
   .lede strong { color: var(--text); font-weight: 600; }
 
@@ -83,7 +100,7 @@
   .bar span { flex: 1; text-align: center; font-size: 11px; padding: 8px 0; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
   .bar .k { background: var(--keep); color: var(--bg); font-weight: 700; border-color: var(--keep); }
   .bar .d { color: var(--trash); }
-  @media (prefers-reduced-motion: reduce) { .card { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .card, .mark *, h1 .n { animation: none !important; } }
 
   section { padding: 48px 0; border-top: 1px solid var(--line); }
   h2 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 22px; font-weight: 750; }
@@ -93,8 +110,12 @@
   .tile p { margin: 0; color: var(--muted); font-size: 15px; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
 
-  .targets { display: flex; flex-wrap: wrap; gap: 8px; }
-  .targets span { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 15px; }
+  .group-label { color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 26px 0 10px; }
+  .integrations { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .integration { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .integration b { display: block; font-size: 16px; margin-bottom: 4px; }
+  .integration span { color: var(--muted); font-size: 14px; }
+  .integration i { font-style: normal; font-size: 12px; color: var(--accent); margin-left: 6px; font-weight: 600; }
 
   .dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
   .dl a { display: block; text-decoration: none; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
@@ -120,10 +141,10 @@
 <body>
 <div class="wrap">
   <header>
-    <img src="icon.png" alt="">
-    <span class="name">Winnow</span>
+    <img src="icon.png" alt="Winnow">
     <nav>
       <a href="#how">How it works</a>
+      <a href="#integrations">Integrations</a>
       <a href="#download">Download</a>
       <a href="https://github.com/jamesfpate/winnow">GitHub</a>
     </nav>
@@ -131,9 +152,20 @@
 
   <div class="hero">
     <div>
-      <h1>Back up the photos you <em>keep</em>, <s>not every photo</s>.</h1>
-      <p class="lede">Swipe through new photos: right files it into an album, left deletes it. Winnow then uploads
-        <strong>only what you kept, into matching albums</strong>, on Immich, Google Photos, Apple Photos or your own server.</p>
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true">
+          <g class="back"><rect x="300" y="210" width="520" height="520" rx="60" transform="rotate(12 560 470)" fill="none" stroke="#3B6FB2" stroke-width="40"/></g>
+          <g class="front">
+            <rect x="245" y="265" width="515" height="515" rx="62" fill="var(--bg)"/>
+            <rect x="265" y="285" width="475" height="475" rx="48" fill="var(--accent)"/>
+          </g>
+          <path class="w" fill="var(--bg)" d="M358 430h58l34 150 39-150h44l39 150 34-150h58l-63 215h-58l-32-127-32 127h-58z"/>
+        </svg>
+        <h1>wi<span class="n n1">n</span><span class="n n2">n</span>ow</h1>
+      </div>
+      <p class="summary">Review your photos and sync the keepers, sorted into albums, to Immich, Google Photos, Apple Photos or your own storage.</p>
+      <p class="lede">Swipe right to keep a photo in an album, left to delete it. Bursts come up together, albums are
+        suggested by date, and <strong>only what you keep is uploaded</strong>, into the same albums everywhere.</p>
       <div class="buttons">
         <a class="btn primary" id="get-android" href="https://github.com/jamesfpate/winnow/releases/latest">Get it for Android</a>
         <a class="btn" href="#download">iPhone, Mac, Windows, Linux</a>
@@ -166,14 +198,30 @@
     </div>
   </section>
 
-  <section>
-    <h2>Files into albums on</h2>
-    <div class="targets">
-      <span>Immich</span><span>Google Photos</span><span>Apple Photos</span><span>PhotoPrism</span><span>Synology Photos</span>
-      <span>Nextcloud / WebDAV</span><span>SFTP</span><span>S3</span><span>Backblaze B2</span><span>Dropbox</span><span>OneDrive</span>
+  <section id="integrations">
+    <h2>Integrations</h2>
+    <p class="lede" style="margin-bottom:0">Turn on as many as you like. Kept photos sync into albums of the same name on each; rename an
+      album or move a photo in Winnow and it follows everywhere. A file that's already there is recognised, not uploaded twice.</p>
+
+    <div class="group-label">Photo libraries · real albums</div>
+    <div class="integrations">
+      <div class="integration"><b>Immich</b><span>Albums plus tags (Albums/2026/07), shared with family as editors. Browse and refile your Immich library from Winnow.</span></div>
+      <div class="integration"><b>Google Photos <i>Android</i></b><span>Uploads into Google Photos albums.</span></div>
+      <div class="integration"><b>Apple Photos <i>iPhone · Mac</i></b><span>Files kept photos into albums in your own Photos library, synced by iCloud.</span></div>
+      <div class="integration"><b>PhotoPrism</b><span>Uploads into PhotoPrism albums.</span></div>
+      <div class="integration"><b>Synology Photos</b><span>Uploads into Synology Photos albums on your NAS.</span></div>
     </div>
-    <p class="fine">Several at once if you like. Rename an album and it's renamed everywhere; move a photo and it moves.
-      Already uploaded the same file? Winnow recognises it and doesn't upload it twice.</p>
+
+    <div class="group-label">File storage · a folder per album</div>
+    <div class="integrations">
+      <div class="integration"><b>Nextcloud / ownCloud</b><span>Any WebDAV server. On Nextcloud, also Nextcloud Photos albums.</span></div>
+      <div class="integration"><b>SFTP</b><span>Your NAS or any server you can SSH into.</span></div>
+      <div class="integration"><b>S3-compatible</b><span>AWS S3, Cloudflare R2, Wasabi, MinIO.</span></div>
+      <div class="integration"><b>Backblaze B2</b><span>Straight into a B2 bucket.</span></div>
+      <div class="integration"><b>Dropbox</b><span>Into a folder in your Dropbox.</span></div>
+      <div class="integration"><b>OneDrive</b><span>Personal or work OneDrive.</span></div>
+    </div>
+    <p class="fine">Layout on file storage: Photos/2026/2026-07 Hawaii/IMG_1234.jpg, with the year's catch-all photos in Photos/2026/.</p>
   </section>
 
   <section id="download">
