@@ -1,0 +1,57 @@
+name: Weekly stats
+
+# Every Monday: downloads (by platform), stars, forks and open issues, posted as a comment on the "Weekly stats" issue
+# with the change since last week, so it arrives as a GitHub notification.
+on:
+  schedule:
+    - cron: '0 13 * * 1'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post this week's numbers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          repo_json=$(gh api "repos/$REPO")
+          assets=$(gh api --paginate "repos/$REPO/releases" -q '[.[] | {tag: .tag_name, assets: [.assets[] | {name, n: .download_count}]}]' | jq -s 'add')
+          now=$(jq -n --argjson r "$repo_json" --argjson a "$assets" '
+            def kind: if test("\\.apk$") then "android" elif test("\\.aab$") then "aab"
+              elif test("-mac\\.zip$") then "mac" elif test("-windows\\.zip$") then "windows"
+              elif test("-linux\\.tar\\.gz$") then "linux" elif test("\\.ipa$") then "iphone" else "other" end;
+            {
+              stars: $r.stargazers_count, forks: $r.forks_count, issues: $r.open_issues_count,
+              latest: ($a[0].tag // "none"),
+              latestDownloads: ([$a[0].assets[]?.n] | add // 0),
+              downloads: ([$a[].assets[] | {k: (.name | kind), n}] | group_by(.k) | map({(.[0].k): (map(.n) | add)}) | add // {})
+            }')
+
+          issue=$(gh issue list -R "$REPO" --state open --search 'in:title "Weekly stats"' --json number -q '.[0].number // empty')
+          if [ -z "$issue" ]; then
+            issue=$(gh issue create -R "$REPO" --title "Weekly stats" --body "Weekly downloads, stars and issues, posted by the Weekly stats workflow. Subscribe to get them as notifications." | grep -o '[0-9]*$')
+          fi
+          prev=$(gh api "repos/$REPO/issues/$issue/comments" --paginate -q '.[].body' | grep -o '<!-- stats:.* -->' | tail -1 | sed 's/<!-- stats://; s/ -->$//' || true)
+          [ -n "$prev" ] || prev='{}'
+
+          body=$(jq -rn --argjson n "$now" --argjson p "$prev" '
+            def d(a; b): if b == null then "" else (a - b) as $x | if $x > 0 then " (+\($x))" elif $x < 0 then " (\($x))" else "" end end;
+            ["### \(now | strftime("%Y-%m-%d"))", "",
+             "| | Total |", "|---|---|",
+             "| Stars | \($n.stars)\(d($n.stars; $p.stars)) |",
+             "| Forks | \($n.forks)\(d($n.forks; $p.forks)) |",
+             "| Open issues | \($n.issues)\(d($n.issues; $p.issues)) |",
+             ($n.downloads | to_entries[] | select(.key != "aab" and .key != "other") |
+               "| Downloads: \(.key) | \(.value)\(d(.value; $p.downloads[.key])) |"),
+             "| Latest release (\($n.latest)) | \($n.latestDownloads) downloads |",
+             "", "Downloads count Obtainium update checks that fetch the file, so they track active installs more than new users.",
+             "", "<!-- stats:\($n | tojson) -->"] | join("\n")')
+          gh issue comment "$issue" -R "$REPO" --body "$body"
+          echo "$body" >> "$GITHUB_STEP_SUMMARY"

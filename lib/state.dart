@@ -16,6 +16,7 @@ import 'background.dart';
 import 'models.dart';
 import 'store.dart';
 import 'stores.dart';
+import 'support.dart';
 
 enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, store, google, error }
 
@@ -75,6 +76,10 @@ class AppState extends ChangeNotifier {
   bool autoTrash = true;
   bool gridAutoTrash = false;
   bool newestFirst = false;
+
+  /// Bought the Supporter thank-you (Play); [support] talks to the store.
+  bool supporter = false;
+  final support = Support();
 
   /// Catch-all albums cover a year ("2026"), else a month ("2026-10").
   bool byYear = true;
@@ -190,6 +195,12 @@ class AppState extends ChangeNotifier {
       }
       screen = cutoff == null ? Screen.start : mode;
       changed();
+      support.start(() {
+        if (!supporter) {
+          supporter = true;
+          _set('supporter', true);
+        }
+      }).then((_) => changed());
       _reschedule();
       runSync();
     } catch (e) {
@@ -208,6 +219,7 @@ class AppState extends ChangeNotifier {
     autoTrash = (m['autoTrash'] as bool?) ?? true;
     gridAutoTrash = (m['gridAutoTrash'] as bool?) ?? false;
     newestFirst = (m['newestFirst'] as bool?) ?? false;
+    supporter = (m['supporter'] as bool?) ?? false;
     animations = (m['animations'] as bool?) ?? true;
     gridFrac = (m['gridFrac'] as num?)?.toDouble() ?? 0.4;
     thumbH = (m['thumbH'] as num?)?.toDouble() ?? 150;

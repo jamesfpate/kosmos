@@ -8,6 +8,10 @@ SFTP, S3, B2, Dropbox, OneDrive).
 Flutter app (rewritten from an earlier Capacitor/Svelte version; same package id and signing key, so it installs as
 an update over it, and that version's backups import here).
 
+Free, no ads, no tracking, no account: photos go only to the services you set up ([privacy](PRIVACY.md)). If it
+saves you time, [sponsor it](https://github.com/sponsors/jamesfpate) or buy the Supporter thank-you in the Play Store
+build (it unlocks nothing; everything stays free).
+
 ## Install
 With [Obtainium](https://github.com/ImranR98/Obtainium): Add app -> `https://github.com/jamesfpate/winnow`.
 Releases are signed APKs built by GitHub Actions from `v*` tags. Android 11+.
@@ -48,3 +52,12 @@ Flutter 3.44 (`lib/`): `state.dart` holds all app state and logic, `media.dart` 
 Tag `vX.Y.Z` and push the tag. CI signs with the keystore from the repo secrets `WINNOW_KEYSTORE_BASE64`,
 `WINNOW_KEYSTORE_PASSWORD`, `WINNOW_KEY_ALIAS`. Every release must use the same key, or Android refuses the
 update; the keystore's backup lives outside this repo.
+The same release also gets `winnow-X.Y.Z.aab` (the Play Store bundle, signed with the same key as the upload key).
+
+## Monitoring
+The Weekly stats workflow comments every Monday on the "Weekly stats" issue: downloads by platform, stars, forks,
+open issues, with the change since last week. Run it by hand from Actions any time.
+
+## License
+[FSL-1.1-ALv2](LICENSE.md): free to use, change and share, but not to sell as a competing app or service. Each
+version becomes Apache 2.0 two years after its release.

@@ -4,11 +4,13 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:winnow_native/winnow_native.dart';
 
 import '../immich.dart';
 import '../media.dart' as media;
 import '../state.dart';
 import '../stores.dart';
+import '../support.dart';
 import 'common.dart';
 
 const _sections = [
@@ -17,6 +19,7 @@ const _sections = [
   ('grid', 'Grid'),
   ('integrations', 'Integrations'),
   ('backup', 'Backup'),
+  ('support', 'Support'),
 ];
 
 class SettingsScreen extends StatefulWidget {
@@ -315,6 +318,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Expanded(child: Btn('Import data', onTap: _import)),
           ]),
           if (_backupMsg.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_backupMsg, style: const TextStyle(color: C.muted))),
+          _h2('support', 'Support Winnow'),
+          if (s.supporter)
+            _p('You\'re a supporter. Thank you ♥')
+          else
+            _p('Everything in Winnow is free, with no ads and no tracking. If it saves you time, a one-off supporter purchase keeps it going.'),
+          if (!s.supporter && Support.inApp && s.support.product != null) ...[
+            Btn('Become a supporter · ${s.support.product!.price}', bold: true, color: C.bg, bg: C.accent, onTap: s.support.buy),
+            const SizedBox(height: 8),
+          ],
+          Btn('Sponsor on GitHub', icon: Icons.favorite_border, onTap: () => WinnowNative.openUrl(Support.sponsorsUrl)),
           // Room to scroll the last section's heading up under the jump bar.
           SizedBox(height: MediaQuery.sizeOf(context).height * 0.5),
           ]),
