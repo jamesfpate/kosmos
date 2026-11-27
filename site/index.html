@@ -110,6 +110,11 @@
   .tile p { margin: 0; color: var(--muted); font-size: 15px; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
 
+  .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px 28px; }
+  .feature { display: flex; gap: 12px; padding: 12px 0; }
+  .feature svg { flex: none; width: 22px; height: 22px; margin-top: 2px; color: var(--accent); }
+  .feature b { display: block; margin-bottom: 2px; }
+  .feature span { color: var(--muted); font-size: 15px; }
   .group-label { color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 26px 0 10px; }
   .integrations { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
   .integration { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
@@ -143,7 +148,7 @@
   <header>
     <img src="icon.png" alt="Winnow">
     <nav>
-      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
       <a href="#integrations">Integrations</a>
       <a href="#download">Download</a>
       <a href="https://github.com/jamesfpate/winnow">GitHub</a>
@@ -195,6 +200,27 @@
         <h3><span class="dot" style="background:var(--trash)"></span>Only keepers get backed up</h3>
         <p>Deletes go to the phone's trash. Kept photos upload into the same albums on your server, and space is freed once they're safe.</p>
       </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <h2>Features</h2>
+    <div class="features">
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 12h6m-2-2 2 2-2 2"/></svg><div><b>Swipe to decide</b><span>Right keeps it in the chosen album, left deletes it, Later puts it off. Videos play right on the card.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="12" height="12" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></svg><div><b>Bursts together</b><span>Similar shots come up as one card: tick the keepers, the rest go. You set how close in time counts as a burst.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><div><b>Grid for the backlog</b><span>File years of older photos fast: pick an album, select a run of photos, done.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div><b>Albums by date</b><span>Dated albums like “2026-07 Hawaii” are suggested for photos taken in their range; everything else goes to the year’s catch-all.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><div><b>Album search</b><span>Find any album as you type, or make a new one from what you typed. Drag a photo onto an album to file it.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg><div><b>Full size</b><span>Long-press a photo to see it full screen; pinch or double-tap to zoom.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg><div><b>Undo everything</b><span>Step back through your decisions, one swipe at a time.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"/></svg><div><b>Nothing lost by accident</b><span>Deletes wait in Winnow’s trash for you to review, then go to the phone’s Recently Deleted.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M5 21h14"/></svg><div><b>Free up space</b><span>Once every backup has a kept photo, Winnow can remove it from the phone, or keep the last 30 days.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12a9 9 0 0 1 15.5-6.2"/><path d="M21 4v5h-5M3 20v-5h5"/></svg><div><b>Albums stay in step</b><span>Rename an album or move a photo and every integration follows. Files already uploaded are recognised, not sent twice.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="0.8" fill="currentColor"/></svg><div><b>Uploads your way</b><span>In the background on Android, on Wi-Fi only if you like, with or without videos, per integration.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 1 1 1.6-9.7A6 6 0 0 1 20 11a3.5 3.5 0 0 1-1 7z"/></svg><div><b>Browse Immich</b><span>See your Immich library by album, refile photos, or save them back to the phone.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8m-4-4v4"/></svg><div><b>Phone and computer</b><span>Android and iPhone, plus Mac, Windows and Linux for photo folders. On a Mac, review the Photos library itself.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 11h.01M10 11h.01M14 11h.01M18 11h.01M7 14h10"/></svg><div><b>Keyboard on desktop</b><span>← delete, → keep, ↓ later, Space plays, Z undoes, / searches albums.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><div><b>Private by design</b><span>No account, no ads, no analytics. Settings and albums export to a backup file you keep.</span></div></div>
     </div>
   </section>
 
