@@ -50,6 +50,7 @@ jobs:
         run: >
           flutter build apk --debug --build-name "$WINNOW_VERSION_NAME" --build-number "$WINNOW_VERSION_CODE"
           --dart-define WINNOW_VERSION="$WINNOW_VERSION_NAME"
+          --dart-define ONEDRIVE_CLIENT_ID="${{ vars.ONEDRIVE_CLIENT_ID }}" --dart-define DROPBOX_APP_KEY="${{ vars.DROPBOX_APP_KEY }}"
 
       - uses: actions/upload-artifact@v4
         if: github.ref_type != 'tag'
@@ -67,7 +68,8 @@ jobs:
           export WINNOW_KEYSTORE_FILE="$RUNNER_TEMP/winnow.jks"
           echo "$WINNOW_KEYSTORE_BASE64" | base64 -d > "$WINNOW_KEYSTORE_FILE"
           flutter build apk --release --build-name "$WINNOW_VERSION_NAME" --build-number "$WINNOW_VERSION_CODE" \
-            --dart-define WINNOW_VERSION="$WINNOW_VERSION_NAME"
+            --dart-define WINNOW_VERSION="$WINNOW_VERSION_NAME" \
+            --dart-define ONEDRIVE_CLIENT_ID="${{ vars.ONEDRIVE_CLIENT_ID }}" --dart-define DROPBOX_APP_KEY="${{ vars.DROPBOX_APP_KEY }}"
           mv build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/winnow-$WINNOW_VERSION_NAME.apk"
 
       - uses: softprops/action-gh-release@v2

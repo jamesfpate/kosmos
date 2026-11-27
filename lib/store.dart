@@ -144,7 +144,8 @@ class StoreConfig {
 }
 
 class FieldDef {
-  const FieldDef(this.key, this.label, this.hint, {this.secret = false, this.url = false, this.lines = 1, this.optional = false});
+  const FieldDef(this.key, this.label, this.hint,
+      {this.secret = false, this.url = false, this.lines = 1, this.optional = false, this.hidden = false});
 
   final String key;
   final String label;
@@ -155,6 +156,21 @@ class FieldDef {
   /// More than 1: a multi-line box (e.g. a private key).
   final int lines;
   final bool optional;
+
+  /// Kept in the settings but not shown (e.g. a sign-in's refresh token).
+  final bool hidden;
+}
+
+/// What a sign-in flow can ask of the screen.
+abstract class SignInUi {
+  /// Show [code] to type in at [url] (opened for the user); the flow carries on by itself.
+  Future<void> showCode(String code, String url);
+
+  /// Open [url] and ask the user to paste the code it shows. Null if they cancel.
+  Future<String?> askCode(String url);
+
+  /// The flow ended (dismiss whatever [showCode] put up).
+  void done();
 }
 
 class StoreDef {
@@ -166,8 +182,16 @@ class StoreDef {
     required this.fields,
     this.make,
     this.albums,
+    this.signIn,
+    this.available = true,
     this.folderLabel = 'Folder',
   });
+
+  /// False when this build can't offer it (OneDrive/Dropbox without their app ids): hidden from Settings.
+  final bool available;
+
+  /// Sign-in flow (OneDrive, Dropbox) instead of typed credentials: returns the fields to save (tokens, account).
+  final Future<Map<String, String>> Function(SignInUi ui)? signIn;
 
   /// Settings key, database table and error label.
   final String key;

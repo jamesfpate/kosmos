@@ -104,12 +104,75 @@ class StoreScreen extends StatefulWidget {
   State<StoreScreen> createState() => _StoreScreenState();
 }
 
-class _StoreScreenState extends State<StoreScreen> {
+class _StoreScreenState extends State<StoreScreen> implements SignInUi {
   AppState get s => widget.s;
   StoreDef get def => storeDef(s.storeKey);
-  late final _c = {for (final f in def.fields) f.key: TextEditingController(text: s.store(def.key)[f.key])};
+  late final _c = {for (final f in def.fields.where((f) => !f.hidden)) f.key: TextEditingController(text: s.store(def.key)[f.key])};
   late final _folder = TextEditingController(text: s.store(def.key).folder);
   String _msg = '';
+
+  bool _codeOpen = false;
+
+  @override
+  Future<void> showCode(String code, String url) async {
+    await WinnowNative.openUrl(url);
+    if (!mounted) return;
+    _codeOpen = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => AlertDialog(
+        title: Text('Sign in to ${def.title}'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('On the page that opened ($url), enter this code:'),
+          const SizedBox(height: 12),
+          SelectableText(code, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 3)),
+          const SizedBox(height: 12),
+          const Text('Winnow carries on by itself once you have allowed access.', style: TextStyle(color: C.muted)),
+        ]),
+        actions: [TextButton(onPressed: () => WinnowNative.openUrl(url), child: const Text('Open the page again'))],
+      ),
+    ).then((_) => _codeOpen = false);
+  }
+
+  @override
+  Future<String?> askCode(String url) async {
+    await WinnowNative.openUrl(url);
+    if (!mounted) return null;
+    final c = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Sign in to ${def.title}'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Allow access on the page that opened, then copy the code it shows and paste it here.'),
+          const SizedBox(height: 12),
+          TextField(controller: c, autofocus: true, decoration: const InputDecoration(hintText: 'Code', border: OutlineInputBorder())),
+        ]),
+        actions: [
+          TextButton(onPressed: () => WinnowNative.openUrl(url), child: const Text('Open the page again')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, c.text), child: const Text('Done')),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void done() {
+    if (_codeOpen && mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _signIn() async {
+    setState(() => _msg = 'Signing in…');
+    try {
+      final fields = await def.signIn!(this);
+      await s.saveStore(def.key, fields: fields);
+      setState(() => _msg = '');
+    } catch (e) {
+      setState(() => _msg = "Couldn't sign in: ${'$e'.replaceFirst('Exception: ', '')}");
+    }
+  }
 
   Future<void> _save() =>
       s.saveStore(def.key, fields: {for (final e in _c.entries) e.key: e.value.text}, folder: _folder.text);
@@ -132,11 +195,22 @@ class _StoreScreenState extends State<StoreScreen> {
       for (final t in def.intro) _muted(t),
       if (!def.isAlbums)
         _muted('Layout: ${c.folder}2026/2026-11 Thanksgiving/IMG_1234.jpg; undated albums under ${c.folder}Albums/.'),
-      for (final f in def.fields)
+      if (def.signIn != null)
+        if (c['refreshToken'].isNotEmpty)
+          Row(children: [
+            Expanded(child: Text('Signed in as ${c['account']}', style: const TextStyle(fontWeight: FontWeight.w600))),
+            TextButton(
+              onPressed: () => s.saveStore(def.key, fields: {'refreshToken': '', 'account': ''}, enabled: false),
+              child: const Text('Sign out'),
+            ),
+          ])
+        else
+          Btn('Sign in to ${def.title}', icon: Icons.login, onTap: _signIn),
+      for (final f in def.fields.where((f) => !f.hidden))
         _field(f.label, _c[f.key]!, f.hint, _save,
             secret: f.secret, type: f.url ? TextInputType.url : (f.lines > 1 ? TextInputType.multiline : null), lines: f.lines),
       if (!def.isAlbums) _field(def.folderLabel, _folder, 'Photos/', _save),
-      if (c['hostKey'].isNotEmpty)
+      if (c['hostKey'].isNotEmpty && def.key == 'sftp')
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Row(children: [
@@ -157,7 +231,9 @@ class _StoreScreenState extends State<StoreScreen> {
         setEnabled: (on) async {
           await _save();
           if (on && !def.ready(s.store(def.key))) {
-            return setState(() => _msg = 'Fill in ${def.fields.where((f) => !f.optional).map((f) => f.label.toLowerCase()).join(', ')} first.');
+            return setState(() => _msg = def.signIn != null
+                ? 'Sign in first.'
+                : 'Fill in ${def.fields.where((f) => !f.optional && !f.hidden).map((f) => f.label.toLowerCase()).join(', ')} first.');
           }
           await s.saveStore(def.key, enabled: on);
         },

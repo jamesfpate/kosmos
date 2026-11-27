@@ -47,6 +47,12 @@ class WinnowNativePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activ
                 result.success(null)
             }
             "googleToken" -> googleToken(call, result)
+            "openUrl" -> {
+                val i = Intent(Intent.ACTION_VIEW, Uri.parse(call.argument<String>("url")!!))
+                val activity = binding?.activity
+                if (activity != null) activity.startActivity(i) else context.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                result.success(null)
+            }
             "openApp" -> {
                 val i = context.packageManager.getLaunchIntentForPackage(call.argument<String>("package")!!)
                 if (i != null) context.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

@@ -214,7 +214,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           for (final (open, name, key, on) in [
             (() => s.go(Screen.google), 'Google Photos', 'Google Photos', s.google.enabled),
-            for (final d in storeDefs) (() => s.openStore(d.key), d.title, d.label, s.store(d.key).enabled),
+            for (final d in storeDefs.where((d) => d.available))
+              (() => s.openStore(d.key), d.title, d.label, s.store(d.key).enabled),
           ])
             ListTile(
               contentPadding: EdgeInsets.zero,

@@ -28,4 +28,9 @@ class WinnowNative {
   /// Opens another app by package name. False when it isn't installed.
   static Future<bool> openApp(String package) async =>
       Platform.isAndroid && (await _channel.invokeMethod<bool>('openApp', {'package': package}) ?? false);
+
+  /// Opens a web page in the browser.
+  static Future<void> openUrl(String url) async {
+    if (Platform.isAndroid) await _channel.invokeMethod<void>('openUrl', {'url': url});
+  }
 }
