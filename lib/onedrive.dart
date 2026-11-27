@@ -1,9 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:http/http.dart' as http;
-import 'package:photo_manager/photo_manager.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -136,12 +134,12 @@ class OneDriveApi extends FileStore {
 
   @override
   Future<String> upload(Item item, String path) async {
-    final File? file = await item.entity.originFile;
+    final file = await item.file();
     if (file == null) throw Exception('could not read ${item.name}');
     final size = await file.length();
     if (size <= 4 * 1024 * 1024) {
       final res = await _client.put(Uri.parse('$_graph/me/drive/root:/${_enc(path)}:/content'),
-          headers: {'Authorization': 'Bearer $_token', 'Content-Type': item.entity.mimeType ?? 'application/octet-stream'},
+          headers: {'Authorization': 'Bearer $_token', 'Content-Type': item.mimeType ?? 'application/octet-stream'},
           body: await file.readAsBytes());
       if (res.statusCode >= 400) throw OneDriveError(res.statusCode, res.body);
       return '${(jsonDecode(res.body) as Map)['id']}';
@@ -194,7 +192,7 @@ class OneDriveApi extends FileStore {
   @override
   void close() {
     _client.close();
-    PhotoManager.clearFileCache();
+    clearFileCache();
   }
 }
 

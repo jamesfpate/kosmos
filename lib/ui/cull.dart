@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../fx.dart';
 import '../models.dart';
@@ -42,8 +43,45 @@ class _CullScreenState extends State<CullScreen> {
     await s.decide(dir, fx: fx);
   }
 
+  /// Keyboard (computers): ← / → like the Delete / Keep buttons but with the swipe's speed, ↓ Later, Space plays a
+  /// video, Z or ⌘Z / Ctrl+Z undoes.
   @override
   Widget build(BuildContext context) {
+    void fling(Dir dir) {
+      if (s.current != null) card.currentState?.fling(dir, fx: false);
+    }
+
+    void later() {
+      if (s.queue.length > s.group.length) s.later();
+    }
+
+    void undo() {
+      if (s.undoStack.isNotEmpty) s.undo();
+    }
+
+    void play() {
+      final cur = s.current;
+      if (cur != null && cur.isVideo) setState(() => playing = playing == cur.id ? null : cur.id);
+    }
+
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () => fling(Dir.left),
+        const SingleActivator(LogicalKeyboardKey.backspace): () => fling(Dir.left),
+        const SingleActivator(LogicalKeyboardKey.delete): () => fling(Dir.left),
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () => fling(Dir.right),
+        const SingleActivator(LogicalKeyboardKey.enter): () => fling(Dir.right),
+        const SingleActivator(LogicalKeyboardKey.arrowDown): later,
+        const SingleActivator(LogicalKeyboardKey.space): play,
+        const SingleActivator(LogicalKeyboardKey.keyZ): undo,
+        const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): undo,
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true): undo,
+      },
+      child: Focus(autofocus: true, child: _body(context)),
+    );
+  }
+
+  Widget _body(BuildContext context) {
     final cur = s.current;
     final g = s.group;
     final sel = s.selected;
@@ -152,7 +190,7 @@ class _CullScreenState extends State<CullScreen> {
             onCheck: s.isGroup ? () => s.toggleCheck(cur.id) : null),
       ),
       if (cur.isVideo && playing != cur.id)
-        PlayButton(seconds: cur.entity.duration, onTap: () => setState(() => playing = cur.id)),
+        PlayButton(seconds: cur.duration, onTap: () => setState(() => playing = cur.id)),
     ]);
     if (!s.isGroup) return large;
     return LayoutBuilder(builder: (context, box) {

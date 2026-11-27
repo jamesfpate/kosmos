@@ -34,6 +34,16 @@ class AccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (media.desktop) {
+      return _centered([
+        const Center(child: Logo(size: 34)),
+        const SizedBox(height: 12),
+        const Text('Choose a folder of photos and videos to sort. Winnow looks in its subfolders too. Nothing is '
+            'uploaded unless you turn on an upload.'),
+        const SizedBox(height: 12),
+        Btn('Choose folder', bold: true, color: C.bg, bg: C.accent, onTap: () => pickFolder(s)),
+      ]);
+    }
     final first = s.access == Access.prompt || (s.access == Access.denied && !s.askedAccess);
     if (first) {
       return _centered([
@@ -106,7 +116,7 @@ class TrashScreen extends StatelessWidget {
       const SizedBox(height: 8),
       Expanded(
         child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 3, crossAxisSpacing: 3),
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 160, mainAxisSpacing: 3, crossAxisSpacing: 3),
           itemCount: list.length,
           itemBuilder: (_, i) {
             final item = list[i];

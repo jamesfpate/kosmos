@@ -1,9 +1,20 @@
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/painting.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:winnow_native/winnow_native.dart';
 
+import 'db.dart';
+import 'folders.dart';
 import 'models.dart';
+
+/// On a computer Winnow reviews folders the user picks instead of a phone's photo library.
+final desktop = Platform.isMacOS || Platform.isLinux || Platform.isWindows;
+
+/// What to call the device in the UI.
+final device = desktop ? 'computer' : 'phone';
 
 enum Access { granted, limited, prompt, denied }
 
@@ -36,7 +47,7 @@ Future<void> skipPermissionCheck() => PhotoManager.setIgnorePermissionCheck(true
 // YYYYMMDD, optionally _HHMMSS / -HHMMSS (PXL_20241005_123456789, IMG-20240827-WA0000, 20240827_123456).
 final _nameDate = RegExp(r'(20\d{2})(\d{2})(\d{2})(?:[_-](\d{2})(\d{2})(\d{2}))?');
 
-int? _dateFromName(String? name) {
+int? dateFromName(String? name) {
   final m = name == null ? null : _nameDate.firstMatch(name);
   if (m == null) return null;
   final mo = int.parse(m[2]!), d = int.parse(m[3]!);
@@ -50,7 +61,7 @@ int? _dateFromName(String? name) {
 /// (WhatsApp and copied files). A date in the file name that disagrees by more than a day and a half wins.
 int _taken(AssetEntity e) {
   final t = e.createDateTime.millisecondsSinceEpoch;
-  final fromName = _dateFromName(e.title);
+  final fromName = dateFromName(e.title);
   if (fromName != null && (fromName - t).abs() > 36 * 60 * 60 * 1000) return fromName;
   return t;
 }
@@ -61,8 +72,9 @@ String _bucket(AssetEntity e) {
   return parts.isEmpty ? '' : parts.last;
 }
 
-/// Every image and video on the device, oldest first.
-Future<List<Item>> loadItems({void Function(int done, int total)? onProgress}) async {
+/// Every image and video on the device (or in [folders], on a computer), oldest first.
+Future<List<Item>> loadItems(Db db, List<String> folders, {void Function(String status)? onProgress}) async {
+  if (desktop) return scanFolders(folders, db, onProgress: onProgress);
   final paths = await PhotoManager.getAssetPathList(
     onlyAll: true,
     type: RequestType.common,
@@ -81,7 +93,7 @@ Future<List<Item>> loadItems({void Function(int done, int total)? onProgress}) a
     for (final e in page) {
       out.add(Item(e, _taken(e), _bucket(e)));
     }
-    onProgress?.call(out.length, count);
+    onProgress?.call('Loading photos… ${out.length} of $count');
   }
   out.sort((a, b) => a.taken.compareTo(b.taken));
   return out;
@@ -90,9 +102,20 @@ Future<List<Item>> loadItems({void Function(int done, int total)? onProgress}) a
 /// Moves items to the system trash (Android 11+: one system confirm, recoverable for 30 days). Returns the ids moved.
 Future<Set<String>> trash(List<Item> items) async {
   if (items.isEmpty) return {};
-  final entities = [for (final i in items) i.entity];
+  if (desktop) return trashFiles([for (final i in items) i.path!]);
+  final entities = [for (final i in items) i.entity!];
   final ids = Platform.isAndroid
       ? await PhotoManager.editor.android.moveToTrash(entities)
       : await PhotoManager.editor.deleteWithIds([for (final e in entities) e.id]);
   return ids.toSet();
 }
+
+/// A thumbnail at most [size] px on its long side (square crop on the phone, the photo's own shape on a computer).
+ImageProvider thumbImage(Item item, int size) => item.entity != null
+    ? AssetEntityImageProvider(item.entity!, isOriginal: false, thumbnailSize: ThumbnailSize.square(size))
+    : FileThumb(item.path!, size);
+
+/// Encoded thumbnail bytes about [w] x [h] (for the keep / delete trace).
+Future<Uint8List?> thumbBytes(Item item, int w, int h) => item.entity != null
+    ? item.entity!.thumbnailDataWithSize(ThumbnailSize(w, h))
+    : fileThumbBytes(item.path!, w > h ? w : h);

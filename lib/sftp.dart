@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dartssh2/dartssh2.dart';
-import 'package:photo_manager/photo_manager.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -99,7 +98,7 @@ class SftpApi extends FileStore {
 
   @override
   Future<String> upload(Item item, String path) async {
-    final file = await item.entity.originFile;
+    final file = await item.file();
     if (file == null) throw Exception('could not read ${item.name}');
     final s = await _connect();
     await _dirs(path);
@@ -136,6 +135,6 @@ class SftpApi extends FileStore {
   void close() {
     _sftp?.close();
     _ssh?.close();
-    PhotoManager.clearFileCache();
+    clearFileCache();
   }
 }

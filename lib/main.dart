@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:fvp/fvp.dart' as fvp;
 
 import 'background.dart';
 import 'fx.dart';
@@ -15,6 +16,10 @@ const version = String.fromEnvironment('WINNOW_VERSION', defaultValue: '0.0.0-de
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Video playback on Windows and Linux (video_player covers the phone and the Mac).
+  fvp.registerWith(options: {
+    'platforms': ['windows', 'linux'],
+  });
   initBackground();
   runApp(const WinnowApp());
 }
@@ -66,7 +71,10 @@ class _LoadingLogoState extends State<LoadingLogo> {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         final box = _key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
         final o = box == null ? const Outlines([]) : await outlinesFromImage(await box.toImage(pixelRatio: 3));
-        if (mounted) setState(() => _outlines = Future.value(o));
+        if (!mounted) return;
+        setState(() {
+          _outlines = Future.value(o);
+        });
       });
     }
   }

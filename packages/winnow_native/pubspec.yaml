@@ -1,5 +1,5 @@
 name: winnow_native
-description: Winnow's Android bits that run in the app and in background uploads (media management, Google authorization).
+description: "Winnow's native bits. Android: media management, Google authorization (also in background uploads). macOS: photo metadata, thumbnails, Trash."
 version: 0.0.1
 publish_to: none
 
@@ -16,4 +16,6 @@ flutter:
     platforms:
       android:
         package: net.jamespate.winnow_native
+        pluginClass: WinnowNativePlugin
+      macos:
         pluginClass: WinnowNativePlugin

@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:sqflite/sqflite.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Local state in SQLite (app data; survives updates, cleared on uninstall). Each table is id -> JSON.
 class Db {
@@ -10,7 +12,18 @@ class Db {
   final Database _db;
 
   static Future<Db> open() async {
-    final path = p.join(await getDatabasesPath(), 'winnow.db');
+    final String dir;
+    if (Platform.isMacOS || Platform.isLinux || Platform.isWindows) {
+      // sqflite's own location on a computer is beside the program (or a build folder); use the app's data folder.
+      if (!Platform.isMacOS) {
+        sqfliteFfiInit();
+        databaseFactory = databaseFactoryFfi;
+      }
+      dir = (await getApplicationSupportDirectory()).path;
+    } else {
+      dir = await getDatabasesPath();
+    }
+    final path = p.join(dir, 'winnow.db');
     // v2: b2 (Backblaze B2 uploads). v3: webdav, gphotos.
     final db = await openDatabase(
       path,
@@ -53,10 +66,19 @@ class Db {
   }
 
   Future<void> putAll(String table, Map<String, Object?> values) async {
+    await _ensure(table);
     final batch = _db.batch();
     values.forEach((id, v) {
       batch.insert(table, {'id': id, 'json': jsonEncode(v)}, conflictAlgorithm: ConflictAlgorithm.replace);
     });
+    await batch.commit(noResult: true);
+  }
+
+  Future<void> removeAll(String table, List<String> ids) async {
+    final batch = _db.batch();
+    for (final id in ids) {
+      batch.delete(table, where: 'id = ?', whereArgs: [id]);
+    }
     await batch.commit(noResult: true);
   }
 

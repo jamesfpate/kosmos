@@ -1,12 +1,14 @@
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:photo_manager/photo_manager.dart';
-import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../fx.dart';
+import '../media.dart' as media;
 import '../models.dart';
 import '../state.dart';
 
@@ -375,14 +377,14 @@ class PhotoThumb extends StatelessWidget {
     final size = px > 300 ? 512 : 256;
     return Container(
       color: C.surface,
-      child: AssetEntityImage(
-        item.entity,
-        isOriginal: false,
-        thumbnailSize: ThumbnailSize.square(size),
+      child: Image(
+        image: media.thumbImage(item, size),
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
         gaplessPlayback: true,
+        errorBuilder: (_, _, _) =>
+            Center(child: Icon(item.isVideo ? Icons.movie_outlined : Icons.broken_image_outlined, color: C.muted)),
       ),
     );
   }
@@ -425,7 +427,7 @@ class _PreviewState extends State<Preview> {
     if (w > 0 && h > 0 && mounted) setState(() => _aspect = (w / h).clamp(0.4, 2.5));
   });
 
-  ImageProvider get _image => AssetEntityImageProvider(widget.item.entity, isOriginal: false, thumbnailSize: const ThumbnailSize(1600, 1600));
+  ImageProvider get _image => media.thumbImage(widget.item, 1600);
 
   void _watch() {
     _stream?.removeListener(_listener);
@@ -451,7 +453,7 @@ class _PreviewState extends State<Preview> {
   }
 
   Future<void> _start() async {
-    final f = await widget.item.entity.file;
+    final f = await widget.item.playable();
     if (f == null || !mounted) return;
     final c = VideoPlayerController.file(f);
     _video = c;
@@ -664,3 +666,24 @@ class SizeSlider extends StatelessWidget {
 /// Shows an "AlbumSheet"-style message.
 void toast(BuildContext context, String text) =>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
+
+/// Asks for a folder of photos to review (on a computer).
+Future<void> pickFolder(AppState s) async {
+  final dir = await FilePicker.pickDirectory(dialogTitle: 'Folder of photos to review');
+  if (dir != null) await s.addFolder(dir.isScheme('file') ? dir.toFilePath() : dir.path);
+}
+
+/// Pages follow a mouse drag too (Flutter's default is touch only).
+final pagerScroll = const MaterialScrollBehavior().copyWith(dragDevices: PointerDeviceKind.values.toSet());
+
+/// Keyboard for a full-screen pager: ← / → page, Esc closes.
+Widget pagerKeys(BuildContext context, PageController pages, Widget child) => CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+            pages.previousPage(duration: const Duration(milliseconds: 180), curve: Curves.easeOut),
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+            pages.nextPage(duration: const Duration(milliseconds: 180), curve: Curves.easeOut),
+        const SingleActivator(LogicalKeyboardKey.escape): () => Navigator.maybePop(context),
+      },
+      child: Focus(autofocus: true, child: child),
+    );

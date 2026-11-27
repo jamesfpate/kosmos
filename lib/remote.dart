@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 import 'immich.dart';
+import 'media.dart' as media;
 import 'models.dart';
 import 'state.dart';
 
@@ -178,27 +180,39 @@ class ImmichBrowser extends ChangeNotifier {
         message = 'Saving ${saved + 1} of ${chosen.length}…';
         _notify();
         final bytes = Uint8List.fromList(await api.download(a.id));
-        AssetEntity entity;
-        if (a.isVideo) {
+        final String id;
+        if (media.desktop) {
+          // On a computer: into "From Immich" in the first folder being reviewed, dated as taken.
+          final dir = Directory(p.join(s.folders.first, 'From Immich'));
+          await dir.create(recursive: true);
+          var f = File(p.join(dir.path, a.name));
+          for (var n = 2; await f.exists(); n++) {
+            f = File(p.join(dir.path, '${p.basenameWithoutExtension(a.name)} ($n)${p.extension(a.name)}'));
+          }
+          await f.writeAsBytes(bytes);
+          await f.setLastModified(DateTime.fromMillisecondsSinceEpoch(a.taken));
+          id = f.path;
+        } else if (a.isVideo) {
           final f = File('${tmp.path}/${a.name}');
           await f.writeAsBytes(bytes);
-          entity = await PhotoManager.editor.saveVideo(f, title: a.name, creationDate: DateTime.fromMillisecondsSinceEpoch(a.taken));
+          id = (await PhotoManager.editor.saveVideo(f, title: a.name, creationDate: DateTime.fromMillisecondsSinceEpoch(a.taken))).id;
           await f.delete();
         } else {
-          entity = await PhotoManager.editor.saveImage(bytes,
-              filename: a.name, title: a.name, creationDate: DateTime.fromMillisecondsSinceEpoch(a.taken));
+          id = (await PhotoManager.editor.saveImage(bytes,
+                  filename: a.name, title: a.name, creationDate: DateTime.fromMillisecondsSinceEpoch(a.taken)))
+              .id;
         }
         final now = DateTime.now().millisecondsSinceEpoch;
-        await s.db.put('uploads', entity.id,
-            UploadRecord(id: entity.id, assetId: a.id, uploadedAt: now, syncedAlbumId: album?.id).toJson());
+        await s.db.put('uploads', id,
+            UploadRecord(id: id, assetId: a.id, uploadedAt: now, syncedAlbumId: album?.id).toJson());
         if (album != null) {
-          await s.db.put('decisions', entity.id,
-              DecisionRecord(id: entity.id, decision: Decision.keep, decidedAt: now, albumId: album.id).toJson());
+          await s.db.put('decisions', id,
+              DecisionRecord(id: id, decision: Decision.keep, decidedAt: now, albumId: album.id).toJson());
         }
         a.onPhone = true;
         saved++;
       }
-      message = 'Saved $saved to the phone';
+      message = 'Saved $saved to ${media.desktop ? 'From Immich' : 'the phone'}';
       sel = {};
       await s.reload();
     } catch (e) {

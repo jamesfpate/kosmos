@@ -1,28 +1,83 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 import 'package:photo_manager/photo_manager.dart';
 
-/// A photo or video on the device, with the date Winnow sorts and groups by.
+/// A photo or video: on the phone (a photo_manager [entity]) or, on a computer, a file at [path].
 class Item {
-  Item(this.entity, this.taken, this.bucket);
+  Item(AssetEntity this.entity, this.taken, this.bucket)
+      : path = null,
+        width = entity.orientatedWidth,
+        height = entity.orientatedHeight,
+        duration = entity.duration;
 
-  final AssetEntity entity;
+  Item.file(String this.path, {required this.taken, required this.bucket, this.width = 0, this.height = 0, this.duration = 0})
+      : entity = null;
 
-  /// When it was taken, epoch ms (see media.dart for the fallbacks).
+  final AssetEntity? entity;
+  final String? path;
+
+  /// When it was taken, epoch ms (see media.dart and folders.dart for the fallbacks).
   final int taken;
 
   /// Folder it lives in ("Camera", "WhatsApp Images", ...); '' when unknown.
   final String bucket;
 
-  String get id => entity.id;
-  bool get isVideo => entity.type == AssetType.video;
-  String get name => entity.title ?? '$id${isVideo ? '.mp4' : '.jpg'}';
+  /// Size as displayed (0 when unknown); a video's length in seconds.
+  final int width, height, duration;
+
+  String get id => entity?.id ?? path!;
+  bool get isVideo => entity != null ? entity!.type == AssetType.video : isVideoPath(path!);
+  String get name => entity != null ? entity!.title ?? '$id${isVideo ? '.mp4' : '.jpg'}' : p.basename(path!);
+
+  String? get mimeType => entity != null ? entity!.mimeType : mimeFor(path!);
+
+  /// The original file, for upload. On the phone a cached copy ([clearFileCache] drops them).
+  Future<File?> file() async => entity != null ? entity!.originFile : File(path!);
+
+  /// The file to play a video from.
+  Future<File?> playable() async => entity != null ? entity!.file : File(path!);
 
   /// Display aspect (width / height), clamped so panoramas and odd sizes stay usable in a grid.
   double get aspect {
-    final w = entity.orientatedWidth, h = entity.orientatedHeight;
-    if (w <= 0 || h <= 0) return 3 / 4;
-    return (w / h).clamp(0.4, 2.5);
+    if (width <= 0 || height <= 0) return 3 / 4;
+    return (width / height).clamp(0.4, 2.5);
   }
 }
+
+/// Drops the copies [Item.file] made on the phone.
+void clearFileCache() {
+  if (Platform.isAndroid || Platform.isIOS) PhotoManager.clearFileCache();
+}
+
+const imageTypes = {'jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'gif', 'tif', 'tiff', 'avif', 'dng', 'cr2', 'cr3', 'nef', 'arw', 'raf', 'orf', 'rw2'};
+const videoTypes = {'mp4', 'mov', 'm4v', '3gp', 'avi', 'mkv', 'mts', 'm2ts', 'webm'};
+
+String _ext(String path) => p.extension(path).replaceFirst('.', '').toLowerCase();
+
+bool isVideoPath(String path) => videoTypes.contains(_ext(path));
+
+bool isMediaPath(String path) => imageTypes.contains(_ext(path)) || videoTypes.contains(_ext(path));
+
+String? mimeFor(String path) => switch (_ext(path)) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'heic' => 'image/heic',
+      'heif' => 'image/heif',
+      'webp' => 'image/webp',
+      'gif' => 'image/gif',
+      'tif' || 'tiff' => 'image/tiff',
+      'avif' => 'image/avif',
+      'dng' => 'image/x-adobe-dng',
+      'mp4' || 'm4v' => 'video/mp4',
+      'mov' => 'video/quicktime',
+      '3gp' => 'video/3gpp',
+      'avi' => 'video/x-msvideo',
+      'mkv' => 'video/x-matroska',
+      'webm' => 'video/webm',
+      'mts' || 'm2ts' => 'video/mp2t',
+      _ => null,
+    };
 
 enum Decision { keep, pendingTrash, trash }
 

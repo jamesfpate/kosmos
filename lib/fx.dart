@@ -3,8 +3,8 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:photo_manager/photo_manager.dart';
 
+import 'media.dart' as media;
 import 'models.dart';
 
 /// The keep / delete animation ("trace"): the outlines inside the photo draw themselves (keep from the bottom up in
@@ -66,10 +66,11 @@ Future<Outlines> outlinesFromImage(ui.Image img) async {
 Future<Outlines> _compute(Item item) async {
   // Ask for the photo's own proportions (as displayed), so the lines map 1:1 onto the photo on screen.
   final a = item.aspect;
-  final size = a >= 1 ? ThumbnailSize(240, max(16, (240 / a).round())) : ThumbnailSize(max(16, (240 * a).round()), 240);
-  final bytes = await item.entity.thumbnailDataWithSize(size);
+  final (w0, h0) = a >= 1 ? (240, max(16, (240 / a).round())) : (max(16, (240 * a).round()), 240);
+  final bytes = await media.thumbBytes(item, w0, h0);
   if (bytes == null) return const Outlines([]);
-  final codec = await ui.instantiateImageCodec(bytes);
+  // Decoded at the requested size (on a computer the bytes can be the whole original).
+  final codec = await ui.instantiateImageCodec(bytes, targetWidth: w0, targetHeight: h0);
   final img = (await codec.getNextFrame()).image;
   final data = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
   final w = img.width, h = img.height;

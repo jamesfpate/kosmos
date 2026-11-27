@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'package:photo_manager/photo_manager.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -88,7 +87,7 @@ class B2Api extends FileStore {
   /// Uploads the original file to [fileName]. Returns the B2 file id.
   @override
   Future<String> upload(Item item, String fileName) async {
-    final file = await item.entity.originFile;
+    final file = await item.file();
     if (file == null) throw Exception('could not read ${item.name}');
     final digest = await sha1.bind(file.openRead()).first;
     final length = await file.length();
@@ -102,7 +101,7 @@ class B2Api extends FileStore {
         ..headers.addAll({
           'Authorization': _uploadToken!,
           'X-Bz-File-Name': Uri.encodeComponent(objectKey(fileName)).replaceAll('%2F', '/'),
-          'Content-Type': item.entity.mimeType ?? 'b2/x-auto',
+          'Content-Type': item.mimeType ?? 'b2/x-auto',
           'X-Bz-Content-Sha1': '$digest',
           'X-Bz-Info-src_last_modified_millis': '${item.taken}',
         })
@@ -142,7 +141,7 @@ class B2Api extends FileStore {
   @override
   void close() {
     _client.close();
-    PhotoManager.clearFileCache();
+    clearFileCache();
   }
 }
 

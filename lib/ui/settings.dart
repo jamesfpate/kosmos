@@ -164,7 +164,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _h3('Keep / delete animation'),
           _p('The outlines in the photo trace up (keep) or down (delete); deleted photos fade out. Off: decisions are instant.'),
           Choices(options: const [(true, 'On'), (false, 'Off')], value: s.animations, onPick: s.setAnimations),
-          _h3('Folders'),
+          if (media.desktop) ...[
+            _h3('Photo folders'),
+            _p('Winnow reviews the photos and videos in these folders and their subfolders.'),
+            for (final f in s.folders)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(f, maxLines: 2, overflow: TextOverflow.ellipsis),
+                trailing: IconButton(
+                  tooltip: 'Stop reviewing this folder',
+                  icon: const Icon(Icons.close, color: C.muted),
+                  onPressed: () => s.removeFolder(f),
+                ),
+              ),
+            Btn('Add folder', icon: Icons.create_new_folder_outlined, onTap: () => pickFolder(s)),
+          ],
+          _h3(media.desktop ? 'Subfolders' : 'Folders'),
           _p('Unticked folders are skipped when culling and in the grid.'),
           for (final (bucket, count) in s.buckets)
             CheckboxListTile(
@@ -213,7 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => s.go(Screen.immich),
           ),
           for (final (open, name, key, on) in [
-            (() => s.go(Screen.google), 'Google Photos', 'Google Photos', s.google.enabled),
+            if (!media.desktop) (() => s.go(Screen.google), 'Google Photos', 'Google Photos', s.google.enabled),
             for (final d in storeDefs.where((d) => d.available))
               (() => s.openStore(d.key), d.title, d.label, s.store(d.key).enabled),
           ])
@@ -230,13 +245,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: open,
             ),
           _h3('Free up space'),
-          _p('Once every integration that is on has a kept photo (checked on the server), it moves to the phone\'s trash, where it can be restored for 30 days. Photos you restore are never removed again.'),
+          _p(media.desktop
+              ? 'Once every integration that is on has a kept photo (checked on the server), it moves to the Trash, where it can be restored. Photos you restore are never removed again.'
+              : 'Once every integration that is on has a kept photo (checked on the server), it moves to the phone\'s trash, where it can be restored for 30 days. Photos you restore are never removed again.'),
           Choices(
             options: const [('off', 'Off'), ('now', 'After backup'), ('30d', 'Keep last 30 days')],
             value: s.freeUp,
             onPick: s.setFreeUp,
           ),
-          if (s.freeUp != 'off') ...[
+          if (s.freeUp != 'off' && !media.desktop) ...[
             const SizedBox(height: 6),
             FutureBuilder(
               future: media.canManageMedia(),
@@ -253,7 +270,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (s.freedCount > 0)
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: Text('Removed ${s.freedCount} from the phone this session.', style: const TextStyle(color: C.muted)),
+              child: Text('Removed ${s.freedCount} from the ${media.device} this session.', style: const TextStyle(color: C.muted)),
             ),
           _h2('backup', 'Backup'),
           _p('Export or import app settings and albums.'),
@@ -411,6 +428,7 @@ class _ImmichScreenState extends State<ImmichScreen> {
             },
           ),
           const SizedBox(height: 12),
+          if (!media.desktop) ...[
           const Text('Upload on', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           Choices(
@@ -429,10 +447,11 @@ class _ImmichScreenState extends State<ImmichScreen> {
             onPick: (v) => s.saveImmich(background: v),
           ),
           const SizedBox(height: 12),
+          ],
           const Text('Videos', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           Choices(
-            options: const [(true, 'Upload'), (false, 'Phone only')],
+            options: [(true, 'Upload'), (false, media.desktop ? 'Computer only' : 'Phone only')],
             value: s.immich.videos,
             onPick: (v) => s.saveImmich(videos: v),
           ),

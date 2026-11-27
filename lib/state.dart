@@ -159,13 +159,19 @@ class AppState extends ChangeNotifier {
   Future<void> init() async {
     try {
       _db ??= await Db.open();
-      access = await media.getAccess();
+      final m = await db.allMeta();
+      _loadSettings(m);
+      // A folder has no "new since" point: review all of it.
+      if (media.desktop && cutoff == null) {
+        cutoff = 0;
+        await db.setMeta('cutoff', 0);
+      }
+      // On a computer "access" is having picked a folder.
+      access = media.desktop ? (folders.isEmpty ? Access.prompt : Access.granted) : await media.getAccess();
       if (access != Access.granted) {
         screen = Screen.access;
         return changed();
       }
-      final m = await db.allMeta();
-      _loadSettings(m);
       albums = [for (final j in await db.all('albums')) Album.fromJson(j)];
       await reload();
       mode = switch (m['mode']) { 'grid' => Screen.grid, 'explore' => Screen.explore, _ => Screen.cull };
@@ -205,6 +211,7 @@ class AppState extends ChangeNotifier {
     stores = {for (final d in storeDefs) d.key: StoreConfig.fromJson((m[d.key] as Map?)?.cast<String, Object?>())};
     google = GPhotosConfig.fromJson((m['google'] as Map?)?.cast<String, Object?>());
     freeUp = (m['freeUp'] as String?) ?? 'off';
+    folders = ((m['folders'] as List?) ?? []).cast<String>();
   }
 
   /// The background upload task (no screen): load what's needed and sync once.
@@ -219,6 +226,24 @@ class AppState extends ChangeNotifier {
     albums = [for (final j in await db.all('albums')) Album.fromJson(j)];
     await reload();
     await runSync();
+  }
+
+  /// On a computer: the folders being reviewed (searched with their subfolders).
+  List<String> folders = [];
+
+  Future<void> addFolder(String path) async {
+    if (folders.contains(path)) return;
+    folders = [...folders, path];
+    await db.setMeta('folders', folders);
+    if (screen == Screen.access) return init();
+    await reload();
+  }
+
+  Future<void> removeFolder(String path) async {
+    folders = folders.where((f) => f != path).toList();
+    await db.setMeta('folders', folders);
+    if (folders.isEmpty) return init();
+    await reload();
   }
 
   Future<void> requestAccess() async {
@@ -236,9 +261,9 @@ class AppState extends ChangeNotifier {
   bool inCull(Item i) => !decided.containsKey(i.id) && i.taken >= (cutoff ?? 0) && shown(i);
 
   Future<void> reload() async {
-    final all = await media.loadItems(onProgress: (n, total) {
+    final all = await media.loadItems(db, folders, onProgress: (status) {
       if (screen != Screen.loading) return;
-      loading = 'Loading photos… $n of $total';
+      loading = status;
       notifyListeners();
     });
     final records = {for (final j in await db.all('decisions')) DecisionRecord.fromJson(j)};
@@ -1065,6 +1090,7 @@ class AppState extends ChangeNotifier {
 
   /// Starts a waiting sync when the phone joins Wi-Fi.
   void _watchNetwork() {
+    if (media.desktop) return; // a computer uploads on any network (and Linux may have no NetworkManager to ask)
     _net ??= Connectivity().onConnectivityChanged.listen((r) {
       if (sync.waitingWifi && _isWifi(r)) runSync();
     });
@@ -1073,6 +1099,7 @@ class AppState extends ChangeNotifier {
   bool _isWifi(List<ConnectivityResult> r) => r.contains(ConnectivityResult.wifi) || r.contains(ConnectivityResult.ethernet);
 
   Future<bool> _onWifi() async {
+    if (media.desktop) return true;
     try {
       return _isWifi(await Connectivity().checkConnectivity());
     } catch (_) {
@@ -1186,7 +1213,7 @@ class AppState extends ChangeNotifier {
 
   bool get _immichOn => immich.enabled && immich.ready;
   List<StoreDef> get _storesOn => [for (final d in storeDefs) if (storeOn(d.key)) d];
-  bool get _googleOn => google.enabled && google.ready;
+  bool get _googleOn => google.enabled && google.ready && !media.desktop; // sign-in needs Play Services
   /// The last sync's error for one integration ('' if it went fine), by the name it reports under.
   String errorFor(String name) =>
       sync.error.split('\n').where((l) => l.startsWith('$name: ')).map((l) => l.substring(name.length + 2)).join('\n');

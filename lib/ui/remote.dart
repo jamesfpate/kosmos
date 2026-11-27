@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../media.dart' as media;
 import '../models.dart';
 import '../remote.dart';
 import '../state.dart';
@@ -124,7 +125,7 @@ class _RemoteExplorerState extends State<RemoteExplorer> {
             ),
             Expanded(child: _grid()),
             SizeSlider(widget.s),
-            Btn(sel.isEmpty ? 'Save to phone' : 'Save ${sel.length} to phone',
+            Btn(sel.isEmpty ? 'Save to ${media.device}' : 'Save ${sel.length} to ${media.device}',
                 icon: Icons.download, onTap: sel.isEmpty || b.busy ? null : b.saveToPhone),
           ]);
         },
@@ -143,7 +144,7 @@ class _RemoteExplorerState extends State<RemoteExplorer> {
       return Center(
         child: b.loading
             ? const Logo(size: 28, busy: true)
-            : Text(b.onlyRemote ? 'Everything on Immich is on this phone too' : 'Nothing here',
+            : Text(b.onlyRemote ? 'Everything on Immich is on this ${media.device} too' : 'Nothing here',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
       );
     }
@@ -254,7 +255,7 @@ class _RemoteViewerState extends State<RemoteViewer> {
           if (list.isEmpty) return const SizedBox();
           final a = list[index.clamp(0, list.length - 1)];
           final sel = b.sel.contains(a.id);
-          return Scaffold(
+          return pagerKeys(context, _pages, Scaffold(
             backgroundColor: Colors.black,
             body: SafeArea(
               child: Padding(
@@ -264,7 +265,7 @@ class _RemoteViewerState extends State<RemoteViewer> {
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(dayOf(a.taken), style: const TextStyle(fontWeight: FontWeight.w700)),
-                        Text('${timeOf(a.taken)} · ${a.onPhone ? 'on this phone too' : 'only on Immich'}',
+                        Text('${timeOf(a.taken)} · ${a.onPhone ? 'on this ${media.device} too' : 'only on Immich'}',
                             style: const TextStyle(color: C.muted, fontSize: 13)),
                       ]),
                     ),
@@ -273,6 +274,7 @@ class _RemoteViewerState extends State<RemoteViewer> {
                   Expanded(
                     child: PageView.builder(
                       controller: _pages,
+                      scrollBehavior: pagerScroll,
                       itemCount: list.length,
                       onPageChanged: (i) {
                         setState(() => index = i);
@@ -291,9 +293,9 @@ class _RemoteViewerState extends State<RemoteViewer> {
                     ),
                   ),
                   if (a.isVideo)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 6),
-                      child: Text('Video: save it to the phone to play it', style: TextStyle(color: C.muted, fontSize: 12.5)),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text('Video: save it to the ${media.device} to play it', style: const TextStyle(color: C.muted, fontSize: 12.5)),
                     ),
                   const SizedBox(height: 8),
                   Row(children: [
@@ -311,7 +313,7 @@ class _RemoteViewerState extends State<RemoteViewer> {
                 ]),
               ),
             ),
-          );
+          ));
         },
       );
 }

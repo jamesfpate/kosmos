@@ -1,10 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'package:photo_manager/photo_manager.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -115,7 +113,7 @@ class DropboxApi extends FileStore {
 
   @override
   Future<String> upload(Item item, String path) async {
-    final File? file = await item.entity.originFile;
+    final file = await item.file();
     if (file == null) throw Exception('could not read ${item.name}');
     final size = await file.length();
     final commit = {'path': _path(path), 'mode': 'overwrite', 'autorename': false, 'mute': true};
@@ -168,7 +166,7 @@ class DropboxApi extends FileStore {
   @override
   void close() {
     _client.close();
-    PhotoManager.clearFileCache();
+    clearFileCache();
   }
 }
 

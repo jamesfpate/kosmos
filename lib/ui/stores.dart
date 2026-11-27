@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:winnow_native/winnow_native.dart';
 
 import '../gphotos.dart';
+import '../media.dart' as media;
 import '../state.dart';
 import '../store.dart';
 import '../stores.dart';
@@ -72,10 +73,13 @@ List<Widget> _options(
   final error = s.errorFor(name);
   return [
     _choice('Upload', null, const [(true, 'On'), (false, 'Off')], enabled, setEnabled),
-    _choice('Upload on', null, const [(false, 'Any network'), (true, 'Wi-Fi only')], wifiOnly, setWifi),
-    _choice('Upload in the background', 'Keeps uploading when Winnow is closed, about every 15 minutes.',
-        const [('off', 'Off'), ('charging', 'While charging'), ('always', 'Always')], background, setBackground),
-    _choice('Videos', null, const [(true, 'Upload'), (false, 'Phone only')], videos, setVideos),
+    // A computer uploads while Winnow is open, on whatever network it has.
+    if (!media.desktop) ...[
+      _choice('Upload on', null, const [(false, 'Any network'), (true, 'Wi-Fi only')], wifiOnly, setWifi),
+      _choice('Upload in the background', 'Keeps uploading when Winnow is closed, about every 15 minutes.',
+          const [('off', 'Off'), ('charging', 'While charging'), ('always', 'Always')], background, setBackground),
+    ],
+    _choice('Videos', null, [(true, 'Upload'), (false, media.desktop ? 'Computer only' : 'Phone only')], videos, setVideos),
     if (enabled) ...[
       const SizedBox(height: 12),
       Text(
@@ -194,7 +198,7 @@ class _StoreScreenState extends State<StoreScreen> implements SignInUi {
     return _page(s, def.title, c.enabled, 'Backing up kept photos', [
       for (final t in def.intro) _muted(t),
       if (!def.isAlbums)
-        _muted('Layout: ${c.folder}2026/2026-11 Thanksgiving/IMG_1234.jpg; undated albums under ${c.folder}Albums/.'),
+        _muted('Layout: ${_slash(c.folder)}2026/2026-11 Thanksgiving/IMG_1234.jpg; undated albums under ${_slash(c.folder)}Albums/.'),
       if (def.signIn != null)
         if (c['refreshToken'].isNotEmpty)
           Row(children: [
@@ -326,4 +330,10 @@ class _GoogleScreenState extends State<GoogleScreen> {
       ),
     ]);
   }
+}
+
+/// "Photos" -> "Photos/", "" -> "" (for showing where files go).
+String _slash(String folder) {
+  final f = folder.replaceAll(RegExp(r'^/+|/+$'), '');
+  return f.isEmpty ? '' : '$f/';
 }

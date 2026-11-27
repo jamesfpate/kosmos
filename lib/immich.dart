@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:photo_manager/photo_manager.dart';
 
 import 'models.dart';
 
@@ -171,16 +170,16 @@ class ImmichApi {
 
   /// Uploads the original file (location kept when Winnow has media location access). Returns the Immich asset id.
   Future<String> upload(Item item) async {
-    final file = await item.entity.originFile;
+    final file = await item.file();
     if (file == null) throw Exception('could not read ${item.name}');
     final when = DateTime.fromMillisecondsSinceEpoch(item.taken).toUtc().toIso8601String();
-    final mime = item.entity.mimeType ?? (item.isVideo ? 'video/mp4' : 'image/jpeg');
+    final mime = item.mimeType ?? (item.isVideo ? 'video/mp4' : 'image/jpeg');
     final req = http.MultipartRequest('POST', _uri('/assets'))
       ..headers.addAll({'x-api-key': cfg.key, 'Accept': 'application/json'})
       ..fields['fileCreatedAt'] = when
       ..fields['fileModifiedAt'] = when
       ..fields['filename'] = item.name;
-    if (item.isVideo && item.entity.duration > 0) req.fields['duration'] = '${item.entity.duration * 1000}';
+    if (item.isVideo && item.duration > 0) req.fields['duration'] = '${item.duration * 1000}';
     req.files.add(await http.MultipartFile.fromPath('assetData', file.path,
         filename: item.name, contentType: MediaType.parse(mime)));
     final res = await http.Response.fromStream(await _client.send(req));
@@ -255,6 +254,6 @@ class ImmichApi {
 
   void close() {
     _client.close();
-    PhotoManager.clearFileCache();
+    clearFileCache();
   }
 }

@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'package:photo_manager/photo_manager.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -71,7 +70,7 @@ class PhotoPrismApi implements AlbumService {
   @override
   Future<String> upload(Item item, String albumId) async {
     await authorize();
-    final file = await item.entity.originFile;
+    final file = await item.file();
     if (file == null) throw Exception('could not read ${item.name}');
     final digest = '${await sha1.bind(file.openRead()).first}';
     final token = digest.substring(0, 12);
@@ -140,7 +139,7 @@ class PhotoPrismApi implements AlbumService {
   @override
   void close() {
     _client.close();
-    PhotoManager.clearFileCache();
+    clearFileCache();
   }
 }
 

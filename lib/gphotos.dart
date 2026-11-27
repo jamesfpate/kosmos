@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:photo_manager/photo_manager.dart';
 import 'package:winnow_native/winnow_native.dart';
 
 import 'models.dart';
@@ -131,13 +130,13 @@ class GPhotosApi {
 
   /// Uploads the original bytes; returns an upload token for [create].
   Future<String> upload(Item item) async {
-    final file = await item.entity.originFile;
+    final file = await item.file();
     if (file == null) throw Exception('could not read ${item.name}');
     final req = http.StreamedRequest('POST', Uri.parse('$_base/uploads'))
       ..headers.addAll({
         'Authorization': 'Bearer $_token',
         'Content-Type': 'application/octet-stream',
-        'X-Goog-Upload-Content-Type': item.entity.mimeType ?? (item.isVideo ? 'video/mp4' : 'image/jpeg'),
+        'X-Goog-Upload-Content-Type': item.mimeType ?? (item.isVideo ? 'video/mp4' : 'image/jpeg'),
         'X-Goog-Upload-Protocol': 'raw',
       })
       ..contentLength = await file.length();
@@ -203,7 +202,7 @@ class GPhotosApi {
 
   void close() {
     _client.close();
-    PhotoManager.clearFileCache();
+    clearFileCache();
   }
 }
 

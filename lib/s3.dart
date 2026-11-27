@@ -1,9 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'package:photo_manager/photo_manager.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -137,12 +135,12 @@ class S3Api extends FileStore {
 
   @override
   Future<String> upload(Item item, String path) async {
-    final File? file = await item.entity.originFile;
+    final file = await item.file();
     if (file == null) throw Exception('could not read ${item.name}');
     final digest = _hex((await sha256.bind(file.openRead()).first).bytes);
     final uri = Uri.parse('$_endpoint${_path(path)}');
     final length = await file.length();
-    final type = item.entity.mimeType ?? 'application/octet-stream';
+    final type = item.mimeType ?? 'application/octet-stream';
     final req = http.StreamedRequest('PUT', uri)
       ..headers.addAll(_sign('PUT', uri, digest, {'content-type': type}))
       ..contentLength = length;
@@ -172,6 +170,6 @@ class S3Api extends FileStore {
   @override
   void close() {
     _client.close();
-    PhotoManager.clearFileCache();
+    clearFileCache();
   }
 }

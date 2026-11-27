@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../fx.dart';
 import '../immich.dart';
+import '../media.dart' as media;
 import '../models.dart';
 import '../remote.dart';
 import '../state.dart';
@@ -226,7 +227,7 @@ class _GridScreenState extends State<GridScreen> {
     return SizedBox(
       height: 40,
       child: ListView(scrollDirection: Axis.horizontal, children: [
-        chip('All on phone', view == 'all', () => s.setGridView('all')),
+        chip('All on ${media.device}', view == 'all', () => s.setGridView('all')),
         chip('Reviewed', view == 'reviewed', () => s.setGridView('reviewed')),
         chip(album == null ? 'Albums ▾' : '${albumTitle(album)} ▾', album != null, () => _pickAlbum(context)),
         if (s.immich.ready)
@@ -263,7 +264,7 @@ class _GridScreenState extends State<GridScreen> {
               ListTile(
                 leading: const Icon(Icons.cloud_off_outlined),
                 title: const Text('Only on Immich'),
-                subtitle: const Text('Not on this phone'),
+                subtitle: Text('Not on this ${media.device}'),
                 onTap: () => Navigator.pop(c, immichOnly),
               ),
               const Divider(),
@@ -393,7 +394,7 @@ class _ViewerState extends State<Viewer> {
           if (list.isEmpty) return const SizedBox();
           final item = list[index.clamp(0, list.length - 1)];
           final sel = s.gridSel.contains(item.id);
-          return Scaffold(
+          return pagerKeys(context, _pages, Scaffold(
             backgroundColor: Colors.black,
             body: SafeArea(
               child: Padding(
@@ -411,6 +412,7 @@ class _ViewerState extends State<Viewer> {
                   Expanded(
                     child: PageView.builder(
                       controller: _pages,
+                      scrollBehavior: pagerScroll,
                       itemCount: list.length,
                       onPageChanged: (i) => setState(() {
                         index = i;
@@ -419,7 +421,7 @@ class _ViewerState extends State<Viewer> {
                       itemBuilder: (_, i) => Stack(alignment: Alignment.center, children: [
                         Center(child: Preview(list[i], play: playing == list[i].id, onStop: () => setState(() => playing = null))),
                         if (list[i].isVideo && playing != list[i].id)
-                          PlayButton(seconds: list[i].entity.duration, onTap: () => setState(() => playing = list[i].id)),
+                          PlayButton(seconds: list[i].duration, onTap: () => setState(() => playing = list[i].id)),
                       ]),
                     ),
                   ),
@@ -440,7 +442,7 @@ class _ViewerState extends State<Viewer> {
                 ]),
               ),
             ),
-          );
+          ));
         },
       );
 }

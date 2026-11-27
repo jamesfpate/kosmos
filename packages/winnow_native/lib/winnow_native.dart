@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-/// Winnow's Android-only calls. Registered as a plugin, so they also work in the background upload task.
+/// Winnow's native calls: Android (registered as a plugin, so they also work in the background upload task) and macOS.
 class WinnowNative {
   static const _channel = MethodChannel('winnow_native');
 
@@ -31,6 +31,23 @@ class WinnowNative {
 
   /// Opens a web page in the browser.
   static Future<void> openUrl(String url) async {
-    if (Platform.isAndroid) await _channel.invokeMethod<void>('openUrl', {'url': url});
+    if (Platform.isAndroid || Platform.isMacOS) return _channel.invokeMethod<void>('openUrl', {'url': url});
+    if (Platform.isLinux) await Process.run('xdg-open', [url]);
+    if (Platform.isWindows) await Process.run('explorer', [url]);
   }
+
+  /// macOS: for each file, its displayed width and height, when it was taken (epoch ms; from EXIF or the video's
+  /// creation date, absent when unknown) and a video's length in seconds. Null entries for files it can't read.
+  static Future<List<Map<String, Object?>?>> probe(List<String> paths) async {
+    final out = await _channel.invokeListMethod<Object?>('probe', {'paths': paths}) ?? [];
+    return [for (final o in out) o == null ? null : (o as Map).cast<String, Object?>()];
+  }
+
+  /// macOS: an upright JPEG thumbnail at most [size] px on its long side (photos incl. HEIC and RAW, and videos).
+  static Future<Uint8List?> thumb(String path, int size) =>
+      _channel.invokeMethod<Uint8List>('thumb', {'path': path, 'size': size});
+
+  /// macOS: moves files to the Trash. Returns the paths moved.
+  static Future<List<String>> trash(List<String> paths) async =>
+      await _channel.invokeListMethod<String>('trash', {'paths': paths}) ?? [];
 }

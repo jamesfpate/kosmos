@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:photo_manager/photo_manager.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -104,11 +103,11 @@ class WebDavApi extends FileStore {
 
   @override
   Future<String> upload(Item item, String path) async {
-    final file = await item.entity.originFile;
+    final file = await item.file();
     if (file == null) throw Exception('could not read ${item.name}');
     await _dirs(path);
     final req = http.StreamedRequest('PUT', _uri(path))
-      ..headers.addAll({..._auth, 'Content-Type': item.entity.mimeType ?? 'application/octet-stream'})
+      ..headers.addAll({..._auth, 'Content-Type': item.mimeType ?? 'application/octet-stream'})
       ..contentLength = await file.length();
     file.openRead().listen(req.sink.add, onDone: req.sink.close, onError: req.sink.addError);
     final res = await http.Response.fromStream(await _client.send(req));
@@ -179,6 +178,6 @@ class WebDavApi extends FileStore {
   @override
   void close() {
     _client.close();
-    PhotoManager.clearFileCache();
+    clearFileCache();
   }
 }
