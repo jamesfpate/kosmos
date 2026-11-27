@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../immich.dart';
+import '../media.dart' as media;
 import '../state.dart';
 import 'common.dart';
 
@@ -210,12 +211,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ]),
             onTap: () => s.go(Screen.immich),
           ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Backblaze B2'),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(
+                !s.b2.enabled ? 'Off' : (sync.error.isNotEmpty ? 'Error' : (sync.pending > 0 ? '${sync.pending} to upload' : 'Up to date')),
+                style: const TextStyle(color: C.muted),
+              ),
+              const Icon(Icons.chevron_right, color: C.muted),
+            ]),
+            onTap: () => s.go(Screen.b2),
+          ),
           const ListTile(
             contentPadding: EdgeInsets.zero,
             enabled: false,
             title: Text('Google Photos'),
             trailing: Text('Coming later', style: TextStyle(color: C.muted)),
           ),
+          _h3('Free up space'),
+          _p('Once every integration that is on has a kept photo (checked on the server), it moves to the phone\'s trash, where it can be restored for 30 days. Photos you restore are never removed again.'),
+          Choices(
+            options: const [('off', 'Off'), ('now', 'After backup'), ('30d', 'Keep last 30 days')],
+            value: s.freeUp,
+            onPick: s.setFreeUp,
+          ),
+          if (s.freeUp != 'off') ...[
+            const SizedBox(height: 6),
+            FutureBuilder(
+              future: media.canManageMedia(),
+              builder: (context, snap) => snap.data == true
+                  ? const Text('Removes them without asking each time.', style: TextStyle(color: C.muted))
+                  : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Android asks to confirm each batch. To skip that, allow media management.',
+                          style: TextStyle(color: C.muted)),
+                      const SizedBox(height: 6),
+                      Btn('Allow media management', onTap: media.openManageMedia),
+                    ]),
+            ),
+          ],
+          if (s.freedCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('Removed ${s.freedCount} from the phone this session.', style: const TextStyle(color: C.muted)),
+            ),
           _h2('backup', 'Backup'),
           _p('Export or import app settings and albums.'),
           Row(children: [

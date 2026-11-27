@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Move photos to the trash after backup without a confirm each time (granted by the user in settings). -->
+    <uses-permission android:name="android.permission.MANAGE_MEDIA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Photos and videos: Android 13+ uses the media permissions, 11-12 the storage one -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />

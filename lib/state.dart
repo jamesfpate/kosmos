@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
+import 'b2.dart';
 import 'db.dart';
 import 'fx.dart';
 import 'immich.dart';
@@ -13,7 +14,7 @@ import 'media.dart' show Access;
 import 'background.dart';
 import 'models.dart';
 
-enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, error }
+enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, b2, error }
 
 enum Dir { left, right }
 
@@ -99,6 +100,15 @@ class AppState extends ChangeNotifier {
   String gridView = 'unreviewed';
   String exploreView = 'all';
 
+  B2Config b2 = const B2Config();
+
+  /// Free up space after backup: 'off', 'now' (as soon as every integration has a photo) or '30d' (keep the last 30
+  /// days on the phone).
+  String freeUp = 'off';
+
+  /// Photos removed from the phone this session (for the status line).
+  int freedCount = 0;
+
   /// Names of Immich albums picked in Explorer (id -> name), for the source chip.
   Map<String, String> immichAlbumNames = {};
   Set<String> gridSel = {};
@@ -159,7 +169,7 @@ class AppState extends ChangeNotifier {
       }
       screen = cutoff == null ? Screen.start : mode;
       changed();
-      scheduleBackground(immich);
+      scheduleBackground(immich, b2);
       runSync();
     } catch (e) {
       error = '$e';
@@ -182,6 +192,8 @@ class AppState extends ChangeNotifier {
     thumbH = (m['thumbH'] as num?)?.toDouble() ?? 150;
     hidden = ((m['hiddenBuckets'] as List?) ?? []).cast<String>().toSet();
     immich = ImmichConfig.fromJson((m['immich'] as Map?)?.cast<String, Object?>());
+    b2 = B2Config.fromJson((m['b2'] as Map?)?.cast<String, Object?>());
+    freeUp = (m['freeUp'] as String?) ?? 'off';
   }
 
   /// The background upload task (no screen): load what's needed and sync once.
@@ -191,7 +203,8 @@ class AppState extends ChangeNotifier {
     // list comes back empty and nothing uploads.
     await media.skipPermissionCheck();
     _loadSettings(await db.allMeta());
-    if (!immich.enabled || !immich.ready) return;
+    if (!_immichOn && !_b2On) return;
+    _background = true;
     albums = [for (final j in await db.all('albums')) Album.fromJson(j)];
     await reload();
     await runSync();
@@ -1047,6 +1060,37 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> saveB2({
+    String? keyId,
+    String? appKey,
+    String? bucket,
+    String? prefix,
+    bool? enabled,
+    bool? wifiOnly,
+    bool? videos,
+    String? background,
+  }) async {
+    b2 = b2.copyWith(
+      keyId: keyId?.trim(),
+      appKey: appKey?.trim(),
+      bucket: bucket?.trim(),
+      prefix: prefix?.trim(),
+      enabled: enabled,
+      wifiOnly: wifiOnly,
+      videos: videos,
+      background: background,
+    );
+    await _set('b2', b2.toJson());
+    scheduleBackground(immich, b2);
+    if (enabled == true || wifiOnly != null || videos != null) runSync();
+  }
+
+  Future<void> setFreeUp(String v) async {
+    freeUp = v;
+    await _set('freeUp', v);
+    if (v != 'off') runSync();
+  }
+
   Future<int> shareAllAlbums() async {
     final api = ImmichApi(immich);
     var n = 0;
@@ -1073,7 +1117,7 @@ class AppState extends ChangeNotifier {
         videos: videos,
         background: background);
     await _set('immich', immich.toJson());
-    scheduleBackground(immich);
+    scheduleBackground(immich, b2);
     if (enabled == true || wifiOnly != null || videos != null) runSync();
   }
 
@@ -1092,14 +1136,52 @@ class AppState extends ChangeNotifier {
             records[i.id]?.syncedAlbumId != d.albumId;
       }).toList();
 
-  /// Uploads kept photos, then adds them to their Immich album (same name) and tag (Albums/YYYY/MM/name). One run at
-  /// a time; a call during a run schedules another pass.
+  bool get _immichOn => immich.enabled && immich.ready;
+  bool get _b2On => b2.enabled && b2.ready;
+
+  /// Kept, filed photos B2 doesn't have at their current path yet.
+  List<Item> _pendingB2(Map<String, B2Record> recs) => items.where((i) {
+        final d = decided[i.id];
+        if (d == null || d.decision != Decision.keep || d.albumId == null || (!b2.videos && i.isVideo)) return false;
+        final r = recs[i.id];
+        return r == null || !_b2At(r, i, d.albumId!);
+      }).toList();
+
+  /// Whether [r] is already where [i] belongs (its album's folder, with or without the clash suffix).
+  bool _b2At(B2Record r, Item i, String albumId) {
+    final album = albums.where((a) => a.id == albumId).firstOrNull;
+    if (album == null) return true;
+    final base = b2Path(b2, album, i.name);
+    return r.fileName == base || r.fileName == withSuffix(base, i.id);
+  }
+
+  Future<int> _pendingCount() async {
+    var n = 0;
+    if (_immichOn) {
+      n += _pendingUploads({for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)}).length;
+    }
+    if (_b2On) n += _pendingB2({for (final j in await db.all('b2')) B2Record.fromJson(j).id: B2Record.fromJson(j)}).length;
+    return n;
+  }
+
+  int _done = 0;
+  bool _background = false;
+
+  void _status(int left) {
+    sync = SyncStatus(running: true, pending: left, done: _done);
+    changed();
+  }
+
+  /// Backs up kept photos to each integration that's on (Immich, then B2), then frees up space if that's on. One run
+  /// at a time; a call during a run schedules another pass.
   Future<void> runSync() async {
-    if (!immich.enabled || !immich.ready || _db == null) return;
+    if (_db == null || !(_immichOn || _b2On)) return;
     _watchNetwork();
-    if (immich.wifiOnly && !await _onWifi()) {
-      final records = {for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)};
-      sync = SyncStatus(pending: _pendingUploads(records).length, done: sync.done, waitingWifi: true);
+    final wifi = await _onWifi();
+    final doImmich = _immichOn && (wifi || !immich.wifiOnly);
+    final doB2 = _b2On && (wifi || !b2.wifiOnly);
+    if (!doImmich && !doB2) {
+      sync = SyncStatus(pending: await _pendingCount(), done: sync.done, waitingWifi: true);
       changed();
       return;
     }
@@ -1108,84 +1190,166 @@ class AppState extends ChangeNotifier {
       return;
     }
     _syncing = true;
-    final api = ImmichApi(immich);
-    var done = 0;
+    _done = 0;
     try {
       do {
         _syncAgain = false;
-        final records = {for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)};
-        final todo = _pendingUploads(records);
-        void status() {
-          sync = SyncStatus(running: true, pending: todo.length - done, done: done);
-          changed();
-        }
-
-        status();
-        for (final item in todo) {
-          if (records.containsKey(item.id)) continue;
-          final assetId = await api.upload(item);
-          final rec = UploadRecord(id: item.id, assetId: assetId, uploadedAt: DateTime.now().millisecondsSinceEpoch);
-          records[item.id] = rec;
-          await db.put('uploads', rec.id, rec.toJson());
-        }
-        final byAlbum = <String, List<UploadRecord>>{};
-        for (final item in todo) {
-          byAlbum.putIfAbsent(decided[item.id]!.albumId!, () => []).add(records[item.id]!);
-        }
-        // Photos moved to another album in Winnow: take them out of the old Immich album and tag first.
-        final moved = <String, List<String>>{};
-        for (final item in todo) {
-          final r = records[item.id]!;
-          final old = r.syncedAlbumId;
-          if (old != null && old != decided[item.id]!.albumId) moved.putIfAbsent(old, () => []).add(r.assetId);
-        }
-        for (final entry in moved.entries) {
-          final old = albums.where((a) => a.id == entry.key).firstOrNull;
-          if (old == null) continue;
-          if (old.immichAlbumId != null) {
-            await api.call('DELETE', '/albums/${old.immichAlbumId}/assets', {'ids': entry.value});
-          }
-          await api.call('DELETE', '/tags/${await api.ensureTag(albumTag(old))}/assets', {'ids': entry.value});
-        }
-        for (final entry in byAlbum.entries) {
-          final album = albums.where((a) => a.id == entry.key).firstOrNull;
-          if (album == null) continue;
-          final immichId = await api.ensureAlbum(album);
-          await db.put('albums', album.id, album.toJson());
-          await api.share(immichId);
-          final ids = [for (final r in entry.value) r.assetId];
-          await api.addToAlbum(immichId, ids);
-          await api.tag(await api.ensureTag(albumTag(album)), ids);
-          if (album.staleTags.isNotEmpty) {
-            final all = [
-              for (final j in await db.all('uploads'))
-                if (UploadRecord.fromJson(j).syncedAlbumId == album.id || entry.value.any((r) => r.id == j['id']))
-                  UploadRecord.fromJson(j).assetId,
-            ];
-            for (final t in album.staleTags) {
-              await api.call('DELETE', '/tags/${await api.ensureTag(t)}/assets', {'ids': all});
-            }
-            album.staleTags = [];
-            await db.put('albums', album.id, album.toJson());
-          }
-          for (final r in entry.value) {
-            r.syncedAlbumId = album.id;
-            await db.put('uploads', r.id, r.toJson());
-            done++;
-          }
-          status();
-        }
+        if (doImmich) await _syncImmich();
+        if (doB2) await _syncB2();
       } while (_syncAgain);
-      await _pullAlbumNames(api);
-      sync = SyncStatus(done: done);
+      await _freeUp();
+      final waiting = (_immichOn && !doImmich) || (_b2On && !doB2);
+      sync = SyncStatus(done: _done, waitingWifi: waiting, pending: waiting ? await _pendingCount() : 0);
     } catch (e) {
-      final records = {for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)};
-      sync = SyncStatus(pending: _pendingUploads(records).length, done: done, error: '$e'.replaceFirst('Exception: ', ''));
+      sync = SyncStatus(pending: await _pendingCount(), done: _done, error: '$e'.replaceFirst('Exception: ', ''));
     } finally {
-      api.close();
       _syncing = false;
       changed();
     }
+  }
+
+  /// Uploads kept photos to Immich, then adds them to their album (same name) and tag (Albums/YYYY/MM/name).
+  Future<void> _syncImmich() async {
+    final api = ImmichApi(immich);
+    try {
+      final records = {for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)};
+      final todo = _pendingUploads(records);
+      var here = 0;
+      _status(todo.length);
+      for (final item in todo) {
+        if (records.containsKey(item.id)) continue;
+        final assetId = await api.upload(item);
+        final rec = UploadRecord(id: item.id, assetId: assetId, uploadedAt: DateTime.now().millisecondsSinceEpoch);
+        records[item.id] = rec;
+        await db.put('uploads', rec.id, rec.toJson());
+      }
+      final byAlbum = <String, List<UploadRecord>>{};
+      for (final item in todo) {
+        byAlbum.putIfAbsent(decided[item.id]!.albumId!, () => []).add(records[item.id]!);
+      }
+      // Photos moved to another album in Winnow: take them out of the old Immich album and tag first.
+      final moved = <String, List<String>>{};
+      for (final item in todo) {
+        final r = records[item.id]!;
+        final old = r.syncedAlbumId;
+        if (old != null && old != decided[item.id]!.albumId) moved.putIfAbsent(old, () => []).add(r.assetId);
+      }
+      for (final entry in moved.entries) {
+        final old = albums.where((a) => a.id == entry.key).firstOrNull;
+        if (old == null) continue;
+        if (old.immichAlbumId != null) {
+          await api.call('DELETE', '/albums/${old.immichAlbumId}/assets', {'ids': entry.value});
+        }
+        await api.call('DELETE', '/tags/${await api.ensureTag(albumTag(old))}/assets', {'ids': entry.value});
+      }
+      for (final entry in byAlbum.entries) {
+        final album = albums.where((a) => a.id == entry.key).firstOrNull;
+        if (album == null) continue;
+        final immichId = await api.ensureAlbum(album);
+        await db.put('albums', album.id, album.toJson());
+        await api.share(immichId);
+        final ids = [for (final r in entry.value) r.assetId];
+        await api.addToAlbum(immichId, ids);
+        await api.tag(await api.ensureTag(albumTag(album)), ids);
+        if (album.staleTags.isNotEmpty) {
+          final all = [
+            for (final j in await db.all('uploads'))
+              if (UploadRecord.fromJson(j).syncedAlbumId == album.id || entry.value.any((r) => r.id == j['id']))
+                UploadRecord.fromJson(j).assetId,
+          ];
+          for (final t in album.staleTags) {
+            await api.call('DELETE', '/tags/${await api.ensureTag(t)}/assets', {'ids': all});
+          }
+          album.staleTags = [];
+          await db.put('albums', album.id, album.toJson());
+        }
+        for (final r in entry.value) {
+          r.syncedAlbumId = album.id;
+          await db.put('uploads', r.id, r.toJson());
+          _done++;
+          here++;
+        }
+        _status(todo.length - here);
+      }
+      await _pullAlbumNames(api);
+    } finally {
+      api.close();
+    }
+  }
+
+  /// Uploads kept photos to B2 at their album's path; photos whose album changed (or was renamed) move there.
+  Future<void> _syncB2() async {
+    final api = B2Api(b2);
+    try {
+      final recs = {for (final j in await db.all('b2')) B2Record.fromJson(j).id: B2Record.fromJson(j)};
+      final todo = _pendingB2(recs);
+      if (todo.isEmpty) return;
+      await api.authorize();
+      final taken = {for (final r in recs.values) r.fileName: r.id};
+      var here = 0;
+      _status(todo.length);
+      for (final item in todo) {
+        final album = albums.firstWhere((a) => a.id == decided[item.id]!.albumId);
+        var name = b2Path(b2, album, item.name);
+        final owner = taken[name];
+        if (owner != null && owner != item.id) name = withSuffix(name, item.id);
+        final old = recs[item.id];
+        final fileId = old == null ? await api.upload(item, name) : await api.move(old, name);
+        if (old != null) taken.remove(old.fileName);
+        taken[name] = item.id;
+        final rec = B2Record(id: item.id, fileId: fileId, fileName: name);
+        recs[item.id] = rec;
+        await db.put('b2', rec.id, rec.toJson());
+        _done++;
+        _status(todo.length - ++here);
+      }
+    } finally {
+      api.close();
+    }
+  }
+
+  /// Free up space: kept photos every integration that's on has filed (checked on the server first) go to the
+  /// phone's trash (30 days to restore). Photos restored from there are never removed again. Not in the background:
+  /// Android may ask to confirm.
+  Future<void> _freeUp() async {
+    if (freeUp == 'off' || _background || !(_immichOn || _b2On)) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final before = freeUp == '30d' ? now - 30 * day : now;
+    final freed = ((await db.getMeta<List>('freed')) ?? []).cast<String>().toSet();
+    final ups = {for (final j in await db.all('uploads')) UploadRecord.fromJson(j).id: UploadRecord.fromJson(j)};
+    final b2s = {for (final j in await db.all('b2')) B2Record.fromJson(j).id: B2Record.fromJson(j)};
+    final candidates = items.where((i) {
+      final d = decided[i.id];
+      if (d == null || d.decision != Decision.keep || d.albumId == null) return false;
+      if (freed.contains(i.id) || i.taken >= before) return false;
+      if (_immichOn && ups[i.id]?.syncedAlbumId != d.albumId) return false;
+      if (_b2On && (b2s[i.id] == null || !_b2At(b2s[i.id]!, i, d.albumId!))) return false;
+      return true;
+    }).take(300).toList();
+    if (candidates.isEmpty) return;
+    final safe = <Item>[];
+    final immichApi = _immichOn ? ImmichApi(immich) : null;
+    final b2Api = _b2On ? B2Api(b2) : null;
+    try {
+      if (b2Api != null) await b2Api.authorize();
+      for (final i in candidates) {
+        if (immichApi != null) {
+          final a = await immichApi.call('GET', '/assets/${ups[i.id]!.assetId}') as Map;
+          if (a['isTrashed'] == true) continue;
+        }
+        if (b2Api != null && !await b2Api.exists(b2s[i.id]!)) continue;
+        safe.add(i);
+      }
+    } finally {
+      immichApi?.close();
+      b2Api?.close();
+    }
+    if (safe.isEmpty) return;
+    final moved = await media.trash(safe);
+    if (moved.isEmpty) return;
+    await db.setMeta('freed', [...freed, ...moved]);
+    freedCount += moved.length;
+    await reload();
   }
 }
 

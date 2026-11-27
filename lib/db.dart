@@ -11,11 +11,19 @@ class Db {
 
   static Future<Db> open() async {
     final path = p.join(await getDatabasesPath(), 'winnow.db');
-    final db = await openDatabase(path, version: 1, onCreate: (db, _) async {
-      for (final t in ['decisions', 'albums', 'uploads', 'meta']) {
-        await db.execute('CREATE TABLE $t (id TEXT PRIMARY KEY, json TEXT NOT NULL)');
-      }
-    });
+    // v2: b2 (Backblaze B2 uploads).
+    final db = await openDatabase(
+      path,
+      version: 2,
+      onCreate: (db, _) async {
+        for (final t in ['decisions', 'albums', 'uploads', 'meta', 'b2']) {
+          await db.execute('CREATE TABLE $t (id TEXT PRIMARY KEY, json TEXT NOT NULL)');
+        }
+      },
+      onUpgrade: (db, from, _) async {
+        if (from < 2) await db.execute('CREATE TABLE b2 (id TEXT PRIMARY KEY, json TEXT NOT NULL)');
+      },
+    );
     return Db._(db);
   }
 

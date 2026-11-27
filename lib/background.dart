@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 
+import 'b2.dart';
 import 'immich.dart';
 import 'state.dart';
 
@@ -28,11 +29,16 @@ Future<void> initBackground() async {
   await Workmanager().initialize(backgroundMain);
 }
 
-/// Registers or cancels the periodic upload to match the Immich settings.
-Future<void> scheduleBackground(ImmichConfig c) async {
+/// Registers or cancels the periodic upload to match the integrations' settings: runs if any integration that's on
+/// wants background upload; only while charging / only on Wi-Fi when every such integration asks for that.
+Future<void> scheduleBackground(ImmichConfig c, B2Config b) async {
   if (!Platform.isAndroid) return;
+  final wants = [
+    if (c.enabled && c.ready && c.background != 'off') (bg: c.background, wifi: c.wifiOnly),
+    if (b.enabled && b.ready && b.background != 'off') (bg: b.background, wifi: b.wifiOnly),
+  ];
   try {
-    if (!c.enabled || !c.ready || c.background == 'off') {
+    if (wants.isEmpty) {
       await Workmanager().cancelByUniqueName(_task);
       return;
     }
@@ -42,8 +48,8 @@ Future<void> scheduleBackground(ImmichConfig c) async {
       frequency: const Duration(minutes: 15),
       existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
       constraints: Constraints(
-        networkType: c.wifiOnly ? NetworkType.unmetered : NetworkType.connected,
-        requiresCharging: c.background == 'charging',
+        networkType: wants.every((w) => w.wifi) ? NetworkType.unmetered : NetworkType.connected,
+        requiresCharging: wants.every((w) => w.bg == 'charging'),
         requiresBatteryNotLow: true,
       ),
     );

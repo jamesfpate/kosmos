@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'background.dart';
 import 'fx.dart';
 import 'state.dart';
+import 'ui/b2_screen.dart';
 import 'ui/common.dart';
 import 'ui/cull.dart';
 import 'ui/grid.dart';
@@ -154,6 +155,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver {
                   Screen.trash => TrashScreen(s),
                   Screen.settings => SettingsScreen(s),
                   Screen.immich => ImmichScreen(s),
+                  Screen.b2 => B2Screen(s),
                 },
               ),
             ),

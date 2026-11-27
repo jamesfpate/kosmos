@@ -62,14 +62,14 @@ class TopBar extends StatelessWidget {
             ]),
           ),
         ),
-        if (s.immich.enabled && (sync.pending > 0 || sync.running || sync.error.isNotEmpty))
+        if ((s.immich.enabled || s.b2.enabled) && (sync.pending > 0 || sync.running || sync.error.isNotEmpty))
           Pulse(
             on: sync.running,
             child: Pill(
               icon: Icons.arrow_upward,
               label: sync.error.isNotEmpty ? '!' : '${sync.pending}',
               color: sync.error.isNotEmpty ? C.trash : null,
-              onTap: () => s.go(Screen.immich),
+              onTap: () => s.go(s.immich.enabled || !s.b2.enabled ? Screen.immich : Screen.b2),
             ),
           ),
         Pill(
@@ -80,8 +80,8 @@ class TopBar extends StatelessWidget {
         ),
         Pill(
           icon: Icons.settings_outlined,
-          on: s.screen == Screen.settings || s.screen == Screen.immich,
-          onTap: () => s.screen == Screen.immich ? s.go(Screen.settings) : s.toggleScreen(Screen.settings),
+          on: s.screen == Screen.settings || s.screen == Screen.immich || s.screen == Screen.b2,
+          onTap: () => s.screen == Screen.immich || s.screen == Screen.b2 ? s.go(Screen.settings) : s.toggleScreen(Screen.settings),
         ),
       ]),
     );

@@ -11,13 +11,17 @@ import 'models.dart';
 /// blue→pink, delete from the top down in dark red→orange), then deleted photos fade out in place; kept ones stay.
 /// Values tuned in the motion demo.
 class Motion {
-  static const traceMs = 710.0;
-  static const fadeMs = 560.0;
+  static const traceMs = 420.0;
+  static const fadeMs = 320.0;
 
   /// The fade starts this far into the trace.
-  static const fadeStart = 0.75;
+  static const fadeStart = 0.7;
   static const thickness = 2.4;
   static const glow = 15.0;
+
+  /// Delete lines are finer than keep lines.
+  static const deleteThickness = 1.2;
+  static const deleteGlow = 8.0;
 
   /// Sobel magnitude a pixel needs to count as an outline (on 0-255 grey).
   static const sensitivity = 120.0;
@@ -161,13 +165,13 @@ class TraceFx extends StatefulWidget {
     this.radius = 0,
     this.fadeOut,
     this.frame = true,
-    this.thickness = Motion.thickness,
-    this.glow = Motion.glow,
+    this.thickness,
+    this.glow,
   });
 
-  /// Line width and glow (smaller for the wordmark).
-  final double thickness;
-  final double glow;
+  /// Line width and glow (default: keep / delete values from [Motion]; smaller for the wordmark).
+  final double? thickness;
+  final double? glow;
 
   /// The photo whose outlines to trace, or [outlines] given directly.
   final Item? item;
@@ -225,8 +229,16 @@ class _TraceFxState extends State<TraceFx> with SingleTickerProviderStateMixin {
             Positioned.fill(
               child: IgnorePointer(
                 child: CustomPaint(
-                  painter: _TracePainter(_lines, widget.keep, trace, 1 - fade, widget.radius, widget.frame,
-                      widget.thickness, widget.glow),
+                  painter: _TracePainter(
+                    _lines,
+                    widget.keep,
+                    trace,
+                    1 - fade,
+                    widget.radius,
+                    widget.frame,
+                    widget.thickness ?? (widget.keep ? Motion.thickness : Motion.deleteThickness),
+                    widget.glow ?? (widget.keep ? Motion.glow : Motion.deleteGlow),
+                  ),
                 ),
               ),
             ),
