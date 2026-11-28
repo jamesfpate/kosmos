@@ -31,7 +31,13 @@
   }
   a { color: var(--accent); }
   .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
-  header { display: flex; align-items: center; gap: 10px; padding: 18px 0; }
+  html { scroll-padding-top: 76px; }
+  /* Sticky top bar; its background runs the full width of the window. */
+  header {
+    position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; padding: 14px 0;
+    background: rgba(11, 11, 15, 0.86); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    box-shadow: 0 0 0 100vmax rgba(11, 11, 15, 0.86), 0 1px 0 100vmax var(--line); clip-path: inset(0 -100vmax -1px);
+  }
   header img { width: 36px; height: 36px; border-radius: 9px; }
   header .name { font-weight: 800; font-size: 20px; letter-spacing: -0.01em; }
   header nav { margin-left: auto; display: flex; gap: 18px; font-size: 15px; }
@@ -117,7 +123,17 @@
     border: 2px solid var(--line); border-radius: 36px; background: var(--bg); padding: 16px 12px 14px; overflow: hidden;
     box-shadow: 0 30px 80px -30px rgba(96, 165, 250, 0.35);
   }
-  .phone .ui { height: 100%; }
+  .shot { justify-self: center; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .phone .slide { position: absolute; inset: 16px 12px 14px; opacity: 0; transform: translateX(6%); transition: opacity .45s, transform .45s; pointer-events: none; }
+  .phone .slide.on { opacity: 1; transform: none; }
+  .phone .area { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+  .phone .tiles { grid-template-columns: repeat(4, 1fr); }
+  .phone .burstbig { width: 100%; flex: 1; aspect-ratio: auto; background-size: cover; }
+  .phone .bthumbs { grid-template-columns: repeat(3, 1fr); }
+  .handle { align-self: center; width: 34px; height: 4px; border-radius: 3px; background: var(--line); }
+  .modes { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+  .modes button { font: inherit; font-size: 14px; color: var(--muted); background: none; border: 0; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+  .modes button.on { background: var(--accent); color: var(--bg); font-weight: 600; }
   .stage { position: relative; flex: 1; min-height: 0; }
   .card { position: absolute; inset: 0; border-radius: 12px; overflow: hidden; background: #111; display: flex; align-items: flex-end; padding: 8px; }
   .card .ph { position: absolute; inset: 0; background: center / cover; }
@@ -137,6 +153,24 @@
 
   /* Fast bulk review: four looping demos on copies of the grid and burst screens. */
   .demos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .demos.three { grid-template-columns: repeat(3, 1fr); }
+  h3.mode { font-size: 20px; margin: 34px 0 4px; }
+  h3.mode:first-of-type { margin-top: 8px; }
+  .mode-p { color: var(--muted); margin: 0 0 16px; }
+  /* Cards in a row share a height; the screen takes up the slack. */
+  .screen { overflow: hidden; }
+  /* The album bar stays above a photo being dragged, so the target chip shows. */
+  .ui .chs, .ui .srch { position: relative; z-index: 4; }
+  .dstage { position: relative; flex: 1; min-height: 180px; }
+  .dstage .card { transition: transform .5s cubic-bezier(.3,.7,.3,1); transform-origin: 50% 30%; }
+  .dstage .card.fly { transition: transform .45s ease-in, opacity .45s; }
+  .ui .views { display: flex; gap: 4px; }
+  .ui .vc { border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px; background: var(--surface); white-space: nowrap; transition: background .2s, color .2s; }
+  .ui .vc.on { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 700; }
+  .ui .vc.press { filter: brightness(1.3); }
+  .finger { position: absolute; z-index: 5; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: rgba(255,255,255,0.35); border: 2px solid rgba(255,255,255,0.8); pointer-events: none; opacity: 0; transition: opacity .2s; }
+  .ui .ch { transition: transform .12s, box-shadow .12s; }
+  .ui .ch.hover { transform: scale(1.08); box-shadow: 0 0 0 2px var(--accent); }
   .demo { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
   .demo h3 { margin: 0 0 4px; font-size: 18px; }
   .demo p { margin: 0; color: var(--muted); font-size: 15px; }
@@ -154,9 +188,8 @@
   .tile.sel .chk::after { content: ""; width: 4px; height: 2px; border: solid var(--bg); border-width: 0 0 1.5px 1.5px; transform: rotate(-45deg) translate(0.5px, -0.5px); }
   .tile.ring .chk { border: 1.5px solid rgba(255,255,255,0.8); background: rgba(0,0,0,0.3); }
   .tile.tap { filter: brightness(1.3); }
-  .tile.blur { filter: blur(1.2px) saturate(0.5); }
   .tile.keep, .tile.gone { opacity: 0 !important; }
-  .burstbig { position: relative; align-self: center; width: 58%; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; background: #222 center / 230%; transition: background-position .2s; }
+  .burstbig { position: relative; align-self: center; width: 64%; aspect-ratio: 25 / 16; border-radius: 8px; overflow: hidden; background: #222 center / 118%; transition: background-position .2s; }
   .burstbig::after { content: ""; position: absolute; inset: 0; border-radius: 8px; pointer-events: none; }
   .burstbig.sel::after { box-shadow: inset 0 0 0 2px var(--accent); }
   .burstbig .chk { width: 15px; height: 15px; top: 5px; left: 5px; }
@@ -165,8 +198,9 @@
   .burstbig.ring .chk { border: 1.5px solid rgba(255,255,255,0.8); background: rgba(0,0,0,0.3); }
   .burstbig .cap { position: absolute; left: 5px; bottom: 5px; padding: 2px 5px; border-radius: 4px; background: rgba(0,0,0,0.55); font-size: 7px; font-weight: 600; color: #fff; }
   .bthumbs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
-  .bthumbs .tile { aspect-ratio: 3 / 4; }
-  @media (max-width: 820px) { .demos { grid-template-columns: 1fr; } }
+  .bthumbs .tile { aspect-ratio: 25 / 16; }
+  @media (max-width: 980px) { .demos.three { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 820px) { .demos, .demos.three { grid-template-columns: 1fr; } }
   @media (prefers-reduced-motion: reduce) { .tile, .ui .foot span { transition: none; } .card, .mark * { animation: none !important; } }
 
   .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px 28px; }
@@ -188,9 +222,6 @@
   .dl span { color: var(--muted); font-size: 14px; }
   #version { color: var(--muted); font-size: 14px; margin: -10px 0 18px; }
 
-  .faq details { border-bottom: 1px solid var(--line); padding: 14px 0; }
-  .faq summary { cursor: pointer; font-weight: 600; }
-  .faq p { color: var(--muted); margin: 10px 0 0; }
 
   footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 18px; }
   footer a { color: var(--muted); }
@@ -211,8 +242,9 @@
     <img src="icon.png" alt="Winnow">
     <nav>
       <a href="#bulk">Bulk review</a>
-      <a href="#features">Features</a>
-      <a href="#integrations">Integrations</a>
+      <a href="#tagging">Albums</a>
+      <a href="#backup">Backup</a>
+      <a href="#gallery">Gallery</a>
       <a href="#download">Download</a>
       <a href="https://github.com/jamesfpate/winnow">GitHub</a>
     </nav>
@@ -241,26 +273,52 @@
       <p class="fine">Free. No ads, no tracking, no account. Your photos go only where you send them.</p>
     </div>
 
-    <div class="phone" aria-label="Animation of Winnow's swipe screen: photos kept into an album or deleted">
-      <div class="ui">
-        <div class="tb"><div class="seg"><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span id="left">214</span> left</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
-        <div class="lbl">Choose album</div>
+    <div class="shot">
+      <div class="phone" aria-label="Animation of Winnow's three views: single, grid and gallery">
+        <div class="slide ui on" id="h-single" data-name="single">
+          <div class="tb"><div class="seg"><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">214 left</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="lbl"><span class="lab">Choose album</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
-        <div class="stage" id="stage"></div>
-        <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d">← Delete</span><span class="k">→ 2026-07 Hawaii</span><span class="l">Later</span></div>
+          <div class="area"></div>
+          <div class="foot"></div>
+        </div>
+        <div class="slide ui" id="h-grid" data-name="grid">
+          <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span></div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          <div class="mh"><span>July 2026</span><a>Select 18</a></div>
+          <div class="tiles"></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+        </div>
+        <div class="slide ui" id="h-gal" data-name="gallery">
+          <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">1,284 photos</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="views"><span class="vc on">All on phone</span><span class="vc">Reviewed</span><span class="vc">Albums ▾</span><span class="vc">Immich ▾</span></div>
+          <div class="lbl"><span class="lab" data-base="Select photos to move or delete them">Select photos to move or delete them</span></div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          <div class="mh"><span>July 2026</span><a>Select 18</a></div>
+          <div class="tiles"></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+        </div>
       </div>
+      <div class="modes" role="tablist"><button data-to="single" class="on">Single</button><button data-to="grid">Grid</button><button data-to="gallery">Gallery</button></div>
     </div>
   </div>
 
   <section id="bulk">
     <h2>Fast bulk review</h2>
     <p class="lede">Years of photos in an evening. Pick the keepers, pick the rejects, or both in one tap, across a whole month at a time.</p>
-    <div class="demos">
+    <h3 class="mode">Grid mode</h3>
+    <p class="mode-p">The grid of photos you haven’t filed yet, a month at a time: the fast way through the backlog.</p>
+    <div class="demos three">
       <div class="demo">
         <div class="screen ui" id="d-fill">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
-          <div class="lbl"><span class="lab">Pick an album, then select photos</span></div>
+          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
           <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
@@ -273,7 +331,7 @@
       <div class="demo">
         <div class="screen ui" id="d-gaps">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
-          <div class="lbl"><span class="lab">Pick an album, then select photos</span></div>
+          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
           <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
@@ -286,7 +344,7 @@
       <div class="demo">
         <div class="screen ui" id="d-rejects">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
-          <div class="lbl"><span class="lab">Pick an album, then select photos</span></div>
+          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
           <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
@@ -294,7 +352,22 @@
           <div class="tiles"></div>
           <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
-        <div><h3>Or just pick the rejects</h3><p>Select the blurry and the duplicate shots and Delete them. Everything else stays where it is, ready for later.</p></div>
+        <div><h3>Or just pick the rejects</h3><p>Select the misses and the duplicates and Delete them. Everything else stays where it is, ready for later.</p></div>
+      </div>
+    </div>
+    <h3 class="mode">Single mode</h3>
+    <p class="mode-p">One photo, or one burst, at a time: for new photos as they come in.</p>
+    <div class="demos three single">
+      <div class="demo">
+        <div class="screen ui" id="d-one">
+          <div class="tb"><div class="seg"><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">214 left</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="lbl"><span class="lab">Choose album</span></div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+          <div class="stage dstage"></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d">← Delete</span><span class="k">→ 2026-07 Hawaii</span><span class="l">Later</span></div>
+        </div>
+        <div><h3>One photo at a time</h3><p>Swipe right to keep it in the album, left to delete it, or tap the buttons. Later puts it off; undo steps back.</p></div>
       </div>
       <div class="demo">
         <div class="screen ui" id="d-burst">
@@ -310,45 +383,75 @@
         </div>
         <div><h3>Bursts in one tap</h3><p>A burst comes up as one card with every shot checked. Uncheck the misses and Keep: the unchecked ones are deleted in the same tap. Or check the bad ones and Delete, and the rest are kept.</p></div>
       </div>
+      <div class="demo">
+        <div class="screen ui" id="d-drag">
+          <div class="tb"><div class="seg"><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">214 left</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="lbl"><span class="lab">Choose album</span></div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+          <div class="stage dstage"></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d">← Delete</span><span class="k">→ 2026-07 Hawaii</span><span class="l">Later</span></div>
+        </div>
+        <div><h3>Drag onto any album</h3><p>Hold a photo and drag it up onto an album to file it there, without changing the album the rest are going to.</p></div>
+      </div>
+    </div>
+    <h3 class="mode">Also in review</h3>
+    <div class="features">
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 12h6m-2-2 2 2-2 2"/></svg><div><b>Swipe or tap</b><span>Right keeps it in the chosen album, left deletes it, Later puts it off. Videos play right on the card.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg><div><b>Full size</b><span>Long-press a photo to see it full screen; pinch or double-tap to zoom.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg><div><b>Undo everything</b><span>Step back through your decisions, one at a time.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 11h.01M10 11h.01M14 11h.01M18 11h.01M7 14h10"/></svg><div><b>Keyboard on desktop</b><span>← delete, → keep, ↓ later, Space plays, Z undoes, / searches albums.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8m-4-4v4"/></svg><div><b>Phone and computer</b><span>Android and iPhone, plus Mac, Windows and Linux for photo folders. On a Mac, review the Photos library itself.</span></div></div>
     </div>
     <p class="fine">Deletes wait in Winnow’s trash for review before anything leaves your phone. A month header’s “Select” picks the whole month at once.</p>
   </section>
 
-  <section id="features">
-    <h2>Features</h2>
+  <section id="tagging">
+    <h2>Albums, on your phone and off it</h2>
+    <p class="lede">Every keeper is tagged with an album as you review. Winnow keeps those albums the same everywhere: on the phone, and on every service you sync to.</p>
+    <h3 class="mode">Features</h3>
     <div class="features">
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 12h6m-2-2 2 2-2 2"/></svg><div><b>Swipe to decide</b><span>Right keeps it in the chosen album, left deletes it, Later puts it off. Videos play right on the card.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="12" height="12" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></svg><div><b>Bursts together</b><span>Similar shots come up as one card: tick the keepers, the rest go. You set how close in time counts as a burst.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><div><b>Grid for the backlog</b><span>File years of older photos fast: pick an album, select a run of photos, done.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div><b>Albums by date</b><span>Dated albums like “2026-07 Hawaii” are suggested for photos taken in their range; everything else goes to the year’s catch-all.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><div><b>Album search</b><span>Find any album as you type, or make a new one from what you typed. Drag a photo onto an album to file it.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg><div><b>Full size</b><span>Long-press a photo to see it full screen; pinch or double-tap to zoom.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg><div><b>Undo everything</b><span>Step back through your decisions, one swipe at a time.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"/></svg><div><b>Nothing lost by accident</b><span>Deletes wait in Winnow’s trash for you to review, then go to the phone’s Recently Deleted.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M5 21h14"/></svg><div><b>Free up space</b><span>Once every backup has a kept photo, Winnow can remove it from the phone, or keep the last 30 days.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12a9 9 0 0 1 15.5-6.2"/><path d="M21 4v5h-5M3 20v-5h5"/></svg><div><b>Albums stay in step</b><span>Rename an album or move a photo and every integration follows. Files already uploaded are recognised, not sent twice.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="0.8" fill="currentColor"/></svg><div><b>Uploads your way</b><span>In the background on Android, on Wi-Fi only if you like, with or without videos, per integration.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 1 1 1.6-9.7A6 6 0 0 1 20 11a3.5 3.5 0 0 1-1 7z"/></svg><div><b>Browse Immich</b><span>See your Immich library by album, refile photos, or save them back to the phone.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8m-4-4v4"/></svg><div><b>Phone and computer</b><span>Android and iPhone, plus Mac, Windows and Linux for photo folders. On a Mac, review the Photos library itself.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 11h.01M10 11h.01M14 11h.01M18 11h.01M7 14h10"/></svg><div><b>Keyboard on desktop</b><span>← delete, → keep, ↓ later, Space plays, Z undoes, / searches albums.</span></div></div>
-      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><div><b>Private by design</b><span>No account, no ads, no analytics. Settings and albums export to a backup file you keep.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4m8-4v4"/></svg><div><b>Albums by date</b><span>Dated albums like “2026-07 Hawaii” are suggested for photos taken in their range, so a trip files itself.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div><b>A catch-all for the rest</b><span>Photos that aren’t part of anything go to the year’s album (“2026”), or the month’s if you prefer.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><div><b>Album search</b><span>Find any album as you type, or make a new one from what you typed. Drag a photo onto an album to file it there.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12a9 9 0 0 1 15.5-6.2"/><path d="M21 4v5h-5M3 20v-5h5"/></svg><div><b>Albums stay in step</b><span>Rename an album or move a photo in Winnow and the phone and every service follow.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><div><b>Browse by album</b><span>See everything on the phone, what you’ve reviewed, or any one album, and refile photos in bulk.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v3h16v-3"/></svg><div><b>Bring your albums</b><span>Import the albums you already have in Immich, and renames made there come back to Winnow.</span></div></div>
+    </div>
+    <h3 class="mode">Integrations</h3>
+    <div class="group-label">On the device</div>
+    <div class="integrations">
+      <div class="integration"><b>iPhone and Mac <i>Apple Photos</i></b><span>Kept photos go into real albums in your Photos library, which iCloud syncs to your other devices. Deletes go to Recently Deleted.</span></div>
+      <div class="integration"><b>Android</b><span>Nothing is moved or renamed on the phone: albums live in Winnow, where you browse them. Deletes go to the phone’s trash.</span></div>
+    </div>
+    <div class="group-label">Off the device</div>
+    <div class="integrations">
+      <div class="integration"><b>Immich</b><span>Albums plus tags (Albums/2026/07), shared with family as editors. Browse your Immich library by album and refile from Winnow.</span></div>
+      <div class="integration"><b>Google Photos <i>Android</i></b><span>Kept photos go into Google Photos albums of the same name.</span></div>
+      <div class="integration"><b>PhotoPrism · Synology Photos</b><span>Real albums on your own server.</span></div>
     </div>
   </section>
 
-  <section id="integrations">
-    <h2>Integrations</h2>
-    <p class="lede" style="margin-bottom:0">Turn on as many as you like. Kept photos sync into albums of the same name on each; rename an
-      album or move a photo in Winnow and it follows everywhere. A file that's already there is recognised, not uploaded twice.</p>
-
+  <section id="backup">
+    <h2>Backup</h2>
+    <p class="lede">Only what you keep is uploaded, into the same albums, to as many places as you like.</p>
+    <h3 class="mode">Features</h3>
+    <div class="features">
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9m0 0-4 4m4-4 4 4"/><path d="M5 3h14"/></svg><div><b>Only the keepers</b><span>Deleted photos never upload. Kept ones go up with their album, and move if you refile them.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg><div><b>No duplicates</b><span>A file that’s already on the server is recognised and adopted, not uploaded twice, even after a reinstall.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="0.8" fill="currentColor"/></svg><div><b>Uploads your way</b><span>In the background on Android, on Wi-Fi only if you like, with or without videos, per service.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M5 21h14"/></svg><div><b>Free up space</b><span>Once every backup has a kept photo, Winnow can remove it from the phone, or keep the last 30 days.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"/></svg><div><b>Nothing lost by accident</b><span>Deletes wait in Winnow’s trash for you to review, then go to the phone’s Recently Deleted.</span></div></div>
+      <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><div><b>Private by design</b><span>No account, no ads, no analytics: uploads go straight from your device to your services, and Winnow has no servers. Settings and albums export to a file you keep. <a href="privacy.html">Privacy policy</a></span></div></div>
+    </div>
+    <h3 class="mode">Integrations</h3>
     <div class="group-label">Photo libraries · real albums</div>
     <div class="integrations">
-      <div class="integration"><b>Immich</b><span>Albums plus tags (Albums/2026/07), shared with family as editors. Browse and refile your Immich library from Winnow.</span></div>
-      <div class="integration"><b>Google Photos <i>Android</i></b><span>Uploads into Google Photos albums.</span></div>
-      <div class="integration"><b>Apple Photos <i>iPhone · Mac</i></b><span>Files kept photos into albums in your own Photos library, synced by iCloud.</span></div>
-      <div class="integration"><b>PhotoPrism</b><span>Uploads into PhotoPrism albums.</span></div>
-      <div class="integration"><b>Synology Photos</b><span>Uploads into Synology Photos albums on your NAS.</span></div>
+      <div class="integration"><b>Immich</b><span>Your self-hosted photo library, with albums and tags.</span></div>
+      <div class="integration"><b>Google Photos <i>Android</i></b><span>Google’s cloud, into albums.</span></div>
+      <div class="integration"><b>PhotoPrism</b><span>Self-hosted, into albums.</span></div>
+      <div class="integration"><b>Synology Photos</b><span>On your NAS, into albums.</span></div>
     </div>
-
     <div class="group-label">File storage · a folder per album</div>
     <div class="integrations">
       <div class="integration"><b>Nextcloud / ownCloud</b><span>Any WebDAV server. On Nextcloud, also Nextcloud Photos albums.</span></div>
@@ -358,7 +461,43 @@
       <div class="integration"><b>Dropbox</b><span>Into a folder in your Dropbox.</span></div>
       <div class="integration"><b>OneDrive</b><span>Personal or work OneDrive.</span></div>
     </div>
-    <p class="fine">Layout on file storage: Photos/2026/2026-07 Hawaii/IMG_1234.jpg, with the year's catch-all photos in Photos/2026/.</p>
+    <p class="fine">Layout on file storage: Photos/2026/2026-07 Hawaii/IMG_1234.jpg, with the year’s catch-all in Photos/2026/. Apple Photos albums live in your own library, so they don’t count as a backup.</p>
+  </section>
+
+  <section id="gallery">
+    <h2>Gallery mode</h2>
+    <p class="lede">Your whole library, not just what’s new: everything on the phone, what you’ve reviewed, any one album, or your Immich library.</p>
+    <div class="demos">
+      <div class="demo">
+        <div class="screen ui" id="d-move">
+          <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">1,284 photos</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="views"><span class="vc on">All on phone</span><span class="vc">Reviewed</span><span class="vc">Albums ▾</span><span class="vc">Immich ▾</span></div>
+          <div class="lbl"><span class="lab" data-base="Select photos to move or delete them">Select photos to move or delete them</span></div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          <div class="mh"><span>July 2026</span><a>Select 18</a></div>
+          <div class="tiles"></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+        </div>
+        <div><h3>Refile in bulk</h3><p>Select photos anywhere in the library and tap an album: they move there, here and on every service you sync to.</p></div>
+      </div>
+      <div class="demo">
+        <div class="screen ui" id="d-clean">
+          <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">1,284 photos</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="views"><span class="vc">All on phone</span><span class="vc on">Reviewed</span><span class="vc">Albums ▾</span><span class="vc">Immich ▾</span></div>
+          <div class="lbl"><span class="lab" data-base="Select photos to move or delete them">Select photos to move or delete them</span></div>
+          <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
+          <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
+          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          <div class="mh"><span>July 2026</span><a>Select 18</a></div>
+          <div class="tiles"></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+        </div>
+        <div><h3>Second thoughts</h3><p>Open Reviewed or any album, select what you no longer want, and delete it, or move it to another album.</p></div>
+      </div>
+    </div>
+    <p class="fine">With Immich set up, browse your Immich albums the same way: add photos to an album, move them between albums, or save them back to the phone.</p>
   </section>
 
   <section id="download">
@@ -372,20 +511,8 @@
       <a id="dl-linux" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Linux</b><span>tar.gz, review any folder</span></a>
       <a id="dl-iphone" href="https://github.com/jamesfpate/winnow/releases/latest"><b>iPhone</b><span>Early: sideload with AltStore or Sideloadly</span></a>
     </div>
-  </section>
-
-  <section class="faq">
-    <h2>Questions</h2>
-    <details><summary>Is it really free?</summary>
-      <p>Yes, everything. If it saves you time you can <a href="https://github.com/sponsors/jamesfpate">sponsor it</a>, or buy the Supporter thank-you in the Play Store version. Neither unlocks anything.</p></details>
-    <details><summary>Where do my photos go?</summary>
-      <p>Only to the services you set up, straight from your device. Winnow has no servers and collects nothing. <a href="privacy.html">Privacy policy</a>.</p></details>
-    <details><summary>Does it delete photos for good?</summary>
-      <p>No. Deleted photos go to the phone's Recently Deleted / Trash, and you review the trash in Winnow before anything is removed. "Free up space" only removes kept photos once every backup has them.</p></details>
-    <details><summary>Why not just use the cleaner apps in the store?</summary>
-      <p>They delete, then leave the rest in one pile. Winnow files what you keep into albums and gets them onto your server, without a weekly subscription.</p></details>
-    <details><summary>Is it open source?</summary>
-      <p>The source is on <a href="https://github.com/jamesfpate/winnow">GitHub</a> under the Functional Source License: free to use, change and share, not to resell. Each version becomes Apache 2.0 after two years.</p></details>
+    <p class="fine">Everything is free. If Winnow saves you time, <a href="https://github.com/sponsors/jamesfpate">sponsor it</a> or buy the Supporter thank-you in the Play Store version; neither unlocks anything.
+      The source is on <a href="https://github.com/jamesfpate/winnow">GitHub</a> under the Functional Source License: free to use, change and share, not to resell, and Apache 2.0 two years after each release.</p>
   </section>
 
   <footer>
@@ -586,7 +713,8 @@ const Trace = (() => {
     for (const l of letters) {
       const lr = l.getBoundingClientRect();
       const m = x.measureText(l.textContent);
-      x.fillText(l.textContent, lr.left - r.left + pad, lr.top - r.top + pad + (lr.height + m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2);
+      const asc = m.fontBoundingBoxAscent, desc = m.fontBoundingBoxDescent;
+      x.fillText(l.textContent, lr.left - r.left + pad, lr.top - r.top + pad + (lr.height - asc - desc) / 2 + asc);
     }
     const o = { W, H, chains: edges(x, W * S, H * S, 200), scale: S, frame: false, thick: 1.2, glow: 4 };
     const c = document.createElement('canvas');
@@ -642,7 +770,7 @@ const Trace = (() => {
     const doom = tiles.filter(t => t.classList.contains('doom')).length;
     const idx = tiles.map((t, i) => t.classList.contains('sel') ? i : -1).filter(i => i >= 0);
     const gaps = idx.length ? idx[idx.length - 1] - idx[0] + 1 - idx.length : 0;
-    d.q('.lab').textContent = sel ? `Choose album for ${sel}${doom ? ` · deletes ${doom} in red` : ''}` : 'Pick an album, then select photos';
+    d.q('.lab').textContent = sel ? `Choose album for ${sel}${doom ? ` · deletes ${doom} in red` : ''}` : d.q('.lab').dataset.base;
     d.q('.cnt').textContent = sel ? `${sel} selected` : '';
     d.q('.x').style.visibility = sel ? 'visible' : 'hidden';
     d.q('.gap').textContent = gaps;
@@ -655,11 +783,12 @@ const Trace = (() => {
   const filed = async (kept, gone) => {
     await Promise.all([
       ...kept.map(x => Trace.photo(x, 'keep')),
-      ...gone.map(x => Trace.photo(x, 'del', x, x.classList.contains('blur') ? 'blur(1.2px) saturate(0.5)' : '')),
+      ...gone.map(x => Trace.photo(x, 'del')),
     ]);
     kept.forEach(x => x.classList.add('keep'));
     gone.forEach(x => x.classList.add('gone'));
   };
+  window.Demo = { setup, gridState, filed, wait };
   const run = (id, script) => {
     const d = setup(id);
     let on = false, going = false;
@@ -696,17 +825,119 @@ const Trace = (() => {
 
   run('d-rejects', async d => {
     const t = d.fresh(18); const bad = [1, 7, 8, 15];
-    bad.forEach(i => t[i].classList.add('blur')); gridState(d, t); await wait(900);
+    gridState(d, t); await wait(900);
     for (const i of bad) { await d.tap(t[i]); t[i].classList.add('sel'); gridState(d, t); await wait(380); }
     await wait(700);
     await d.press('.foot .d'); await filed([], bad.map(i => t[i]));
   });
 
+  // The drag screen matches the burst screen's height (they sit side by side).
+  const fit = () => { const b = document.getElementById('d-burst');
+    for (const id of ['d-drag', 'd-one']) document.getElementById(id).style.height = innerWidth > 820 ? b.offsetHeight + 'px' : ''; };
+  addEventListener('resize', fit); new ResizeObserver(fit).observe(document.getElementById('d-burst'));
+
+  // Single mode: drag a photo up onto an album chip; it files there (no trace, the card leaves upward).
+  run('d-drag', async d => {
+    const stage = d.q('.dstage'), screen = d.el;
+    if (!stage.querySelector('.card')) {
+      const shots = [['163', 'Sat, Jul 12, 2026 · 1:20 PM'], ['306', 'Sun, Jul 13, 2026 · 8:05 AM'], ['244', 'Mon, Jul 14, 2026 · 5:41 PM']];
+      stage._shots = shots; stage._n = 0;
+      const f = document.createElement('div'); f.className = 'finger'; screen.append(f); stage._finger = f;
+    }
+    const [img, when] = stage._shots[stage._n++ % stage._shots.length];
+    stage.innerHTML = '';
+    const c = document.createElement('div'); c.className = 'card';
+    c.innerHTML = `<div class="ph" style="background-image:url(img/h/${img}.jpg)"></div><span class="cap">${when}</span>`;
+    stage.append(c);
+    await wait(900);
+    const chips = [...screen.querySelectorAll('.chs .ch')].filter(x => !x.classList.contains('t'));
+    const chip = chips[(stage._n - 1) % 2];
+    const sr = screen.getBoundingClientRect(), cr = c.getBoundingClientRect(), hr = chip.getBoundingClientRect();
+    const f = stage._finger;
+    const start = [cr.left + cr.width / 2 - sr.left, cr.top + cr.height / 2 - sr.top];
+    const end = [hr.left + hr.width / 2 - sr.left, hr.top + hr.height / 2 - sr.top];
+    const move = (x, y) => { f.style.left = `${x}px`; f.style.top = `${y}px`; };
+    move(...start); f.style.opacity = '1'; await wait(350);
+    const steps = 24;
+    for (let k = 1; k <= steps; k++) {
+      const e = k / steps, x = start[0] + (end[0] - start[0]) * e, y = start[1] + (end[1] - start[1]) * e;
+      move(x, y);
+      c.style.transition = 'none';
+      c.style.transform = `translate(${x - start[0]}px, ${y - start[1]}px) scale(${1 - 0.55 * e})`;
+      chip.classList.toggle('hover', e > 0.8);
+      await wait(22);
+    }
+    await wait(250);
+    f.style.opacity = '0';
+    c.style.transition = '';
+    c.classList.add('fly');
+    c.style.transform = `translate(${end[0] - start[0]}px, ${-sr.height}px) scale(0.3)`;
+    c.style.opacity = '0';
+    await wait(300);
+    chip.classList.remove('hover');
+    await wait(400);
+  });
+
+  // Single mode, one photo at a time: kept or deleted by swipe (the card flies) or by button (the trace plays).
+  run('d-one', async d => {
+    const stage = d.q('.dstage');
+    const shots = [['374', 'Sat, Jul 12, 2026 · 10:14 AM', true, 'button'], ['92', 'Sat, Jul 12, 2026 · 10:15 AM', false, 'swipe'],
+      ['49', 'Sat, Jul 12, 2026 · 3:02 PM', true, 'swipe'], ['199', 'Sun, Jul 13, 2026 · 9:30 AM', false, 'button']];
+    for (const [img, when, keep, how] of shots) {
+      if (!d.el.isConnected) return;
+      stage.innerHTML = '';
+      const c = document.createElement('div'); c.className = 'card';
+      c.innerHTML = `<div class="ph" style="background-image:url(img/h/${img}.jpg)"></div><span class="stamp keep">Keep in 2026-07 Hawaii</span><span class="stamp del">Delete</span><span class="cap">${when}</span>`;
+      stage.append(c);
+      await wait(900);
+      if (how === 'swipe') { c.classList.add(keep ? 'go-keep' : 'go-del'); await wait(950); }
+      else { await d.press(keep ? '.foot .k' : '.foot .d'); await Trace.photo(c.querySelector('.ph'), keep ? 'keep' : 'del', c); }
+      c.remove();
+    }
+  });
+
+  // Gallery mode: select photos in the whole library and tap an album to move them there.
+  run('d-move', async d => {
+    const t = d.fresh(18); gridState(d, t); await wait(800);
+    const pick = [1, 4, 9];
+    for (const i of pick) { await d.tap(t[i]); t[i].classList.add('sel'); gridState(d, t); await wait(420); }
+    await wait(500);
+    const chip = [...d.el.querySelectorAll('.chs .ch')].find(x => x.textContent === 'Kids school');
+    chip.classList.add('hover'); await wait(300); chip.classList.remove('hover');
+    await Promise.all(pick.map(i => Trace.photo(t[i], 'keep')));
+    pick.forEach(i => t[i].classList.remove('sel')); gridState(d, t);
+    d.q('.lab').textContent = 'Moved 3 to Kids school';
+    await wait(1100);
+    // Open that album: its photos, the three just moved first.
+    const views = d.el.querySelectorAll('.vc');
+    views[0].classList.remove('on'); views[2].textContent = 'Kids school ▾'; views[2].classList.add('on', 'press');
+    await wait(200); views[2].classList.remove('press');
+    const moved = pick.map(i => t[i].style.backgroundImage);
+    const nt = d.fresh(9); moved.forEach((bg, i) => { nt[i].style.backgroundImage = bg; });
+    d.q('.mh span').textContent = 'Kids school'; d.q('.mh a').textContent = 'Select 9'; d.q('.lab').textContent = 'Select photos to move or delete them';
+    await wait(1800);
+    views[2].classList.remove('on'); views[2].textContent = 'Albums ▾'; views[0].classList.add('on');
+    d.q('.mh span').textContent = 'July 2026'; d.q('.mh a').textContent = 'Select 18';
+  });
+
+  // Gallery mode: in Reviewed, select what you no longer want and delete it.
+  run('d-clean', async d => {
+    const t = d.fresh(18); gridState(d, t); await wait(800);
+    const pick = [6, 7, 13];
+    for (const i of pick) { await d.tap(t[i]); t[i].classList.add('sel'); gridState(d, t); await wait(420); }
+    await wait(600);
+    await d.press('.foot .d');
+    await filed([], pick.map(i => t[i]));
+    gridState(d, t.filter((_, i) => !pick.includes(i)));
+    d.q('.lab').textContent = '3 to Trash';
+    await wait(900);
+  });
+
   run('d-burst', async d => {
     const t = d.fresh(5);
     const big = d.q('.burstbig');
-    const frames = ['38% 50%', '43% 47%', '48% 52%', '53% 48%', '58% 51%'];
-    t.forEach((x, i) => { x.style.backgroundImage = 'url(img/h/390.jpg)'; x.style.backgroundSize = '260%'; x.style.backgroundPosition = frames[i]; x.classList.add('sel'); });
+    const frames = ['20% 50%', '35% 40%', '50% 60%', '65% 42%', '80% 55%'];
+    t.forEach((x, i) => { x.style.backgroundImage = 'url(img/h/390.jpg)'; x.style.backgroundSize = '125%'; x.style.backgroundPosition = frames[i]; x.classList.add('sel'); });
     big.style.backgroundImage = 'url(img/h/390.jpg)';
     let focus = 0;
     const show = () => {
@@ -730,48 +961,102 @@ const Trace = (() => {
   });
 })();
 
-// The swipe screen: each photo kept into the album or deleted, by swipe (the card flies off, as in the app) or by
-// the buttons (the trace plays on it).
+// The hero phone: Winnow's three views in turn. Single (a burst in the split view, then one photo), Grid (keep the
+// best of a run, the gaps go), Gallery (move photos into an album). The tabs jump between them.
 (() => {
-  const stage = document.getElementById('stage');
-  const left = document.getElementById('left');
-  const photos = [
-    ['374', 'Sat, Jul 12, 2026 · 10:14 AM', true, '', 'button'],
-    ['92', 'Sat, Jul 12, 2026 · 10:15 AM', false, 'blur(3px) saturate(0.7)', 'swipe'],
-    ['110', 'Sat, Jul 12, 2026 · 7:48 PM', true, '', 'swipe'],
-    ['110', 'Sat, Jul 12, 2026 · 7:48 PM', false, 'brightness(0.92)', 'button'],
-    ['177', 'Sun, Jul 13, 2026 · 9:02 AM', true, '', 'button'],
-  ];
-  const make = n => {
-    const [img, when, , filter] = photos[n % photos.length];
-    const c = document.createElement('div');
-    c.className = 'card';
-    c.innerHTML = `<div class="ph" style="background-image:url(img/h/${img}.jpg);filter:${filter || 'none'}"></div><span class="stamp keep">Keep in 2026-07 Hawaii</span><span class="stamp del">Delete</span><span class="cap">${when}</span>`;
-    stage.prepend(c);
-    return c;
+  const D = window.Demo, still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const order = ['single', 'grid', 'gallery'];
+  const slides = Object.fromEntries([...document.querySelectorAll('.phone .slide')].map(x => [x.dataset.name, x]));
+  const tabs = [...document.querySelectorAll('.modes button')];
+  const undo = '<span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span>';
+  let gen = 0, next = null;
+  const w = async ms => { const g = gen; await D.wait(ms); if (g !== gen) throw 'jump'; };
+  const show = name => {
+    Object.entries(slides).forEach(([k, x]) => x.classList.toggle('on', k === name));
+    tabs.forEach(b => b.classList.toggle('on', b.dataset.to === name));
   };
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { make(0); return; }
-  const press = async sel => { const b = document.querySelector(`.phone .foot ${sel}`); b.classList.add('press'); await new Promise(r => setTimeout(r, 170)); b.classList.remove('press'); };
-  let i = 0, top = make(0), n = 214;
-  make(1);
-  const step = async () => {
-    const [, , keep, filter, how] = photos[i % photos.length];
-    const card = top;
-    if (how === 'swipe') {
-      card.classList.add(keep ? 'go-keep' : 'go-del');
-      await new Promise(r => setTimeout(r, 950));
-    } else {
-      await press(keep ? '.k' : '.d');
-      await Trace.photo(card.querySelector('.ph'), keep ? 'keep' : 'del', card, filter || '');
+  tabs.forEach(b => b.addEventListener('click', () => { next = b.dataset.to; gen++; }));
+
+  async function single() {
+    const el = slides.single, area = el.querySelector('.area'), foot = el.querySelector('.foot');
+    const d = D.setup('h-single');
+    // A burst in the split view: the photo up top, the burst below, every shot checked to start.
+    area.innerHTML = `<div class="burstbig sel"><span class="chk"></span><span class="cap">Sat, Jul 12, 2026 · 6:42 PM</span></div>
+      <div class="handle"></div><div class="selrow"><span class="cnt"></span><span class="x"><span class="all"></span></span></div><div class="bthumbs"></div><div class="hint"></div>`;
+    foot.innerHTML = `${undo}<span class="d"></span><span class="k"></span><span class="l">Later</span>`;
+    const t = d.fresh(5), big = area.querySelector('.burstbig');
+    const frames = ['20% 50%', '35% 40%', '50% 60%', '65% 42%', '80% 55%'];
+    t.forEach((x, i) => { x.style.backgroundImage = 'url(img/h/390.jpg)'; x.style.backgroundSize = '125%'; x.style.backgroundPosition = frames[i]; x.classList.add('sel'); });
+    big.style.backgroundImage = 'url(img/h/390.jpg)';
+    let focus = 0;
+    const paint = () => {
+      const k = t.filter(x => x.classList.contains('sel')).length, n = t.length;
+      t.forEach((x, i) => { x.classList.toggle('focus', i === focus); x.classList.toggle('ring', !x.classList.contains('sel')); });
+      big.style.backgroundPosition = frames[focus];
+      big.classList.toggle('sel', t[focus].classList.contains('sel')); big.classList.toggle('ring', !t[focus].classList.contains('sel'));
+      area.querySelector('.cnt').textContent = `${k} of ${n} selected`;
+      area.querySelector('.all').textContent = k === n ? 'Uncheck all' : 'Check all';
+      area.querySelector('.hint').textContent = k === n ? 'All checked · tap a circle to uncheck a photo' : `${k} checked · ${n - k} unchecked`;
+      foot.querySelector('.d').innerHTML = k === n ? `Delete all ${n}` : `Delete ${k}<small>keep ${n - k}</small>`;
+      foot.querySelector('.k').innerHTML = k === n ? `Keep all ${n}` : `Keep ${k}<small>delete ${n - k}</small>`;
+    };
+    paint(); await w(1000);
+    for (const i of [0, 2, 4]) { focus = i; paint(); await w(250); await d.tap(t[i]); t[i].classList.remove('sel'); paint(); await w(420); }
+    focus = 1; paint(); await w(800);
+    await d.press('.foot .k');
+    await D.filed([t[1], t[3]], [t[0], t[2], t[4]]);
+    big.style.opacity = '0.25'; await w(500);
+    // Then the next photo on its own: kept with the button, the trace runs over it.
+    area.innerHTML = '<div class="stage dstage"></div>';
+    foot.innerHTML = `${undo}<span class="d">← Delete</span><span class="k">→ 2026-07 Hawaii</span><span class="l">Later</span>`;
+    const c = document.createElement('div'); c.className = 'card';
+    c.innerHTML = '<div class="ph" style="background-image:url(img/h/374.jpg)"></div><span class="cap">Sat, Jul 12, 2026 · 10:14 AM</span>';
+    area.querySelector('.dstage').append(c);
+    await w(1100);
+    await d.press('.foot .k');
+    await Trace.photo(c.querySelector('.ph'), 'keep', c);
+    await w(600);
+  }
+
+  async function grid() {
+    const d = D.setup('h-grid'), t = d.fresh(20); D.gridState(d, t); await w(700);
+    const keep = [1, 4, 5, 9, 11];
+    for (const i of keep) {
+      await d.tap(t[i]); t[i].classList.add('sel');
+      for (let j = keep[0]; j <= i; j++) if (!keep.includes(j)) t[j].classList.add('doom');
+      D.gridState(d, t); await w(380);
     }
-    card.remove();
-    left.textContent = --n < 200 ? (n = 214) : n;
-    i++;
-    top = stage.lastElementChild;
-    make(i + 1);
-    setTimeout(step, 900);
-  };
-  setTimeout(step, 1400);
+    await w(800);
+    await d.press('.foot .k');
+    const span = t.slice(keep[0], 12);
+    await D.filed(span.filter(x => x.classList.contains('sel')), span.filter(x => x.classList.contains('doom')));
+    await w(700);
+  }
+
+  async function gallery() {
+    const el = slides.gallery, d = D.setup('h-gal'), t = d.fresh(20); D.gridState(d, t); await w(700);
+    const pick = [2, 5, 10];
+    for (const i of pick) { await d.tap(t[i]); t[i].classList.add('sel'); D.gridState(d, t); await w(400); }
+    await w(500);
+    const chip = [...el.querySelectorAll('.chs .ch')].find(x => x.textContent === 'Kids school');
+    chip.classList.add('hover'); await w(300); chip.classList.remove('hover');
+    await Promise.all(pick.map(i => Trace.photo(t[i], 'keep')));
+    pick.forEach(i => t[i].classList.remove('sel')); D.gridState(d, t);
+    el.querySelector('.lab').textContent = 'Moved 3 to Kids school';
+    await w(1400);
+  }
+
+  const play = { single, grid, gallery };
+  if (still) { show('single'); return; }
+  (async () => {
+    let i = 0;
+    for (;;) {
+      const name = next ?? order[i % order.length];
+      if (next) { i = order.indexOf(next); next = null; }
+      show(name);
+      try { await play[name](); await w(500); i++; } catch (e) { if (e !== 'jump') throw e; }
+    }
+  })();
 })();
 </script>
 </body>
