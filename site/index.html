@@ -101,7 +101,10 @@
   .ui .rt { display: flex; gap: 4px; justify-self: end; }
   .ui .rt i { height: 18px; min-width: 18px; padding: 0 4px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; gap: 2px; color: var(--muted); font-size: 8px; font-style: normal; }
   .ui .rt em { font-style: normal; }
-  .ui .lbl { font-size: 7.5px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ui .lbl { display: flex; gap: 8px; font-size: 7.5px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; white-space: nowrap; }
+  .ui .lbl .lab { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .ui .lbl .clr { color: var(--accent); text-transform: none; letter-spacing: 0; font-size: 9px; visibility: hidden; }
+  .ui .lbl .clr.show { visibility: visible; }
   .ui .srch { display: flex; gap: 4px; }
   .ui .in { flex: 1; display: flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); padding: 4px 8px; color: var(--muted); min-width: 0; }
   .ui .ch { border: 1px solid var(--line); border-radius: 999px; padding: 4px 9px; background: var(--surface); white-space: nowrap; }
@@ -110,7 +113,9 @@
   .ui .chs { display: flex; gap: 4px; overflow: hidden; }
   .ui .foot { display: flex; gap: 4px; }
   .ui .foot span { flex: 3; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 30px; line-height: 1.15; text-align: center; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); transition: transform .15s, filter .15s; white-space: nowrap; }
-  .ui .foot .u { flex: 1.3; color: var(--muted); }
+  .ui .foot .u { flex: 0.7; color: var(--muted); }
+  .ui .foot .fill { flex: 2; color: var(--accent); display: none; }
+  .ui .foot .fill.show { display: flex; flex-direction: row; align-items: center; gap: 3px; }
   .ui .foot .d { color: var(--trash); }
   .ui .foot .k { flex: 4; background: var(--keep); border-color: var(--keep); color: var(--bg); font-weight: 700; }
   .ui .foot .l { flex: 1.8; }
@@ -119,9 +124,6 @@
   .ui .foot .off { opacity: 0.45; }
   .ui .selrow { display: flex; align-items: center; min-height: 13px; font-weight: 700; }
   .ui .selrow .x { margin-left: auto; display: flex; gap: 10px; font-weight: 400; color: var(--accent); }
-  .ui .selrow .fill { opacity: 0; transition: opacity .2s, transform .15s; }
-  .ui .selrow .fill.show { opacity: 1; }
-  .ui .selrow .fill.press { transform: scale(0.9); }
   .ui .mh { display: flex; justify-content: space-between; font-weight: 700; font-size: 9px; }
   .ui .mh a { color: var(--accent); font-weight: 400; text-decoration: none; }
   .ui .hint { text-align: center; color: var(--muted); font-size: 8px; }
@@ -380,24 +382,24 @@
         </div>
         <div class="slide ui" id="h-grid" data-name="grid">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
-          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span></div>
+          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span><span class="clr">✕ Clear</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
-          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          
           <div class="mh"><span>July 2026</span><a>Select 18</a></div>
           <div class="tiles"></div>
-          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="fill">⇄ Fill <b class="gap"></b></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div class="slide ui" id="h-gal" data-name="gallery">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">1,284 photos</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
           <div class="views"><span class="vc on">All on phone</span><span class="vc">Reviewed</span><span class="vc">Albums ▾</span><span class="vc">Immich ▾</span></div>
-          <div class="lbl"><span class="lab" data-base="Select photos to move or delete them">Select photos to move or delete them</span></div>
+          <div class="lbl"><span class="lab" data-base="Select photos to move or delete them">Select photos to move or delete them</span><span class="clr">✕ Clear</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
-          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          
           <div class="mh"><span>July 2026</span><a>Select 18</a></div>
           <div class="tiles"></div>
-          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="fill">⇄ Fill <b class="gap"></b></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div class="slide ui" id="h-set" data-name="settings">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span class="stitle">Integrations</span></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i class="gon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
@@ -422,39 +424,39 @@
       <div class="demo">
         <div class="screen ui" id="d-fill">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
-          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span></div>
+          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span><span class="clr">✕ Clear</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
-          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          
           <div class="mh"><span>July 2026</span><a>Select 18</a></div>
           <div class="tiles"></div>
-          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="fill">⇄ Fill <b class="gap"></b></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div><h3>Fill between</h3><p>Tap the first and last photo of a run, then Fill: everything in between is selected, ready to file.</p></div>
       </div>
       <div class="demo">
         <div class="screen ui" id="d-gaps">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
-          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span></div>
+          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span><span class="clr">✕ Clear</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
-          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          
           <div class="mh"><span>July 2026</span><a>Select 18</a></div>
           <div class="tiles"></div>
-          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="fill">⇄ Fill <b class="gap"></b></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div><h3>Keep the best, drop the rest</h3><p>Select only the keepers and file them. The photos you skipped between them get a red border and go to Trash, so a whole run is done in one tap.</p></div>
       </div>
       <div class="demo">
         <div class="screen ui" id="d-rejects">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub"><span class="unrev">248</span> unreviewed</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
-          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span></div>
+          <div class="lbl"><span class="lab" data-base="Pick an album, then select photos">Pick an album, then select photos</span><span class="clr">✕ Clear</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
-          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          
           <div class="mh"><span>July 2026</span><a>Select 18</a></div>
           <div class="tiles"></div>
-          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="fill">⇄ Fill <b class="gap"></b></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div><h3>Or just pick the rejects</h3><p>Select the misses and the duplicates and Delete them. Everything else stays where it is, ready for later.</p></div>
       </div>
@@ -602,13 +604,13 @@
         <div class="screen ui" id="d-move">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">1,284 photos</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
           <div class="views"><span class="vc on">All on phone</span><span class="vc">Reviewed</span><span class="vc">Albums ▾</span><span class="vc">Immich ▾</span></div>
-          <div class="lbl"><span class="lab" data-base="Select photos to move or delete them">Select photos to move or delete them</span></div>
+          <div class="lbl"><span class="lab" data-base="Select photos to move or delete them">Select photos to move or delete them</span><span class="clr">✕ Clear</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
-          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          
           <div class="mh"><span>July 2026</span><a>Select 18</a></div>
           <div class="tiles"></div>
-          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="fill">⇄ Fill <b class="gap"></b></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div><h3>Refile in bulk</h3><p>Select photos anywhere in the library and tap an album to move them, or move a whole album into another with one tap. It follows on the phone and every service you sync to.</p></div>
       </div>
@@ -616,13 +618,13 @@
         <div class="screen ui" id="d-clean">
           <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">1,284 photos</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
           <div class="views"><span class="vc">All on phone</span><span class="vc on">Reviewed</span><span class="vc">Albums ▾</span><span class="vc">Immich ▾</span></div>
-          <div class="lbl"><span class="lab" data-base="Select photos to move or delete them">Select photos to move or delete them</span></div>
+          <div class="lbl"><span class="lab" data-base="Select photos to move or delete them">Select photos to move or delete them</span><span class="clr">✕ Clear</span></div>
           <div class="srch"><span class="in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search albums</span><span class="ch">2026</span><span class="ch nw">+ New</span></div>
           <div class="chs"><span class="ch t">→ 2026-07 Hawaii</span><span class="ch">Kids school</span><span class="ch">2025-12 Christmas</span><span class="ch">Recipes</span></div>
-          <div class="selrow"><span class="cnt"></span><span class="x"><span class="fill">⇄ Fill <b class="gap"></b></span><span class="clr">✕ Clear</span></span></div>
+          
           <div class="mh"><span>July 2026</span><a>Select 18</a></div>
           <div class="tiles"></div>
-          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
+          <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="fill">⇄ Fill <b class="gap"></b></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div><h3>Second thoughts</h3><p>Open Reviewed or any album, select what you no longer want, and delete it, or move it to another album.</p></div>
       </div>
@@ -906,10 +908,9 @@ const Trace = (() => {
     const idx = tiles.map((t, i) => t.classList.contains('sel') ? i : -1).filter(i => i >= 0);
     const gaps = idx.length ? idx[idx.length - 1] - idx[0] + 1 - idx.length : 0;
     d.q('.lab').textContent = sel ? `Choose album for ${sel}${doom ? ` · deletes ${doom} in red` : ''}` : d.q('.lab').dataset.base;
-    d.q('.cnt').textContent = sel ? `${sel} selected` : '';
-    d.q('.x').style.visibility = sel ? 'visible' : 'hidden';
+    d.q('.lbl .clr')?.classList.toggle('show', sel > 0);
     d.q('.gap').textContent = gaps;
-    d.q('.fill').classList.toggle('show', gaps > 0 && d.el.id !== 'd-gaps');
+    d.q('.fill').classList.toggle('show', sel > 0 && gaps > 0);
     const del = d.q('.foot .d');
     del.textContent = sel ? `← Delete ${sel}` : '← Delete';
     del.classList.toggle('off', !sel);
@@ -945,7 +946,7 @@ const Trace = (() => {
   run('d-fill', async d => {
     const t = d.fresh(18); gridState(d, t); await wait(800);
     for (const i of [3, 12]) { await d.tap(t[i]); t[i].classList.add('sel'); gridState(d, t); await wait(500); }
-    await wait(500); await d.press('.fill');
+    await wait(500); await d.press('.foot .fill');
     for (let i = 4; i < 12; i++) { t[i].classList.add('sel'); gridState(d, t); await wait(50); }
     await wait(900);
     await d.press('.foot .k'); await filed(t.slice(3, 13), []);

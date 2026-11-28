@@ -112,13 +112,7 @@ class _GridScreenState extends State<GridScreen> {
                 ? (s.gridView == 'unreviewed' ? 'Pick an album, then select photos' : 'Select photos to move or delete them')
                 : 'Choose album for ${sel.length}${doomed.isNotEmpty ? ' · deletes ${doomed.length} in red' : ''}'),
           ),
-          if (sel.isNotEmpty) ...[
-            if (s.gapCount > 0) ...[
-              _link(Icons.swap_horiz, 'Fill ${s.gapCount}', s.selectBetween),
-              const SizedBox(width: 16),
-            ],
-            _link(Icons.close, 'Clear', s.clearGrid),
-          ],
+          if (sel.isNotEmpty) _link(Icons.close, 'Clear', s.clearGrid),
         ]),
       ),
       const SizedBox(height: 4),
@@ -177,8 +171,13 @@ class _GridScreenState extends State<GridScreen> {
       ),
       SizeSlider(s),
       Row(children: [
-        Expanded(flex: 6, child: Btn('', icon: Icons.undo, onTap: s.undoStack.isEmpty ? null : s.undo)),
+        // Undo is just an icon: half the width it had, which leaves room for Fill when there are gaps.
+        Expanded(flex: 3, child: Btn('', icon: Icons.undo, onTap: s.undoStack.isEmpty ? null : s.undo)),
         const SizedBox(width: 6),
+        if (sel.isNotEmpty && s.gapCount > 0) ...[
+          Expanded(flex: 8, child: Btn('Fill ${s.gapCount}', icon: Icons.swap_horiz, color: C.accent, onTap: s.selectBetween)),
+          const SizedBox(width: 6),
+        ],
         Expanded(
           flex: 13,
           child: Btn(sel.isEmpty ? 'Delete' : 'Delete ${sel.length}', icon: Icons.arrow_back, color: C.trash, onTap: sel.isEmpty ? null : () => s.fileGrid(null)),
