@@ -57,6 +57,14 @@
   /* The keep/delete trace: lines drawn over a photo (or the wordmark) on a canvas. */
   canvas.trace { position: absolute; pointer-events: none; z-index: 2; }
   .alpha { align-self: flex-start; margin-top: 0.4em; padding: 3px 9px; border-radius: 999px; border: 1px solid #FBBF24; color: #FBBF24; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  /* The three core features under the summary. */
+  .core { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 22px 0 28px; }
+  .core a { display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); text-decoration: none; position: relative; }
+  .core .ci { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: rgba(96, 165, 250, 0.14); color: var(--accent); margin-bottom: 6px; }
+  .core .ci svg { width: 20px; height: 20px; }
+  .core b { font-size: 15px; }
+  .core span:last-child { color: var(--muted); font-size: 13.5px; line-height: 1.4; }
+  @media (max-width: 560px) { .core { grid-template-columns: 1fr; } .core a { flex-direction: row; flex-wrap: wrap; align-items: center; } .core a span:last-child { flex-basis: 100%; } .core .ci { margin: 0 6px 0 0; } }
   .summary { font-size: clamp(20px, 2.4vw, 24px); line-height: 1.35; margin: 0 0 12px; font-weight: 600; max-width: 26em; }
 
   /* Icon on load: the back card swings out from behind, the front card drops in, the W lands last. */
@@ -229,14 +237,14 @@
   .feature b { display: block; margin-bottom: 2px; }
   .feature span { color: var(--muted); font-size: 15px; }
   /* Cards light up along the border nearest the pointer: a soft blue spotlight drawn only in the 1px border ring. */
-  .demo, .integration, .dl a, .flow { position: relative; }
-  .demo::after, .integration::after, .dl a::after, .flow::after {
+  .demo, .integration, .dl a, .flow, .core a { position: relative; }
+  .demo::after, .integration::after, .dl a::after, .flow::after, .core a::after {
     content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1.5px; pointer-events: none; z-index: 3;
     background: radial-gradient(320px circle at var(--mx, -999px) var(--my, -999px), rgba(219, 234, 254, 1), rgba(96, 165, 250, 0.85) 25%, rgba(37, 99, 235, 0.4) 50%, transparent 75%);
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
     mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   }
-  @media (hover: none) { .demo::after, .integration::after, .dl a::after, .flow::after { display: none; } }
+  @media (hover: none) { .demo::after, .integration::after, .dl a::after, .flow::after, .core a::after { display: none; } }
 
   /* Flow diagrams: a source on the left, destinations on the right, wires between, things travelling along them. */
   .flow { position: relative; display: grid; grid-template-columns: minmax(200px, 0.8fr) 1.2fr; gap: 64px; align-items: center; margin: 8px 0 30px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
@@ -340,8 +348,11 @@
         <span class="alpha" title="Early release: things may change">Alpha</span>
       </div>
       <p class="summary">Review your photos and sync the keepers, sorted into albums, to Immich, Google Photos, Apple Photos or your own storage.</p>
-      <p class="lede">Swipe right to keep a photo in an album, left to delete it. Bursts come up together, albums are
-        suggested by date, and <strong>only what you keep is uploaded</strong>, into the same albums everywhere.</p>
+      <div class="core">
+        <a href="#bulk"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17.5h7m-3-3 3 3-3 3"/></svg></span><b>Review fast</b><span>Swipe, a grid, or a whole burst at once: years of photos in an evening.</span></a>
+        <a href="#tagging"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg></span><b>Album tagging</b><span>Every keeper goes into an album, the same on the phone and everywhere it syncs.</span></a>
+        <a href="#backup"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 1 1 1.6-9.7A6 6 0 0 1 20 11a3.5 3.5 0 0 1-1 7"/><path d="M12 21v-8m0 0-3 3m3-3 3 3"/></svg></span><b>Back up only keepers</b><span>To Immich, Google Photos or your own storage. Deleted photos never go up.</span></a>
+      </div>
       <div class="buttons">
         <a class="btn primary" id="get-android" href="https://github.com/jamesfpate/winnow/releases/latest">Get it for Android</a>
         <a class="btn" href="#download">iPhone, Mac, Windows, Linux</a>
@@ -1083,7 +1094,7 @@ const Trace = (() => {
 // The border glow follows the pointer across every card (each card gets the pointer's position in its own space).
 (() => {
   if (!matchMedia('(hover: hover)').matches) return;
-  const cards = () => document.querySelectorAll('.demo, .integration, .dl a, .flow');
+  const cards = () => document.querySelectorAll('.demo, .integration, .dl a, .flow, .core a');
   let x = -9999, y = -9999, queued = false;
   const paint = () => {
     queued = false;
