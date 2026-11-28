@@ -132,6 +132,7 @@ class Album {
     this.syncedTitles = const {},
     this.autoDate = false,
     this.staleTags = const [],
+    this.pulled = false,
   });
 
   final String id;
@@ -145,6 +146,10 @@ class Album {
 
   /// Dated, but made before any photo was chosen: [start] is set from the first photo filed into it.
   bool autoDate;
+
+  /// Found in an integration (made there, or by hand) rather than made in Winnow. Until a photo goes in, it's offered
+  /// only when its dates match the photo's, or in search, so a big library doesn't crowd the album bar.
+  final bool pulled;
 
   /// Immich tags from before a rename that still need removing from its photos (done on the next sync).
   List<String> staleTags;
@@ -191,6 +196,7 @@ class Album {
         if (remoteIds.isNotEmpty) 'remoteIds': remoteIds,
         if (syncedTitles.isNotEmpty) 'syncedTitles': syncedTitles,
         if (autoDate) 'autoDate': true,
+        if (pulled) 'pulled': true,
         if (staleTags.isNotEmpty) 'staleTags': staleTags,
       };
 
@@ -209,6 +215,7 @@ class Album {
         remoteIds: ((j['remoteIds'] as Map?) ?? {}).cast<String, String>(),
         syncedTitles: ((j['syncedTitles'] as Map?) ?? {}).cast<String, String>(),
         autoDate: j['autoDate'] == true,
+        pulled: j['pulled'] == true,
         staleTags: ((j['staleTags'] as List?) ?? []).cast<String>(),
       );
 }

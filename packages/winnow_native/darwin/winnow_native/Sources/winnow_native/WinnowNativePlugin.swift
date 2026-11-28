@@ -60,6 +60,8 @@ public class WinnowNativePlugin: NSObject, FlutterPlugin {
       let title = args["title"] as? String ?? ""
       let known = args["known"] as? String
       run(result) { Self.catching { try Albums.ensure(title: title, known: known) } }
+    case "albumList":
+      run(result) { Albums.list() }
     case "albumAdd", "albumRemove":
       let album = args["album"] as? String ?? ""
       let assets = args["assets"] as? [String] ?? []

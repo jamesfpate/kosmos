@@ -45,8 +45,14 @@ abstract class AlbumService {
   Future<void> add(String albumId, List<String> ids);
   Future<void> remove(String albumId, List<String> ids);
   Future<bool> exists(String id);
+
+  /// The albums already there (made in the service's own app, or by an earlier install). Empty when it can't list them.
+  Future<List<RemoteAlbum>> albums() async => const [];
   void close();
 }
+
+/// An album already in an integration: its id there, its title, and the dates of its first and last photo when known.
+typedef RemoteAlbum = ({String id, String name, DateTime? start, DateTime? end});
 
 /// A photo in an album service and the Winnow album it was last filed into there.
 class AlbumRecord {
@@ -93,6 +99,9 @@ abstract class FileStore {
   /// The files directly in folder [dir] (paths in the same form as [upload]'s), none when it doesn't exist yet.
   Future<List<RemoteFile>> list(String dir);
 
+  /// The names of the folders directly in [dir], none when it doesn't exist (or the store can't list folders).
+  Future<List<String>> folders(String dir) async => const [];
+
   /// The first [n] bytes of [f] (fewer if it's shorter).
   Future<Uint8List> head(RemoteFile f, int n);
 
@@ -114,9 +123,13 @@ class StoreConfig {
     this.wifiOnly = false,
     this.videos = true,
     this.background = 'off',
+    this.pullAlbums = true,
   });
 
   final Map<String, String> fields;
+
+  /// Use the albums already there (made in its own app, or by hand): they become Winnow albums to file into.
+  final bool pullAlbums;
 
   /// Folder everything goes under.
   final String folder;
@@ -134,6 +147,7 @@ class StoreConfig {
     bool? wifiOnly,
     bool? videos,
     String? background,
+    bool? pullAlbums,
   }) =>
       StoreConfig(
         fields: fields ?? this.fields,
@@ -142,10 +156,12 @@ class StoreConfig {
         wifiOnly: wifiOnly ?? this.wifiOnly,
         videos: videos ?? this.videos,
         background: background ?? this.background,
+        pullAlbums: pullAlbums ?? this.pullAlbums,
       );
 
   Map<String, Object?> toJson() => {
         ...fields,
+        'pullAlbums': pullAlbums,
         'folder': folder,
         'enabled': enabled,
         'wifiOnly': wifiOnly,
@@ -168,6 +184,7 @@ class StoreConfig {
           wifiOnly: j['wifiOnly'] == true,
           videos: j['videos'] != false,
           background: (j['background'] as String?) ?? 'off',
+          pullAlbums: j['pullAlbums'] != false,
         );
 }
 

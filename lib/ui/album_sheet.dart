@@ -267,10 +267,14 @@ class AlbumBar extends StatefulWidget {
     this.newLabel = '+ New',
     this.chipKey,
     this.hover,
+    this.more = const [],
   });
 
   /// Every album in bar order; the month album goes on the top row.
   final List<Album> albums;
+
+  /// Found by search only (albums from integrations not used yet).
+  final List<Album> more;
   final String Function(Album) label;
   final bool Function(Album) isTarget;
   final void Function(Album) onPick;
@@ -305,7 +309,7 @@ class _AlbumBarState extends State<AlbumBar> {
     if (typed.isEmpty) return const [];
     final words = typed.toLowerCase().split(RegExp(r'\s+'));
     final found = [
-      for (final a in widget.albums)
+      for (final a in [...widget.albums, ...widget.more.where((m) => !widget.albums.any((a) => a.id == m.id))])
         if (words.every(widget.label(a).toLowerCase().contains)) a,
     ];
     final exact = found.any((a) => a.name.toLowerCase() == typed.toLowerCase() || widget.label(a).toLowerCase() == typed.toLowerCase());

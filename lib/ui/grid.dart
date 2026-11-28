@@ -269,6 +269,7 @@ class _GridScreenState extends State<GridScreen> {
       const SizedBox(height: 4),
       AlbumBar(
         albums: s.gridAlbums,
+        more: s.quietAlbums,
         label: chipLabel,
         isTarget: (a) => a.id == target?.id,
         onPick: (a) => sel.isNotEmpty

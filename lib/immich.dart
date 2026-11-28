@@ -16,7 +16,11 @@ class ImmichConfig {
     this.wifiOnly = false,
     this.videos = true,
     this.background = 'off',
+    this.pullAlbums = true,
   });
+
+  /// Use the albums already in Immich: they become Winnow albums to file into.
+  final bool pullAlbums;
 
   /// Upload while Winnow is closed (Android, about every 15 minutes): 'off', 'charging' (only while charging) or
   /// 'always'.
@@ -38,7 +42,14 @@ class ImmichConfig {
   bool get ready => server.isNotEmpty && key.isNotEmpty;
 
   ImmichConfig copyWith(
-          {String? server, String? key, bool? enabled, Map<String, String>? shareWith, bool? wifiOnly, bool? videos, String? background}) =>
+          {String? server,
+          String? key,
+          bool? enabled,
+          Map<String, String>? shareWith,
+          bool? wifiOnly,
+          bool? videos,
+          String? background,
+          bool? pullAlbums}) =>
       ImmichConfig(
         server: server ?? this.server,
         key: key ?? this.key,
@@ -47,6 +58,7 @@ class ImmichConfig {
         wifiOnly: wifiOnly ?? this.wifiOnly,
         videos: videos ?? this.videos,
         background: background ?? this.background,
+        pullAlbums: pullAlbums ?? this.pullAlbums,
       );
 
   Map<String, Object?> toJson() => {
@@ -57,6 +69,7 @@ class ImmichConfig {
         'wifiOnly': wifiOnly,
         'videos': videos,
         'background': background,
+        'pullAlbums': pullAlbums,
       };
 
   static ImmichConfig fromJson(Map<String, Object?>? j) => j == null
@@ -69,6 +82,7 @@ class ImmichConfig {
           wifiOnly: j['wifiOnly'] == true,
           videos: j['videos'] != false,
           background: (j['background'] as String?) ?? 'off',
+          pullAlbums: j['pullAlbums'] != false,
         );
 }
 

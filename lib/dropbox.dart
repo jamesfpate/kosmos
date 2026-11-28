@@ -188,6 +188,26 @@ class DropboxApi extends FileStore {
   }
 
   @override
+  Future<List<String>> folders(String dir) async {
+    final out = <String>[];
+    Map<String, Object?> page;
+    try {
+      page = await _rpc('files/list_folder', {'path': _path(dir), 'limit': 2000});
+    } on DropboxError catch (e) {
+      if (e.status == 409 && e.body.contains('not_found')) return [];
+      rethrow;
+    }
+    while (true) {
+      for (final f in (page['entries'] as List).cast<Map>()) {
+        if (f['.tag'] == 'folder') out.add(f['name'] as String);
+      }
+      if (page['has_more'] != true) break;
+      page = await _rpc('files/list_folder/continue', {'cursor': page['cursor']});
+    }
+    return out;
+  }
+
+  @override
   Future<Uint8List> head(RemoteFile f, int n) async {
     final req = http.Request('POST', Uri.parse('$_content/2/files/download'))
       ..headers.addAll({'Authorization': 'Bearer $_token', 'Dropbox-API-Arg': _arg({'path': f.id}), 'Range': 'bytes=0-${n - 1}'});

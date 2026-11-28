@@ -202,6 +202,33 @@ class S3Api extends FileStore {
     return out;
   }
 
+  @override
+  Future<List<String>> folders(String dir) async {
+    final prefix = objectKey(dir).isEmpty ? '' : '${objectKey(dir)}/';
+    final out = <String>[];
+    String? token;
+    do {
+      final uri = Uri.parse('$_endpoint${_path('')}').replace(queryParameters: {
+        'list-type': '2',
+        'prefix': prefix,
+        'delimiter': '/',
+        'continuation-token': ?token,
+      });
+      final req = http.Request('GET', uri)..headers.addAll(_sign('GET', uri, _empty));
+      final res = await http.Response.fromStream(await _client.send(req));
+      _check(res, 'listing $dir');
+      for (final m in RegExp(r'<CommonPrefixes>\s*<Prefix>([^<]*)</Prefix>').allMatches(res.body)) {
+        final name = _xml(m[1]!).substring(prefix.length).replaceAll(RegExp(r'/+$'), '');
+        if (name.isNotEmpty) out.add(name);
+      }
+      token = res.body.contains('<IsTruncated>true</IsTruncated>')
+          ? _xml(RegExp(r'<NextContinuationToken>([^<]*)</NextContinuationToken>').firstMatch(res.body)?[1] ?? '')
+          : null;
+      if (token != null && token.isEmpty) token = null;
+    } while (token != null);
+    return out;
+  }
+
   static String _xml(String s) => s
       .replaceAll('&quot;', '"')
       .replaceAll('&apos;', "'")

@@ -47,6 +47,19 @@ Widget _field(String label, TextEditingController c, String hint, VoidCallback s
       ),
     ]);
 
+/// What "Use existing albums" does (album services and Immich).
+const existingAlbumsHelp =
+    'Albums already there become Winnow albums you can file into. "2024-06 Beach" or "2024 Kids school" show in the '
+    'album bar for photos from that month or year; any album can be found by searching. Renames come back too.';
+
+const _folderAlbumsHelp =
+    'Album folders already there (YYYY/YYYY-MM name, YYYY/YYYY name and Albums/name) become Winnow albums you can '
+    'file into. Dated ones show in the album bar for photos from that month or year; any album can be found by searching.';
+
+const _deviceAlbumsHelp =
+    'Albums already in your library become Winnow albums you can file into. Ones named like "2024-06 Beach" show in the '
+    'album bar for photos from that month; any album can be found by searching.';
+
 Widget _choice<T>(String label, String? help, List<(T, String)> options, T value, ValueChanged<T> pick) =>
     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const SizedBox(height: 14),
@@ -194,6 +207,18 @@ class _StoreScreenState extends State<StoreScreen> implements SignInUi {
     }
   }
 
+  Future<void> _pull(bool on) async {
+    await s.saveStore(def.key, pullAlbums: on);
+    if (!on || !def.ready(s.store(def.key))) return;
+    setState(() => _msg = 'Reading albums…');
+    try {
+      final n = await s.pullAlbumsNow(def.key);
+      setState(() => _msg = n == 0 ? 'No new albums found' : 'Found $n album${n == 1 ? '' : 's'}');
+    } catch (e) {
+      setState(() => _msg = "Can't read albums: ${'$e'.replaceFirst('Exception: ', '')}");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = s.store(def.key);
@@ -228,6 +253,8 @@ class _StoreScreenState extends State<StoreScreen> implements SignInUi {
       const SizedBox(height: 8),
       Btn(def.library ? 'Check access' : 'Test connection', onTap: _test),
       if (_msg.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: _muted(_msg)),
+      _choice('Existing albums', def.library ? _deviceAlbumsHelp : def.isAlbums ? existingAlbumsHelp : _folderAlbumsHelp,
+          const [(true, 'Use them'), (false, "Winnow's only")], c.pullAlbums, _pull),
       ..._options(
         s,
         def.label,

@@ -154,6 +154,30 @@ class WebDavApi extends FileStore {
   }
 
   @override
+  Future<List<String>> folders(String dir) async {
+    final res = await _send('PROPFIND', _uri(dir), headers: {'Depth': '1'});
+    if (res.statusCode == 404) return [];
+    _check(res, 'listing $dir');
+    final tag = r'(?:[\w-]+:)?';
+    final out = <String>[];
+    var first = true;
+    for (final m in RegExp('<${tag}response[ >](.*?)</${tag}response>', dotAll: true).allMatches(res.body)) {
+      final r = m[1]!;
+      // The folder itself comes first.
+      if (first) {
+        first = false;
+        continue;
+      }
+      if (!RegExp('<${tag}collection\\s*/?>').hasMatch(r)) continue;
+      final href = RegExp('<${tag}href>([^<]*)</${tag}href>').firstMatch(r)?[1];
+      if (href == null) continue;
+      final name = Uri.decodeComponent(href.replaceAll(RegExp(r'/+$'), '').split('/').last);
+      if (name.isNotEmpty) out.add(name);
+    }
+    return out;
+  }
+
+  @override
   Future<Uint8List> head(RemoteFile f, int n) async {
     final req = http.Request('GET', _uri(f.path))..headers.addAll({..._auth, 'Range': 'bytes=0-${n - 1}'});
     final res = await _client.send(req);

@@ -123,6 +123,7 @@ class _CullScreenState extends State<CullScreen> {
       const SizedBox(height: 4),
       AlbumBar(
         albums: s.barAlbums,
+        more: s.quietAlbums,
         label: albumTitle,
         isTarget: (a) => a.id == target?.id,
         onPick: (a) => a.id == target?.id ? editAlbum(context, s, a) : s.choose(a.id),

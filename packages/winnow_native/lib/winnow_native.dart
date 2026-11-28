@@ -57,6 +57,13 @@ class WinnowNative {
   static Future<String> albumEnsure(String title, String? known) async =>
       (await _channel.invokeMethod<String>('albumEnsure', {'title': title, 'known': known}))!;
 
+  /// The albums already in the library (Photos albums; on Android, folders in Pictures/): id, title, and when the
+  /// first and last photo in each was taken (epoch ms, absent when unknown).
+  static Future<List<Map<String, Object?>>> albumList() async => [
+        for (final a in await _channel.invokeListMethod<Object?>('albumList') ?? const [])
+          (a as Map).cast<String, Object?>(),
+      ];
+
   /// iOS and macOS: adds library photos (by id) to a Photos album.
   static Future<void> albumAdd(String album, List<String> assets) =>
       _channel.invokeMethod<void>('albumAdd', {'album': album, 'assets': assets});

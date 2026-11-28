@@ -460,12 +460,15 @@ class AppState extends ChangeNotifier {
 
   /// Albums by last use; the month album sits wherever its last use puts it. New, unused albums sort by creation.
   List<Album> recentFor(int? t) {
-    final list = albums.where((a) => !a.monthly).toList();
+    final list = albums.where((a) => !a.monthly && !_dormant(a)).toList();
     if (t != null) list.add(monthChip(t));
     int key(Album a) => a.monthly ? _monthUsed : (a.lastUsedAt != 0 ? a.lastUsedAt : a.createdAt);
     list.sort((a, b) => key(b).compareTo(key(a)));
     return list;
   }
+
+  /// Found in an integration and never used: offered when its dates match the photo's, or in search.
+  bool _dormant(Album a) => a.pulled && a.lastUsedAt == 0;
 
   bool _near(Album a, int t) => (_albumTimes[a.id] ?? const []).any((x) => (x - t).abs() <= near);
 
@@ -474,11 +477,11 @@ class AppState extends ChangeNotifier {
   Album? suggestFor(int? t) {
     if (t == null) return null;
     final covering = albums
-        .where((a) => !a.monthly && a.start != null && a.start! <= t && (a.end == null || t <= a.end!))
+        .where((a) => !a.monthly && !_dormant(a) && a.start != null && a.start! <= t && (a.end == null || t <= a.end!))
         .toList()
       ..sort((a, b) => b.start!.compareTo(a.start!));
     if (covering.isNotEmpty) return covering.first;
-    final candidates = [...albums.where((a) => !a.monthly), monthChip(t)]
+    final candidates = [...albums.where((a) => !a.monthly && !_dormant(a)), monthChip(t)]
       ..sort((a, b) => (b.monthly ? _monthUsed : b.lastUsedAt).compareTo(a.monthly ? _monthUsed : a.lastUsedAt));
     final last = candidates.firstOrNull;
     if (last != null && !last.monthly && last.start == null && last.lastUsedAt != 0 && _near(last, t)) return last;
@@ -490,8 +493,23 @@ class AppState extends ChangeNotifier {
     if (g.isEmpty) return null;
     final t = g.first.taken;
     if (chosenId == monthAlbumId) return monthChip(t);
-    return recentFor(t).where((a) => a.id == chosenId).firstOrNull ?? suggestFor(t);
+    return recentFor(t).where((a) => a.id == chosenId).firstOrNull ?? _quiet(chosenId) ?? suggestFor(t);
   }
+
+  Album? _quiet(String? id) => albums.where((a) => a.id == id && _dormant(a) && !a.retired).firstOrNull;
+
+  /// Albums found in integrations and not used yet: searchable, but not in the bar unless their dates match.
+  List<Album> get quietAlbums => [
+        for (final a in albums)
+          if (_dormant(a) && !a.retired) a,
+      ];
+
+  /// Quiet albums whose dates cover [t] ("2024-06 Beach" for a June 2024 photo, "2024 Kids school" for any 2024 one).
+  List<Album> _quietFor(int? t) => [
+        if (t != null)
+          for (final a in quietAlbums)
+            if (!a.monthly && a.start != null && a.start! <= t && a.end != null && t <= a.end!) a,
+      ]..sort((a, b) => b.start!.compareTo(a.start!));
 
   /// The chosen album first, then the photo's month album (so it's always in view), then albums that match the
   /// photo's date (their dates cover it, or they hold a photo within 5 days), then the rest by last use.
@@ -503,7 +521,11 @@ class AppState extends ChangeNotifier {
     bool covers(Album a) => taken != null && a.start != null && a.start! <= taken && (a.end == null || taken <= a.end!);
     final matches = taken == null
         ? const <Album>[]
-        : [...recent.where((a) => !a.monthly && covers(a)), ...recent.where((a) => !a.monthly && !covers(a) && _near(a, taken))];
+        : [
+            ...recent.where((a) => !a.monthly && covers(a)),
+            ...recent.where((a) => !a.monthly && !covers(a) && _near(a, taken)),
+            ..._quietFor(taken),
+          ];
     final front = <Album>[];
     for (final a in [?t, ?month, ...matches]) {
       if (!front.any((f) => f.id == a.id)) front.add(a);
@@ -1102,13 +1124,15 @@ class AppState extends ChangeNotifier {
   Album? get gridTarget {
     final t = gridBasis;
     if (gridChosenId == monthAlbumId && t != null) return monthChip(t);
-    return recentFor(t).where((a) => a.id == gridChosenId).firstOrNull ?? suggestFor(t);
+    return recentFor(t).where((a) => a.id == gridChosenId).firstOrNull ?? _quiet(gridChosenId) ?? suggestFor(t);
   }
 
   List<Album> get gridAlbums {
     final t = gridTarget;
     final recent = recentFor(gridBasis);
-    return t == null ? recent : [t, ...recent.where((a) => a.id != t.id)];
+    final dated = _quietFor(gridBasis);
+    final front = [?t, ...dated.where((a) => a.id != t?.id)];
+    return [...front, ...recent.where((a) => !front.any((f) => f.id == a.id))];
   }
 
   /// The catch-all periods (years or months) the chosen photos fall in.
@@ -1413,7 +1437,7 @@ class AppState extends ChangeNotifier {
   /// Reads an Immich album name the way Winnow writes them: "2026-11 Thanksgiving" (dated), "2026-11" or "2026" (the
   /// month's or year's album) or anything else (undated). Dates come from the album's photos when they fall in that
   /// month.
-  Album _fromImmich(String id, String name, DateTime? from, DateTime? to, Album? base) {
+  Album _fromTitle(String? immichId, String name, DateTime? from, DateTime? to, Album? base) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final y = RegExp(r'^(19|20)\d\d$').hasMatch(name.trim()) ? DateTime(int.parse(name.trim())).millisecondsSinceEpoch : null;
     if (y != null) {
@@ -1426,10 +1450,11 @@ class AppState extends ChangeNotifier {
         lastUsedAt: base?.lastUsedAt ?? 0,
         monthly: true,
         yearly: true,
-        immichAlbumId: id,
+        immichAlbumId: immichId ?? base?.immichAlbumId,
         googleAlbumId: base?.googleAlbumId,
         remoteIds: base?.remoteIds ?? const {},
         syncedTitles: base?.syncedTitles ?? const {},
+        pulled: base?.pulled ?? true,
       );
     }
     final yd = RegExp(r'^((?:19|20)\d\d)\s+(\S.*)$').firstMatch(name.trim());
@@ -1441,15 +1466,16 @@ class AppState extends ChangeNotifier {
         id: base?.id ?? _uuid(),
         name: yd[2]!.trim(),
         start: keep ? base.start : (inYear ? DateTime(from.year, from.month, from.day).millisecondsSinceEpoch : y),
-        end: keep ? base.end : (inYear && to != null ? DateTime(to.year, to.month, to.day + 1).millisecondsSinceEpoch - 1 : null),
+        end: keep ? base.end : (inYear && to != null ? DateTime(to.year, to.month, to.day + 1).millisecondsSinceEpoch - 1 : (base == null ? endOfYear(y) : null)),
         createdAt: base?.createdAt ?? now,
         lastUsedAt: base?.lastUsedAt ?? 0,
         yearly: true,
-        immichAlbumId: id,
+        immichAlbumId: immichId ?? base?.immichAlbumId,
         googleAlbumId: base?.googleAlbumId,
         remoteIds: base?.remoteIds ?? const {},
         syncedTitles: base?.syncedTitles ?? const {},
         staleTags: base?.staleTags ?? const [],
+        pulled: base?.pulled ?? true,
       );
     }
     final m = RegExp(r'^(\d{4})-(\d{2})(?:\s+(.+))?$').firstMatch(name.trim());
@@ -1470,7 +1496,7 @@ class AppState extends ChangeNotifier {
         end = base.end;
       } else {
         start = inMonth ? DateTime(from.year, from.month, from.day).millisecondsSinceEpoch : month;
-        end = inMonth && to != null ? DateTime(to.year, to.month, to.day + 1).millisecondsSinceEpoch - 1 : null;
+        end = inMonth && to != null ? DateTime(to.year, to.month, to.day + 1).millisecondsSinceEpoch - 1 : (base == null ? endOfMonth(month) : null);
       }
     }
     return Album(
@@ -1481,42 +1507,134 @@ class AppState extends ChangeNotifier {
       createdAt: base?.createdAt ?? now,
       lastUsedAt: base?.lastUsedAt ?? 0,
       monthly: monthly,
-      immichAlbumId: id,
+      immichAlbumId: immichId ?? base?.immichAlbumId,
       googleAlbumId: base?.googleAlbumId,
       remoteIds: base?.remoteIds ?? const {},
       syncedTitles: base?.syncedTitles ?? const {},
       staleTags: base?.staleTags ?? const [],
+      pulled: base?.pulled ?? true,
     );
   }
 
-  /// One-time import: Immich albums Winnow doesn't have yet become Winnow albums (matched by link, then by title).
-  /// Returns (added, linked).
-  Future<(int, int)> importImmichAlbums() async {
-    final api = ImmichApi(immich);
-    var added = 0, linked = 0;
-    try {
-      for (final r in await api.albums()) {
-        if (albums.any((a) => a.immichAlbumId == r.id)) continue;
-        final parsed = _fromImmich(r.id, r.name, r.start, r.end, null);
-        final same = albums
-            .where((a) =>
-                a.immichAlbumId == null && !a.retired && albumTitle(a) == albumTitle(parsed) && a.monthly == parsed.monthly)
-            .firstOrNull;
-        if (same != null) {
-          same.immichAlbumId = r.id;
-          await db.put('albums', same.id, same.toJson());
-          linked++;
-        } else {
-          albums = [...albums, parsed];
-          await db.put('albums', parsed.id, parsed.toJson());
-          added++;
+  /// Albums already in an integration that Winnow doesn't have yet become Winnow albums: matched by the integration's
+  /// own id for them ([idOf]), then by title (two integrations with the same album end up sharing one); [link] records
+  /// the id. Returns how many were new.
+  Future<int> _adopt(Iterable<RemoteAlbum> found, String? Function(Album) idOf, void Function(Album, String) link) async {
+    var added = 0;
+    for (final r in found) {
+      if (r.name.trim().isEmpty || albums.any((a) => idOf(a) == r.id)) continue;
+      final parsed = _fromTitle(null, r.name, r.start, r.end, null);
+      final same = albums
+          .where((a) =>
+              idOf(a) == null &&
+              !a.retired &&
+              albumTitle(a) == albumTitle(parsed) &&
+              a.monthly == parsed.monthly &&
+              a.yearly == parsed.yearly)
+          .firstOrNull;
+      final album = same ?? parsed;
+      link(album, r.id);
+      if (same == null) {
+        albums = [...albums, album];
+        added++;
+      }
+      await db.put('albums', album.id, album.toJson());
+    }
+    if (found.isNotEmpty) changed();
+    return added;
+  }
+
+  /// When each integration's albums were last read (they're read at most hourly, and when the setting is turned on).
+  final _pulledAt = <String, DateTime>{};
+
+  bool _duePull(String key) {
+    final last = _pulledAt[key];
+    return last == null || DateTime.now().difference(last) > const Duration(hours: 1);
+  }
+
+  Future<int> _pullImmich(ImmichApi api) async {
+    _pulledAt['immich'] = DateTime.now();
+    return _adopt(await api.albums(), (a) => a.immichAlbumId, (a, id) => a.immichAlbumId = id);
+  }
+
+  /// An album service's or the device's albums.
+  Future<int> _pullService(StoreDef def, AlbumService api) async {
+    _pulledAt[def.key] = DateTime.now();
+    return _adopt(await api.albums(), (a) => a.remoteIds[def.key], (a, id) {
+      a.remoteIds = {...a.remoteIds, def.key: id};
+      // Already called that there: not a rename to push back.
+      a.syncedTitles = {...a.syncedTitles, def.key: albumTitle(a)};
+    });
+  }
+
+  /// A file store's album folders, in Winnow's layout: `<folder>/YYYY/<YYYY-MM name or YYYY name>/` and
+  /// `<folder>/Albums/<name>/`. Folders under a year that aren't named for it are left out: Winnow would put new
+  /// photos in a different folder than the one already there.
+  Future<int> _pullFolders(StoreDef def, FileStore api) async {
+    _pulledAt[def.key] = DateTime.now();
+    final root = store(def.key).folder.trim().replaceAll(RegExp(r'/+$'), '');
+    String at(String name) => root.isEmpty ? name : '$root/$name';
+    final found = <RemoteAlbum>[];
+    for (final top in await api.folders(root)) {
+      if (top == 'Albums') {
+        for (final name in await api.folders(at(top))) {
+          // Undated wherever its name says otherwise: that's the folder it already lives in.
+          found.add((id: 'Albums/$name', name: name, start: null, end: null));
+        }
+      } else if (RegExp(r'^(19|20)\d\d$').hasMatch(top)) {
+        for (final name in await api.folders(at(top))) {
+          if (name.startsWith('$top-') || name.startsWith('$top ')) found.add((id: '$top/$name', name: name, start: null, end: null));
         }
       }
+    }
+    // Matched by title: a folder's path follows from its album's title.
+    final known = {for (final a in albums) storePath('', a, 'x')};
+    final fresh = [
+      for (final r in found)
+        if (!known.contains('${r.id}/x')) r,
+    ];
+    var added = 0;
+    for (final r in fresh) {
+      if (r.id.startsWith('Albums/')) {
+        final a = Album(id: _uuid(), name: r.name, createdAt: DateTime.now().millisecondsSinceEpoch, lastUsedAt: 0, pulled: true);
+        albums = [...albums, a];
+        await db.put('albums', a.id, a.toJson());
+        added++;
+      } else {
+        added += await _adopt([r], (_) => null, (_, _) {});
+      }
+    }
+    if (added > 0) changed();
+    return added;
+  }
+
+  /// Reads the albums already in an integration now (the setting was just turned on, or from Settings).
+  Future<int> pullAlbumsNow(String key) async {
+    if (key == 'immich') {
+      final api = ImmichApi(immich);
+      try {
+        return await _pullImmich(api);
+      } finally {
+        api.close();
+      }
+    }
+    final def = storeDef(key);
+    if (def.isAlbums) {
+      final api = _makeAlbums(def);
+      try {
+        await api.authorize();
+        return await _pullService(def, api);
+      } finally {
+        api.close();
+      }
+    }
+    final api = _make(def);
+    try {
+      await api.authorize();
+      return await _pullFolders(def, api);
     } finally {
       api.close();
-      changed();
     }
-    return (added, linked);
   }
 
   /// After a sync: albums renamed in Immich's own app get the new name (and dates) in Winnow, and their photos move to
@@ -1526,7 +1644,7 @@ class AppState extends ChangeNotifier {
     for (final a in [...albums]) {
       final r = remote[a.immichAlbumId];
       if (r == null || r.name.trim() == albumTitle(a)) continue;
-      await updateAlbum(a, _fromImmich(r.id, r.name, r.start, r.end, a));
+      await updateAlbum(a, _fromTitle(r.id, r.name, r.start, r.end, a));
     }
   }
 
@@ -1560,6 +1678,7 @@ class AppState extends ChangeNotifier {
     bool? wifiOnly,
     bool? videos,
     String? background,
+    bool? pullAlbums,
   }) async {
     final c = store(key);
     stores = {
@@ -1571,6 +1690,7 @@ class AppState extends ChangeNotifier {
         wifiOnly: wifiOnly,
         videos: videos,
         background: background,
+        pullAlbums: pullAlbums,
       ),
     };
     await _set(key, store(key).toJson());
@@ -1626,7 +1746,14 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> saveImmich(
-      {String? server, String? key, bool? enabled, Map<String, String>? shareWith, bool? wifiOnly, bool? videos, String? background}) async {
+      {String? server,
+      String? key,
+      bool? enabled,
+      Map<String, String>? shareWith,
+      bool? wifiOnly,
+      bool? videos,
+      String? background,
+      bool? pullAlbums}) async {
     immich = immich.copyWith(
         server: server == null ? null : cleanServer(server),
         key: key?.trim(),
@@ -1634,7 +1761,8 @@ class AppState extends ChangeNotifier {
         shareWith: shareWith,
         wifiOnly: wifiOnly,
         videos: videos,
-        background: background);
+        background: background,
+        pullAlbums: pullAlbums);
     await _set('immich', immich.toJson());
     _reschedule();
     if (enabled == true || wifiOnly != null || videos != null) runSync();
@@ -1768,8 +1896,11 @@ class AppState extends ChangeNotifier {
       do {
         _syncAgain = false;
         errors.clear();
+        // Albums already there first, so photos filed into them go to the same album, not a second one.
+        if (doImmich && immich.pullAlbums && _duePull('immich')) await run('Immich', () => pullAlbumsNow('immich'));
         if (doImmich) await run('Immich', _syncImmich);
         for (final d in doStores) {
+          if (store(d.key).pullAlbums && _duePull(d.key)) await run(d.label, () => pullAlbumsNow(d.key));
           await run(d.label, () => d.isAlbums ? _syncAlbums(d) : _syncFiles(d));
         }
         if (doGoogle) await run('Google Photos', _syncGoogle);

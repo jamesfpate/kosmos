@@ -312,6 +312,24 @@ class SynologyApi implements AlbumService {
   }
 
   @override
+  Future<List<RemoteAlbum>> albums() async {
+    await authorize();
+    final v = await _v('SYNO.Foto.Browse.Album', 4);
+    DateTime? at(Object? t) => t is num && t > 0 ? DateTime.fromMillisecondsSinceEpoch(t.toInt() * 1000) : null;
+    final out = <RemoteAlbum>[];
+    for (var offset = 0;; offset += 500) {
+      final d = await _call('SYNO.Foto.Browse.Album', 'list', v, {'offset': offset, 'limit': 500, if (v >= 2) 'category': 'normal'});
+      final list = ((d['list'] as List?) ?? const []).cast<Map>();
+      for (final a in list) {
+        if (a['type'] != null && a['type'] != 'normal') continue;
+        out.add((id: '${(a['id'] as num).toInt()}', name: '${a['name']}', start: at(a['start_time']), end: at(a['end_time'])));
+      }
+      if (list.length < 500) break;
+    }
+    return out;
+  }
+
+  @override
   Future<String> ensureAlbum(String title, String? known) async {
     await authorize();
     if (known != null) {

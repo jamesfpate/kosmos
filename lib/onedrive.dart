@@ -216,6 +216,26 @@ class OneDriveApi extends FileStore {
   }
 
   @override
+  Future<List<String>> folders(String dir) async {
+    final key = objectKey(dir);
+    final out = <String>[];
+    String? url = '${key.isEmpty ? '/me/drive/root' : '/me/drive/root:/${_enc(key)}:'}/children?\$select=name,folder&\$top=1000';
+    try {
+      while (url != null) {
+        final page = await _call('GET', url);
+        for (final f in (page['value'] as List).cast<Map>()) {
+          if (f['folder'] != null) out.add(f['name'] as String);
+        }
+        url = page['@odata.nextLink'] as String?;
+      }
+    } on OneDriveError catch (e) {
+      if (e.status == 404) return [];
+      rethrow;
+    }
+    return out;
+  }
+
+  @override
   Future<Uint8List> head(RemoteFile f, int n) async {
     final req = http.Request('GET', Uri.parse('$_graph/me/drive/items/${f.id}/content'))
       ..headers.addAll({'Authorization': 'Bearer $_token', 'Range': 'bytes=0-${n - 1}'});

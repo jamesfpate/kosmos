@@ -167,6 +167,29 @@ class B2Api extends FileStore {
   }
 
   @override
+  Future<List<String>> folders(String dir) async {
+    final prefix = objectKey(dir).isEmpty ? '' : '${objectKey(dir)}/';
+    final out = <String>[];
+    String? next;
+    do {
+      final page = await _call('b2_list_file_names', {
+        'bucketId': _bucketId,
+        'prefix': prefix,
+        'delimiter': '/',
+        'maxFileCount': 1000,
+        'startFileName': ?next,
+      });
+      for (final f in (page['files'] as List).cast<Map>()) {
+        if (f['action'] != 'folder') continue;
+        final name = (f['fileName'] as String).substring(prefix.length).replaceAll(RegExp(r'/+$'), '');
+        if (name.isNotEmpty) out.add(name);
+      }
+      next = page['nextFileName'] as String?;
+    } while (next != null);
+    return out;
+  }
+
+  @override
   Future<Uint8List> head(RemoteFile f, int n) async {
     final req = http.Request('GET', Uri.parse('$_downloadUrl/b2api/v3/b2_download_file_by_id?fileId=${Uri.encodeQueryComponent(f.id)}'))
       ..headers.addAll({'Authorization': _token!, 'Range': 'bytes=0-${n - 1}'});

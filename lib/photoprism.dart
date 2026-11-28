@@ -97,6 +97,20 @@ class PhotoPrismApi implements AlbumService {
   }
 
   @override
+  Future<List<RemoteAlbum>> albums() async {
+    await authorize();
+    final out = <RemoteAlbum>[];
+    for (var offset = 0;; offset += 500) {
+      final page = (await _call('GET', '/albums?count=500&offset=$offset&type=album') as List).cast<Map>();
+      for (final a in page) {
+        out.add((id: a['UID'] as String, name: '${a['Title']}', start: null, end: null));
+      }
+      if (page.length < 500) break;
+    }
+    return out;
+  }
+
+  @override
   Future<String> ensureAlbum(String title, String? known) async {
     await authorize();
     if (known != null) {

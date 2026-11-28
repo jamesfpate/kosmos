@@ -77,5 +77,14 @@ class AppleAlbums extends AlbumService {
   Future<bool> exists(String id) => WinnowNative.assetExists(id);
 
   @override
+  Future<List<RemoteAlbum>> albums() async {
+    DateTime? at(Object? t) => t is num ? DateTime.fromMillisecondsSinceEpoch(t.toInt()) : null;
+    return [
+      for (final a in await WinnowNative.albumList())
+        (id: a['id'] as String, name: a['title'] as String, start: at(a['start']), end: at(a['end'])),
+    ];
+  }
+
+  @override
   void close() {}
 }

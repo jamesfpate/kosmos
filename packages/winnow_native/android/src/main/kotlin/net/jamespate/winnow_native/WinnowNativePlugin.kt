@@ -75,6 +75,7 @@ class WinnowNativePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activ
                 if (known != null && known != path) move(idsIn(known), path)
                 path
             }
+            "albumList" -> background(result) { folderAlbums() }
             "albumAdd" -> background(result) {
                 move(call.argument<List<String>>("assets")!!.map { it.toLong() }, call.argument<String>("album")!!)
                 null
@@ -141,6 +142,44 @@ class WinnowNativePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activ
             }
         }
         return null
+    }
+
+    /**
+     * Folders directly in Pictures/ that hold photos or videos: the albums gallery apps show, the same kind Winnow
+     * makes. Screenshots and hidden folders are left out. Each with when its first and last photo was taken.
+     */
+    private fun folderAlbums(): List<Map<String, Any>> {
+        val root = "${android.os.Environment.DIRECTORY_PICTURES}/"
+        val skip = setOf("screenshots", "screen recordings", "screenrecorder")
+        val found = linkedMapOf<String, LongArray>()
+        val files = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        context.contentResolver.query(files,
+            arrayOf(MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.DATE_TAKEN),
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.Files.FileColumns.MEDIA_TYPE} IN (?,?)",
+            arrayOf("$root%", MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(), MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString()),
+            null)?.use { c ->
+            while (c.moveToNext()) {
+                val path = c.getString(0) ?: continue
+                val name = path.removePrefix(root).trimEnd('/')
+                if (name.isEmpty() || name.contains('/') || name.startsWith(".") || name.lowercase() in skip) continue
+                val t = if (c.isNull(1)) 0L else c.getLong(1)
+                val r = found.getOrPut(path) { longArrayOf(Long.MAX_VALUE, 0L) }
+                if (t > 0) {
+                    r[0] = minOf(r[0], t)
+                    r[1] = maxOf(r[1], t)
+                }
+            }
+        }
+        return found.map { (path, r) ->
+            buildMap {
+                put("id", path)
+                put("title", path.removePrefix(root).trimEnd('/'))
+                if (r[1] > 0) {
+                    put("start", r[0])
+                    put("end", r[1])
+                }
+            }
+        }
     }
 
     /** Photos and videos in a folder (relative path, ending in /). */

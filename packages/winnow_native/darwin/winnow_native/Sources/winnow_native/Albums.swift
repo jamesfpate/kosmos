@@ -37,6 +37,26 @@ enum Albums {
     return id
   }
 
+  /// The user's own albums: id, title, and when the first and last photo in each was taken (epoch ms, absent if empty).
+  static func list() -> [[String: Any]] {
+    var out: [[String: Any]] = []
+    let all = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: nil)
+    all.enumerateObjects { c, _, _ in
+      guard let title = c.localizedTitle, !title.isEmpty else { return }
+      var a: [String: Any] = ["id": c.localIdentifier, "title": title]
+      for (key, ascending) in [("start", true), ("end", false)] {
+        let o = PHFetchOptions()
+        o.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: ascending)]
+        o.fetchLimit = 1
+        if let d = PHAsset.fetchAssets(in: c, options: o).firstObject?.creationDate {
+          a[key] = Int(d.timeIntervalSince1970 * 1000)
+        }
+      }
+      out.append(a)
+    }
+    return out
+  }
+
   /// Adds photos to (or removes them from) an album. Photos no longer in the library are skipped.
   static func change(_ albumId: String, _ assets: [String], add: Bool) throws {
     guard let c = album(albumId) else {

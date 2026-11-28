@@ -150,6 +150,19 @@ class SftpApi extends FileStore {
   }
 
   @override
+  Future<List<String>> folders(String dir) async {
+    final s = await _connect();
+    try {
+      return [
+        for (final e in await s.listdir(dir.isEmpty ? '.' : dir))
+          if (e.filename != '.' && e.filename != '..' && e.attr.isDirectory) e.filename,
+      ];
+    } on SftpStatusError {
+      return [];
+    }
+  }
+
+  @override
   Future<Uint8List> head(RemoteFile f, int n) async {
     final file = await (await _connect()).open(f.path);
     try {

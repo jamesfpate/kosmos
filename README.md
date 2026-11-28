@@ -7,6 +7,12 @@ an album (🔍 searches them all; long-press a photo for full size; everything e
 [Immich](https://immich.app), Google Photos (Android), PhotoPrism, Synology Photos or file storage (Nextcloud/WebDAV,
 SFTP, S3, B2, Dropbox, OneDrive).
 
+Albums already in an integration (Immich, PhotoPrism and Synology albums, Apple Photos albums, Android `Pictures/`
+folders, and `YYYY/…` and `Albums/…` folders in file storage) become Winnow albums to file into ("Existing albums" in
+each integration's settings, on by default; read at most hourly during sync). Ones never used stay out of the album
+bar unless their dates match the photo ("2024-06 Beach", "2024 Kids school"); search finds them all. Google Photos
+can't list albums it didn't make.
+
 Flutter app (rewritten from an earlier Capacitor/Svelte version; same package id and signing key, so it installs as
 an update over it, and that version's backups import here).
 
