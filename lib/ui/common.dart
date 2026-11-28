@@ -14,6 +14,7 @@ import '../media.dart' as media;
 import '../models.dart';
 import '../state.dart';
 import '../version.dart';
+import '../info.dart';
 
 class C {
   static const bg = Color(0xFF0B0B0F);
@@ -515,6 +516,30 @@ class _PreviewState extends State<Preview> {
     super.dispose();
   }
 
+  /// The photo info chosen in Settings: when on the first line, the rest (camera, lens, exposure…) under it.
+  Widget _caption() {
+    final i = widget.item;
+    Widget box(PhotoInfo? info) {
+      final (top, what) = captionLines(i, info, day: dayOf(i.taken), time: timeOf(i.taken));
+      if (top.isEmpty && what.isEmpty) return const SizedBox();
+      return Align(
+        alignment: Alignment.bottomLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            if (top.isNotEmpty) Text(top, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+            if (what.isNotEmpty)
+              Text(what, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          ]),
+        ),
+      );
+    }
+
+    if (!infoNeedsFile) return box(null);
+    return FutureBuilder(future: infoFor(i), builder: (_, snap) => box(snap.data));
+  }
+
   @override
   Widget build(BuildContext context) {
     final v = _video;
@@ -556,19 +581,8 @@ class _PreviewState extends State<Preview> {
             ),
           if (widget.onCheck != null)
             Positioned(top: 2, left: 2, child: CheckBadge(size: 36, checked: widget.selected, onTap: widget.onCheck)),
-          if (widget.caption)
-            Positioned(
-              left: 10,
-              bottom: 10,
-              child: IgnorePointer(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-                  child: Text('${dayOf(widget.item.taken)} · ${timeOf(widget.item.taken)}',
-                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ),
+          if (widget.caption && infoFields.isNotEmpty)
+            Positioned(left: 10, right: 10, bottom: 10, child: IgnorePointer(child: _caption())),
         ]);
     return Center(
       child: AspectRatio(

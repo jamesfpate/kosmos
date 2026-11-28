@@ -381,6 +381,12 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
   bool _dragging = false;
   bool _leaving = false;
 
+  /// Pinch zoom: how far, around which point, and the last pointer position of a swipe (for dropping on an album).
+  double _zoom = 1;
+  Offset _zoomAt = Offset.zero;
+  bool _pinching = false;
+  Offset _last = Offset.zero;
+
   @override
   void initState() {
     super.initState();
@@ -409,27 +415,57 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
     return LayoutBuilder(builder: (context, box) {
         final w = _w = box.maxWidth;
         final hint = _pos.dy.abs() > _pos.dx.abs() ? 0.0 : min(1.0, _pos.dx.abs() / 120);
+        // One finger swipes (keep / delete / drag onto an album); two fingers (or a trackpad pinch) zoom into the
+        // photo for a closer look, springing back to fit on release.
         return GestureDetector(
           onTap: widget.onTap,
           onLongPress: _leaving ? null : widget.onLongPress,
-          onPanStart: (d) {
-            final x = d.globalPosition.dx;
+          onScaleStart: (d) {
+            _last = d.focalPoint;
+            if (d.pointerCount >= 2) {
+              _pinching = true;
+              _zoomAt = d.localFocalPoint;
+              return;
+            }
+            final x = d.focalPoint.dx;
             if (widget.disabled || _leaving || x < edge || x > MediaQuery.sizeOf(context).width - edge) return;
             _dragging = true;
           },
-          onPanUpdate: (d) {
+          onScaleUpdate: (d) {
+            if (d.pointerCount >= 2 || (d.scale - 1).abs() > 0.02 || _pinching) {
+              if (!_pinching) {
+                // A second finger joined a swipe: it becomes a zoom, and the card goes back to the middle.
+                _pinching = true;
+                _dragging = false;
+                widget.onDrag?.call(null);
+                _pos = Offset.zero;
+              }
+              setState(() {
+                _zoom = d.scale.clamp(1.0, 5.0);
+                _zoomAt = d.localFocalPoint;
+              });
+              return;
+            }
             if (!_dragging) return;
-            setState(() => _pos += d.delta);
-            widget.onDrag?.call(d.globalPosition);
+            _last = d.focalPoint;
+            setState(() => _pos += d.focalPointDelta);
+            widget.onDrag?.call(d.focalPoint);
           },
-          onPanEnd: (d) {
+          onScaleEnd: (d) {
+            if (_pinching) {
+              setState(() {
+                _pinching = false;
+                _zoom = 1;
+              });
+              return;
+            }
             if (!_dragging) return;
             _dragging = false;
             widget.onDrag?.call(null);
             final v = d.velocity.pixelsPerSecond;
             if (_pos.dy < -60 && _pos.dy.abs() > _pos.dx.abs() && widget.onDrop != null) {
               final global = (context.findRenderObject() as RenderBox).localToGlobal(Offset(w / 2, box.maxHeight / 2) + _pos);
-              if (widget.onDrop!(d.globalPosition) || widget.onDrop!(global)) {
+              if (widget.onDrop!(_last) || widget.onDrop!(global)) {
                 _animate(Offset(_pos.dx, -MediaQuery.sizeOf(context).height));
                 _leaving = true;
                 return;
@@ -447,7 +483,21 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
             child: Transform.rotate(
               angle: _pos.dx / w * 0.25,
               child: Stack(children: [
-                Positioned.fill(child: widget.child),
+                Positioned.fill(
+                  child: ClipRect(
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(end: _zoom),
+                      duration: Duration(milliseconds: _pinching ? 0 : 220),
+                      curve: Curves.easeOut,
+                      builder: (context, z, child) => Transform.scale(
+                        scale: z,
+                        origin: _zoomAt - Offset(w / 2, box.maxHeight / 2),
+                        child: child,
+                      ),
+                      child: widget.child,
+                    ),
+                  ),
+                ),
                 Positioned(top: 24, left: 20, child: _label(widget.keepLabel, C.keep, -0.2, _pos.dx > 0 ? hint : 0)),
                 Positioned(top: 24, right: 20, child: _label(widget.trashLabel, C.trash, 0.2, _pos.dx < 0 ? hint : 0)),
               ]),

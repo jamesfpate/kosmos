@@ -18,6 +18,8 @@ import 'store.dart';
 import 'stores.dart';
 import 'support.dart';
 import 'update.dart';
+import 'version.dart';
+import 'info.dart';
 
 enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, store, google, error }
 
@@ -223,6 +225,7 @@ class AppState extends ChangeNotifier {
     newestFirst = (m['newestFirst'] as bool?) ?? false;
     supporter = (m['supporter'] as bool?) ?? false;
     vimKeys = (m['vimKeys'] as bool?) ?? false;
+    infoFields = ((m['photoInfo'] as List?)?.cast<String>() ?? ['date', 'time']).toSet();
     animations = (m['animations'] as bool?) ?? true;
     gridFrac = (m['gridFrac'] as num?)?.toDouble() ?? 0.4;
     thumbH = (m['thumbH'] as num?)?.toDouble() ?? 150;
@@ -699,7 +702,7 @@ class AppState extends ChangeNotifier {
   Update? update;
 
   Future<void> _checkUpdate() async {
-    if (!media.desktop) return;
+    if (!media.desktop || version.contains('dev')) return;
     final now = DateTime.now().millisecondsSinceEpoch;
     final last = (await db.allMeta())['updateCheckedAt'] as num?;
     if (last != null && now - last < 24 * 60 * 60 * 1000) {
@@ -711,6 +714,13 @@ class AppState extends ChangeNotifier {
     await db.setMeta('updateCheckedAt', now);
     await db.setMeta('updateFound', update == null ? null : {'version': update!.version, 'url': update!.url});
     changed();
+  }
+
+  /// Photo info under each photo: one field on or off.
+  Future<void> toggleInfo(String field) {
+    infoFields = infoFields.contains(field) ? ({...infoFields}..remove(field)) : {...infoFields, field};
+    changed();
+    return _set('photoInfo', infoFields.toList());
   }
 
   /// Desktop: h/j/k/l (and x, u) alongside the arrow keys.

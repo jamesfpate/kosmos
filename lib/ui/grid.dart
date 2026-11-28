@@ -48,6 +48,9 @@ class _GridScreenState extends State<GridScreen> {
   String? _cursor;
   var _rows = <({double top, double h, List<({String id, double cx})> cells})>[];
 
+  /// The row each group (a month, or an album in the gallery) starts at, for Tab / Shift+Tab.
+  var _groupStarts = <int>[];
+
   AppState get s => widget.s;
 
   @override
@@ -63,9 +66,11 @@ class _GridScreenState extends State<GridScreen> {
   void _remember(List<_Entry> entries) {
     var y = 0.0;
     final rows = <({double top, double h, List<({String id, double cx})> cells})>[];
+    final starts = <int>[];
     for (final e in entries) {
       switch (e) {
         case _Header():
+          starts.add(rows.length);
           y += _headerH;
         case _Row(:final h, :final items):
           var x = 0.0;
@@ -80,6 +85,7 @@ class _GridScreenState extends State<GridScreen> {
       }
     }
     _rows = rows;
+    _groupStarts = starts;
   }
 
   /// Arrow keys (and h/j/k/l with Vim keys) move the ring; Enter, Space or x selects; Delete deletes the selection;
@@ -93,6 +99,8 @@ class _GridScreenState extends State<GridScreen> {
     if (hit(LogicalKeyboardKey.arrowRight, LogicalKeyboardKey.keyL)) return _move(0, 1);
     if (hit(LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.keyK)) return _move(-1, 0);
     if (hit(LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.keyJ)) return _move(1, 0);
+    // Tab: the first photo of the next month (or album); Shift+Tab: of this one, or the one before.
+    if (k == LogicalKeyboardKey.tab) return _group(HardwareKeyboard.instance.isShiftPressed ? -1 : 1);
     if (k == LogicalKeyboardKey.enter || k == LogicalKeyboardKey.space || (vim && k == LogicalKeyboardKey.keyX)) {
       if (_cursor == null) return _move(0, 0);
       s.toggleGrid(_cursor!);
@@ -142,6 +150,23 @@ class _GridScreenState extends State<GridScreen> {
     }
     setState(() => _cursor = _rows[r].cells[c].id);
     _follow(_rows[r]);
+    return KeyEventResult.handled;
+  }
+
+  KeyEventResult _group(int dir) {
+    if (_groupStarts.isEmpty) return KeyEventResult.handled;
+    final at = _cursor == null ? null : _where(_cursor!);
+    final row = at?.$1 ?? -1;
+    int? to;
+    if (dir > 0) {
+      to = _groupStarts.where((g) => g > row).firstOrNull ?? (at == null ? _groupStarts.first : null);
+    } else {
+      final here = _groupStarts.lastWhere((g) => g <= row, orElse: () => 0);
+      to = (at != null && (at.$1 != here || at.$2 != 0)) ? here : _groupStarts.lastWhere((g) => g < here, orElse: () => here);
+    }
+    if (to == null) return KeyEventResult.handled;
+    setState(() => _cursor = _rows[to!].cells.first.id);
+    _follow(_rows[to]);
     return KeyEventResult.handled;
   }
 
