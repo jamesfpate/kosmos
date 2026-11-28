@@ -199,6 +199,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 : 'One photo: ← delete, → keep, ↓ later, Space play, Z undo, / search albums. Grid: arrow keys move, Enter or Space selects, Delete deletes the selection, Esc clears it.'),
             Choices(options: const [(false, 'Arrow keys'), (true, 'Arrows + Vim (h j k l)')], value: s.vimKeys, onPick: s.setVimKeys),
           ],
+          _h3('Photo info'),
+          _p('What shows at the bottom of the photo you\'re reviewing and in full screen (long-press any photo, in review, the grid or the gallery). Camera, lens and exposure come from the photo itself.'),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final (key, label) in infoChoices)
+              FilterChip(
+                label: Text(label),
+                selected: infoFields.contains(key),
+                onSelected: (_) => s.toggleInfo(key),
+                selectedColor: C.accent,
+                backgroundColor: C.surface,
+                showCheckmark: false,
+                labelStyle: TextStyle(color: infoFields.contains(key) ? C.bg : C.text, fontWeight: infoFields.contains(key) ? FontWeight.w600 : null),
+                side: BorderSide(color: infoFields.contains(key) ? C.accent : C.line),
+              ),
+          ]),
           _h3('Keep / delete animation'),
           _p('The outlines in the photo trace up (keep) or down (delete); deleted photos fade out. Off: decisions are instant.'),
           Choices(options: const [(true, 'On'), (false, 'Off')], value: s.animations, onPick: s.setAnimations),
@@ -264,21 +279,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _p('In a burst, Keep 3 also deletes the unchecked ones and Delete 3 keeps them, so one tap finishes the burst. Off: the buttons act only on the checked photos and the rest wait for their own decision.'),
             Choices(options: const [(true, 'On'), (false, 'Off')], value: s.autoTrash, onPick: s.setAutoTrash),
           ],
-          _h3('Photo info'),
-          _p('What shows at the bottom of each photo. Camera, lens and exposure come from the photo itself.'),
-          Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final (key, label) in infoChoices)
-              FilterChip(
-                label: Text(label),
-                selected: infoFields.contains(key),
-                onSelected: (_) => s.toggleInfo(key),
-                selectedColor: C.accent,
-                backgroundColor: C.surface,
-                showCheckmark: false,
-                labelStyle: TextStyle(color: infoFields.contains(key) ? C.bg : C.text, fontWeight: infoFields.contains(key) ? FontWeight.w600 : null),
-                side: BorderSide(color: infoFields.contains(key) ? C.accent : C.line),
-              ),
-          ]),
           _h2('grid', 'Grid'),
           _h3('Delete the gaps'),
           _p('Filing a selection into an album also deletes the unselected photos between your first and last pick (shown with a red border). Deletes go to Trash for review first.'),

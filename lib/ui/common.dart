@@ -517,29 +517,7 @@ class _PreviewState extends State<Preview> {
     super.dispose();
   }
 
-  /// The photo info chosen in Settings: when on the first line, the rest (camera, lens, exposure…) under it.
-  Widget _caption() {
-    final i = widget.item;
-    Widget box(PhotoInfo? info) {
-      final (top, what) = captionLines(i, info, day: dayOf(i.taken), time: timeOf(i.taken));
-      if (top.isEmpty && what.isEmpty) return const SizedBox();
-      return Align(
-        alignment: Alignment.bottomLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            if (top.isNotEmpty) Text(top, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-            if (what.isNotEmpty)
-              Text(what, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          ]),
-        ),
-      );
-    }
-
-    if (!infoNeedsFile) return box(null);
-    return FutureBuilder(future: infoFor(i), builder: (_, snap) => box(snap.data));
-  }
+  Widget _caption() => InfoCaption(widget.item);
 
   @override
   Widget build(BuildContext context) {
@@ -743,6 +721,38 @@ Widget pagerKeys(BuildContext context, PageController pages, Widget child) => Ca
 
 /// Full-size view of [items] from the swipe card: pinch or double-tap to zoom, swipe for the next one, tap or Esc to
 /// close.
+/// The photo info chosen in Settings (General > Photo info), at the bottom of a photo: date and time on the first
+/// line, the rest (camera, lens, exposure…) under it. On the review card and in full screen.
+class InfoCaption extends StatelessWidget {
+  const InfoCaption(this.item, {super.key});
+
+  final Item item;
+
+  @override
+  Widget build(BuildContext context) {
+    final i = item;
+    Widget box(PhotoInfo? info) {
+      final (top, what) = captionLines(i, info, day: dayOf(i.taken), time: timeOf(i.taken));
+      if (top.isEmpty && what.isEmpty) return const SizedBox();
+      return Align(
+        alignment: Alignment.bottomLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            if (top.isNotEmpty) Text(top, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+            if (what.isNotEmpty)
+              Text(what, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          ]),
+        ),
+      );
+    }
+
+    if (!infoNeedsFile) return box(null);
+    return FutureBuilder(future: infoFor(i), builder: (_, snap) => box(snap.data));
+  }
+}
+
 class FullView extends StatefulWidget {
   const FullView(this.items, {super.key, this.start = 0});
 
@@ -845,6 +855,9 @@ class _FullViewState extends State<FullView> {
             itemBuilder: (_, i) => _page(widget.items[i]),
           ),
           ),
+          // Out of the way while zoomed in.
+          if (infoFields.isNotEmpty && !zoomed && !(item.isVideo && playing == item.id))
+            Positioned(left: 12, right: 12, bottom: 12, child: IgnorePointer(child: InfoCaption(item))),
           Positioned(
             top: 4,
             left: 12,
@@ -852,7 +865,11 @@ class _FullViewState extends State<FullView> {
             child: Row(children: [
               Expanded(
                 child: Text(
-                  '${dayOf(item.taken)} · ${timeOf(item.taken)}${widget.items.length > 1 ? '  ·  ${index + 1} of ${widget.items.length}' : ''}',
+                  // The date is in the photo info at the bottom when that's on.
+                  [
+                    if (infoFields.isEmpty) '${dayOf(item.taken)} · ${timeOf(item.taken)}',
+                    if (widget.items.length > 1) '${index + 1} of ${widget.items.length}',
+                  ].join('  ·  '),
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, shadows: [Shadow(blurRadius: 4)]),
                 ),
               ),

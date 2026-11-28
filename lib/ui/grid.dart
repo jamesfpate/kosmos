@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../fx.dart';
 import '../immich.dart';
+import '../info.dart';
 import '../media.dart' as media;
 import '../models.dart';
 import '../remote.dart';
@@ -583,6 +584,33 @@ class _ViewerState extends State<Viewer> {
   late int index = widget.start;
   String? playing;
 
+  /// Pinch zoom (one finger then moves around); pages hold still while zoomed or while two fingers are down.
+  final _zoom = TransformationController();
+  bool zoomed = false;
+  int _fingers = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _zoom.addListener(() {
+      final z = _zoom.value.getMaxScaleOnAxis() > 1.01;
+      if (z != zoomed) setState(() => zoomed = z);
+    });
+  }
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    _zoom.dispose();
+    super.dispose();
+  }
+
+  void _touch(int d) {
+    final was = _fingers > 1;
+    _fingers = max(0, _fingers + d);
+    if (was != _fingers > 1) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: widget.s,
@@ -601,29 +629,52 @@ class _ViewerState extends State<Viewer> {
                   Row(children: [
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(dayOf(item.taken), style: const TextStyle(fontWeight: FontWeight.w700)),
-                        Text('${timeOf(item.taken)} · ${item.bucket}', style: const TextStyle(color: C.muted, fontSize: 13)),
+                        // With photo info on, the date is under the photo.
+                        if (infoFields.isEmpty) ...[
+                          Text(dayOf(item.taken), style: const TextStyle(fontWeight: FontWeight.w700)),
+                          Text('${timeOf(item.taken)} · ${item.bucket}', style: const TextStyle(color: C.muted, fontSize: 13)),
+                        ] else
+                          Text(item.bucket, style: const TextStyle(fontWeight: FontWeight.w700)),
                       ]),
                     ),
                     Text('${index + 1} of ${list.length}', style: const TextStyle(color: C.muted)),
                   ]),
                   Expanded(
-                    child: PageView.builder(
-                      controller: _pages,
-                      scrollBehavior: pagerScroll,
-                      itemCount: list.length,
-                      onPageChanged: (i) => setState(() {
-                        index = i;
-                        playing = null;
-                      }),
-                      itemBuilder: (_, i) => Stack(alignment: Alignment.center, children: [
-                        Center(child: Preview(list[i], play: playing == list[i].id, onStop: () => setState(() => playing = null))),
-                        if (list[i].isVideo && playing != list[i].id)
-                          PlayButton(seconds: list[i].duration, onTap: () => setState(() => playing = list[i].id)),
-                      ]),
+                    child: Listener(
+                      onPointerDown: (_) => _touch(1),
+                      onPointerUp: (_) => _touch(-1),
+                      onPointerCancel: (_) => _touch(-1),
+                      child: PageView.builder(
+                        controller: _pages,
+                        scrollBehavior: pagerScroll,
+                        physics: zoomed || _fingers > 1 ? const NeverScrollableScrollPhysics() : null,
+                        itemCount: list.length,
+                        onPageChanged: (i) => setState(() {
+                          index = i;
+                          playing = null;
+                          _zoom.value = Matrix4.identity();
+                        }),
+                        itemBuilder: (_, i) => Stack(alignment: Alignment.center, children: [
+                          Positioned.fill(
+                            child: InteractiveViewer(
+                              transformationController: i == index ? _zoom : null,
+                              maxScale: 8,
+                              child: Center(
+                                child: Preview(list[i],
+                                    play: playing == list[i].id,
+                                    onStop: () => setState(() => playing = null),
+                                    caption: !zoomed),
+                              ),
+                            ),
+                          ),
+                          if (list[i].isVideo && playing != list[i].id)
+                            PlayButton(seconds: list[i].duration, onTap: () => setState(() => playing = list[i].id)),
+                        ]),
+                      ),
                     ),
                   ),
-                  const Text('Swipe for the next photo', style: TextStyle(color: C.muted, fontSize: 12.5)),
+                  Text(zoomed ? (media.desktop ? 'Scroll out to see the whole photo' : 'Pinch out to see the whole photo') : (media.desktop ? '← → for the next photo · scroll to zoom' : 'Swipe for the next photo · pinch to zoom'),
+                      style: const TextStyle(color: C.muted, fontSize: 12.5)),
                   const SizedBox(height: 8),
                   Row(children: [
                     Expanded(child: Btn('Close', icon: Icons.close, onTap: () => Navigator.pop(context))),
