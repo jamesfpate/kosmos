@@ -1036,7 +1036,13 @@ class AppState extends ChangeNotifier {
       items = items.where((i) => !gone.contains(i.id)).toList();
       byId.removeWhere((id, _) => gone.contains(id));
       undoStack.removeWhere((entry) => entry.any((u) => gone.contains(u.item.id)));
-      screen = mode;
+      // A batch that failed or was declined: those photos stay in the trash to try again.
+      final left = doomed.length - gone.length;
+      if (left > 0) {
+        error = '$left ${left == 1 ? 'photo wasn\'t' : 'photos weren\'t'} deleted. Tap Delete again to retry.';
+      } else {
+        screen = mode;
+      }
     } catch (e) {
       error = '$e';
     } finally {

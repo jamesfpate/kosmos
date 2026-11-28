@@ -173,8 +173,11 @@ class WinnowNativePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activ
         }
         if (needGrant.isEmpty()) return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) throw Exception("Android 11 or later is needed to move photos")
-        if (!askToWrite(needGrant)) throw Exception("Winnow wasn't allowed to move the photos into the album folder")
-        for (uri in needGrant) context.contentResolver.update(uri, values, null, null)
+        // In batches: one write request with thousands of photos is too big to hand to the system.
+        for (batch in needGrant.chunked(BATCH)) {
+            if (!askToWrite(batch)) throw Exception("Winnow wasn't allowed to move the photos into the album folder")
+            for (uri in batch) context.contentResolver.update(uri, values, null, null)
+        }
     }
 
     /** Asks for write access to [uris] (on the main thread) and waits for the answer. */
@@ -241,5 +244,6 @@ class WinnowNativePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activ
     companion object {
         private const val REQUEST = 7311
         private const val WRITE = 7312
+        private const val BATCH = 500
     }
 }

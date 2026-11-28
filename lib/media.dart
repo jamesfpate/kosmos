@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/painting.dart';
@@ -115,11 +116,25 @@ Future<Set<String>> trash(List<Item> items) async {
   if (items.isEmpty) return {};
   if (useFolders) return trashFiles([for (final i in items) i.path!]);
   final entities = [for (final i in items) i.entity!];
-  final ids = Platform.isAndroid
-      ? await PhotoManager.editor.android.moveToTrash(entities)
-      : await PhotoManager.editor.deleteWithIds([for (final e in entities) e.id]);
-  return ids.toSet();
+  if (!Platform.isAndroid) return (await PhotoManager.editor.deleteWithIds([for (final e in entities) e.id])).toSet();
+  // Android hands the whole list to the system in one message, which fails outright past a few thousand photos: send
+  // them in batches. With media management allowed there's no prompt; otherwise one per batch. A batch that fails
+  // (or is declined) leaves its photos where they are; the rest still go.
+  final moved = <String>{};
+  Object? error;
+  for (var i = 0; i < entities.length; i += trashBatch) {
+    try {
+      moved.addAll(await PhotoManager.editor.android.moveToTrash(entities.sublist(i, min(i + trashBatch, entities.length))));
+    } catch (e) {
+      error ??= e;
+    }
+  }
+  if (moved.isEmpty && error != null) throw error;
+  return moved;
 }
+
+/// Photos per system trash request on Android.
+const trashBatch = 500;
 
 /// A thumbnail at most [size] px on its long side (square crop on the phone, the photo's own shape on a computer).
 ImageProvider thumbImage(Item item, int size) => item.entity != null
