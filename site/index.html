@@ -228,6 +228,61 @@
   .feature svg { flex: none; width: 22px; height: 22px; margin-top: 2px; color: var(--accent); }
   .feature b { display: block; margin-bottom: 2px; }
   .feature span { color: var(--muted); font-size: 15px; }
+  /* Cards light up along the border nearest the pointer: a soft blue spotlight drawn only in the 1px border ring. */
+  .demo, .integration, .dl a, .flow { position: relative; }
+  .demo::after, .integration::after, .dl a::after, .flow::after {
+    content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1.5px; pointer-events: none; z-index: 3;
+    background: radial-gradient(320px circle at var(--mx, -999px) var(--my, -999px), rgba(219, 234, 254, 1), rgba(96, 165, 250, 0.85) 25%, rgba(37, 99, 235, 0.4) 50%, transparent 75%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  }
+  @media (hover: none) { .demo::after, .integration::after, .dl a::after, .flow::after { display: none; } }
+
+  /* Flow diagrams: a source on the left, destinations on the right, wires between, things travelling along them. */
+  .flow { position: relative; display: grid; grid-template-columns: minmax(200px, 0.8fr) 1.2fr; gap: 64px; align-items: center; margin: 8px 0 30px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  .flow .wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .flow .wires path { fill: none; stroke: var(--line); stroke-width: 2; }
+  .flow .wires path.hot { stroke: var(--accent); }
+  .flow .src, .flow .dest { position: relative; z-index: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .flow .src { display: flex; flex-direction: column; gap: 10px; }
+  .flow .dests { display: flex; flex-direction: column; gap: 10px; }
+  .flow .ftitle { font-size: 13px; font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .flow .ftitle i { font-style: normal; font-size: 11px; color: var(--accent); font-weight: 600; }
+  .flow .ftitle small { color: var(--keep); font-weight: 600; }
+  .flow .fphoto { aspect-ratio: 4 / 3; border-radius: 8px; background: #222 center / cover; transition: transform .3s, opacity .3s; }
+  .flow .fchip { align-self: flex-start; font-size: 12px; padding: 5px 11px; border-radius: 999px; background: var(--keep); color: var(--bg); font-weight: 700; transition: transform .2s; }
+  .flow .fchip b { color: var(--bg); }
+  .flow .drow { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--muted); }
+  .flow .drow b { color: var(--text); font-weight: 600; }
+  .flow .drow small { font-size: 11px; }
+  .flow .dthumb { width: 28px; height: 28px; border-radius: 5px; background: #222 center / cover; flex: none; }
+  .flow .cnt { margin-left: auto; font-style: normal; font-size: 12px; color: var(--muted); min-width: 22px; text-align: right; }
+  .flow .dest.ping { border-color: var(--accent); }
+  .flow .renamed { color: var(--keep) !important; transition: color 1.2s; }
+  .flow .bubble { position: absolute; z-index: 2; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 6px; background: #222 center / cover; box-shadow: 0 0 0 2px var(--accent), 0 4px 14px rgba(0,0,0,.5); pointer-events: none; }
+  .flow .bubble.dup { box-shadow: 0 0 0 2px var(--keep); }
+  .flow .ptiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .flow .ptiles div { position: relative; aspect-ratio: 1; border-radius: 4px; background: #222 center / cover; transition: opacity .5s, filter .5s; }
+  .flow .ptiles div.del { opacity: 0.35; filter: grayscale(1); }
+  .flow .ptiles div.del::after { content: "✕"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--trash); font-weight: 800; font-size: 18px; }
+  .flow .ptiles div.ok::after { content: "✓"; position: absolute; right: 3px; bottom: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--keep); color: var(--bg); font-size: 10px; font-weight: 800; display: grid; place-items: center; }
+  .flow .ptiles div.freed { opacity: 0; transform: scale(0.8); transition: opacity .6s, transform .6s; }
+  .flow .mtiles { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin-top: 8px; min-height: 22px; }
+  .flow .mtiles div { aspect-ratio: 1; border-radius: 3px; background: #222 center / cover; animation: land .35s ease-out; }
+  @keyframes land { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+  .flow .dest .status { position: absolute; top: 12px; right: 12px; }
+  @media (max-width: 820px) { .flow { grid-template-columns: 1fr; gap: 28px; } }
+
+  /* Download: the same app on a computer and on a phone. */
+  .devices { display: flex; align-items: flex-end; justify-content: center; gap: 28px; margin: 4px 0 28px; }
+  .laptop { width: min(560px, 70vw); }
+  .lscreen { aspect-ratio: 16 / 10; border: 2px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; padding: 12px; overflow: hidden; }
+  .lbase { height: 12px; margin: 0 -6%; border-radius: 0 0 10px 10px; background: var(--line); }
+  .ltiles { grid-template-columns: repeat(8, 1fr); }
+  .mini { width: min(150px, 22vw); aspect-ratio: 9 / 18.5; border: 2px solid var(--line); border-radius: 22px; padding: 10px 8px; background: var(--bg); }
+  .mscreen { height: 100%; position: relative; }
+  .mscreen .card { position: absolute; inset: 0; }
+  @media (max-width: 560px) { .mini { display: none; } .laptop { width: 100%; } .lbase { margin: 0; } }
   .group-label { color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin: 26px 0 10px; }
   .integrations { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
   .integration { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
@@ -439,6 +494,20 @@
   <section id="tagging">
     <h2>Album tagging integration</h2>
     <p class="lede">Every keeper is tagged with an album as you review. Winnow keeps those albums the same everywhere: on the phone, and on every service you sync to.</p>
+    <div class="flow" id="f-tag" aria-label="Animation: a photo filed into an album in Winnow appears in that album on every service, and a rename follows everywhere">
+      <svg class="wires"></svg>
+      <div class="src">
+        <div class="ftitle">Winnow</div>
+        <div class="fphoto"></div>
+        <span class="ch t fchip">→ <b class="aname">2026-07 Hawaii</b></span>
+      </div>
+      <div class="dests">
+        <div class="dest"><div class="ftitle">Apple Photos <i>iPhone · Mac</i></div><div class="drow"><span class="dthumb"></span><span>Albums › <b class="aname">2026-07 Hawaii</b></span><em class="cnt">12</em></div></div>
+        <div class="dest"><div class="ftitle">Samsung Gallery <i>Android</i></div><div class="drow"><span class="dthumb"></span><span>Pictures/<b class="aname">2026-07 Hawaii</b></span><em class="cnt">12</em></div></div>
+        <div class="dest"><div class="ftitle">Immich</div><div class="drow"><span class="dthumb"></span><span><b class="aname">2026-07 Hawaii</b> · <small>Albums/2026/07/<b class="tname">Hawaii</b></small></span><em class="cnt">12</em></div></div>
+        <div class="dest"><div class="ftitle">Google Photos <i>Android</i></div><div class="drow"><span class="dthumb"></span><span><b class="aname">2026-07 Hawaii</b></span><em class="cnt">12</em></div></div>
+      </div>
+    </div>
     <h3 class="mode">Features</h3>
     <div class="features">
       <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4m8-4v4"/></svg><div><b>Albums by date</b><span>Dated albums like “2026-07 Hawaii” are suggested for photos taken in their range, so a trip files itself.</span></div></div>
@@ -465,6 +534,18 @@
   <section id="backup">
     <h2>Backup</h2>
     <p class="lede">Only what you keep is uploaded, into the same albums, to as many places as you like.</p>
+    <div class="flow" id="f-bk" aria-label="Animation: kept photos upload to each backup, deleted ones never leave the phone, then Free up space clears what's backed up">
+      <svg class="wires"></svg>
+      <div class="src">
+        <div class="ftitle">Your phone <small class="free"></small></div>
+        <div class="ptiles"></div>
+      </div>
+      <div class="dests">
+        <div class="dest"><div class="ftitle">Immich</div><div class="mtiles"></div><em class="cnt status">0</em></div>
+        <div class="dest"><div class="ftitle">Nextcloud</div><div class="mtiles"></div><em class="cnt status">0</em></div>
+        <div class="dest"><div class="ftitle">S3</div><div class="mtiles"></div><em class="cnt status">0</em></div>
+      </div>
+    </div>
     <h3 class="mode">Features</h3>
     <div class="features">
       <div class="feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9m0 0-4 4m4-4 4 4"/><path d="M5 3h14"/></svg><div><b>Only the keepers</b><span>Deleted photos never upload. Kept ones go up with their album, and move if you refile them.</span></div></div>
@@ -533,6 +614,10 @@
   <section id="download">
     <h2>Download</h2>
     <p id="version">Latest release</p>
+    <div class="devices" aria-hidden="true">
+      <div class="laptop"><div class="lscreen ui"><div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span>wi<b>n</b><b>n</b>ow</span><small class="sub">1,284 photos</small></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div><div class="views"><span class="vc on">All on computer</span><span class="vc">Reviewed</span><span class="vc">Albums ▾</span><span class="vc">Immich ▾</span></div><div class="mh"><span>2026-07 Hawaii · Sat, Jul 12, 2026</span><a>Move… &nbsp;Select 12</a></div><div class="tiles ltiles"></div></div><div class="lbase"></div></div>
+      <div class="mini"><div class="ui mscreen"><div class="card"><div class="ph" style="background-image:url(img/h/49.jpg)"></div><span class="cap">Sat, Jul 12, 2026 · 3:02 PM</span></div></div></div>
+    </div>
     <div class="dl">
       <a id="dl-android" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Android</b><span>APK · Android 11+</span></a>
       <a href="https://github.com/ImranR98/Obtainium"><b>Android, auto-updating</b><span>Obtainium: add github.com/jamesfpate/winnow</span></a>
@@ -993,6 +1078,161 @@ const Trace = (() => {
     big.style.opacity = '0.25';
     await wait(500);
   });
+})();
+
+// The border glow follows the pointer across every card (each card gets the pointer's position in its own space).
+(() => {
+  if (!matchMedia('(hover: hover)').matches) return;
+  const cards = () => document.querySelectorAll('.demo, .integration, .dl a, .flow');
+  let x = -9999, y = -9999, queued = false;
+  const paint = () => {
+    queued = false;
+    for (const c of cards()) {
+      const r = c.getBoundingClientRect();
+      c.style.setProperty('--mx', `${x - r.left}px`); c.style.setProperty('--my', `${y - r.top}px`);
+    }
+  };
+  addEventListener('pointermove', e => { x = e.clientX; y = e.clientY; if (!queued) { queued = true; requestAnimationFrame(paint); } }, { passive: true });
+  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(paint); } }, { passive: true });
+  document.addEventListener('pointerleave', () => { x = y = -9999; paint(); });
+})();
+
+// Flow diagrams (album tagging, backup): wires from the source to each destination, and photos travelling along them.
+const Flow = (() => {
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const wait = ms => new Promise(r => setTimeout(r, still ? 0 : ms));
+  function make(el) {
+    const svg = el.querySelector('.wires'), src = el.querySelector('.src'), dests = [...el.querySelectorAll('.dest')];
+    let paths = [];
+    const ends = d => {
+      const b = el.getBoundingClientRect(), s = src.getBoundingClientRect(), r = d.getBoundingClientRect();
+      const wide = getComputedStyle(el).gridTemplateColumns.split(' ').length > 1;
+      return wide ? [s.right - b.left, s.top + s.height / 2 - b.top, r.left - b.left, r.top + r.height / 2 - b.top, 'h']
+        : [s.left + s.width / 2 - b.left, s.bottom - b.top, r.left + 24 - b.left, r.top - b.top, 'v'];
+    };
+    const curve = ([x1, y1, x2, y2, o]) => o === 'h'
+      ? [[x1, y1], [x1 + (x2 - x1) / 2, y1], [x1 + (x2 - x1) / 2, y2], [x2, y2]]
+      : [[x1, y1], [x1, y1 + (y2 - y1) / 2], [x2, y1 + (y2 - y1) / 2], [x2, y2]];
+    const draw = () => {
+      const pts = dests.map(d => curve(ends(d)));
+      svg.innerHTML = pts.map(([a, b, c, d]) => `<path d="M${a} C${b} ${c} ${d}"/>`).join('');
+      paths = pts;
+    };
+    draw();
+    new ResizeObserver(draw).observe(el);
+    const at = ([a, b, c, d], t) => [0, 1].map(k => (1 - t) ** 3 * a[k] + 3 * (1 - t) ** 2 * t * b[k] + 3 * (1 - t) * t * t * c[k] + t ** 3 * d[k]);
+    /** Sends a little photo along the wire to destination i; resolves when it arrives. */
+    async function send(i, bg, cls = '') {
+      const wire = svg.children[i];
+      wire?.classList.add('hot');
+      const b = document.createElement('div'); b.className = `bubble ${cls}`; b.style.backgroundImage = bg; el.append(b);
+      const T = still ? 1 : 900, t0 = performance.now();
+      await new Promise(done => {
+        const f = now => {
+          const t = Math.min(1, (now - t0) / T), e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+          const [x, y] = at(paths[i], e); b.style.left = `${x}px`; b.style.top = `${y}px`;
+          t < 1 ? requestAnimationFrame(f) : done();
+        };
+        requestAnimationFrame(f);
+      });
+      b.remove(); wire?.classList.remove('hot');
+      dests[i].classList.add('ping'); setTimeout(() => dests[i].classList.remove('ping'), 400);
+    }
+    return { el, dests, send, wait };
+  }
+  const whenSeen = (el, loop) => {
+    let on = false, going = false;
+    new IntersectionObserver(async es => {
+      on = es[0].isIntersecting;
+      if (!on || going) return;
+      going = true;
+      while (on) { await loop(); if (still) break; }
+      going = false;
+    }, { threshold: 0.25 }).observe(el);
+  };
+  return { make, whenSeen, wait };
+})();
+
+// Album tagging: each photo filed in Winnow lands in the same album everywhere; every third round the album is
+// renamed and the new name follows everywhere at once.
+(() => {
+  const f = Flow.make(document.getElementById('f-tag')), el = f.el, w = Flow.wait;
+  const shots = ['374', '49', '177', '199', '110'];
+  const names = [['2026-07 Hawaii', 'Hawaii'], ['2026-07 Maui', 'Maui']];
+  let n = 0, round = 0, count = 12;
+  Flow.whenSeen(el, async () => {
+    const img = `url(img/h/${shots[n++ % shots.length]}.jpg)`;
+    el.querySelector('.fphoto').style.backgroundImage = img;
+    await w(700);
+    const chip = el.querySelector('.fchip'); chip.style.transform = 'scale(1.08)'; await w(200); chip.style.transform = '';
+    count++;
+    await Promise.all(f.dests.map((d, i) => w(i * 120).then(() => f.send(i, img)).then(() => {
+      d.querySelector('.dthumb').style.backgroundImage = img; d.querySelector('.cnt').textContent = count;
+    })));
+    await w(900);
+    if (++round % 3 === 0) {
+      const [full, short] = names[(round / 3) % 2];
+      const all = el.querySelectorAll('.aname, .tname');
+      all.forEach(x => { x.textContent = x.classList.contains('tname') ? short : full; x.classList.add('renamed'); });
+      await w(1400);
+      all.forEach(x => x.classList.remove('renamed'));
+      await w(600);
+    }
+  });
+})();
+
+// Backup: review on the phone (✕ deleted, ✓ kept), keepers upload to each backup (one is already there), then Free up
+// space clears what every backup has.
+(() => {
+  const f = Flow.make(document.getElementById('f-bk')), el = f.el, w = Flow.wait;
+  const pool = ['10','13','17','49','54','65','74','77','82','92','102','108','110','129','152','163'];
+  let start = 0;
+  Flow.whenSeen(el, async () => {
+    const box = el.querySelector('.ptiles'); box.innerHTML = '';
+    el.querySelectorAll('.mtiles').forEach(m => { m.innerHTML = ''; });
+    el.querySelectorAll('.status').forEach(c => { c.textContent = '0'; });
+    el.querySelector('.free').textContent = '';
+    const tiles = Array.from({ length: 8 }, (_, i) => {
+      const t = document.createElement('div'); t.style.backgroundImage = `url(img/t/${pool[(start + i) % pool.length]}.jpg)`;
+      box.append(t); return t;
+    });
+    start += 3;
+    const del = [1, 4, 6];
+    await w(700);
+    for (const [i, t] of tiles.entries()) { t.classList.add(del.includes(i) ? 'del' : 'ok'); await w(160); }
+    await w(500);
+    const kept = tiles.filter((_, i) => !del.includes(i));
+    for (const [k, t] of kept.entries()) {
+      const bg = t.style.backgroundImage;
+      await Promise.all(f.dests.map((d, i) => {
+        const dup = i === 1 && k === 0; // Nextcloud already has this one: recognised, not sent again.
+        return f.send(i, bg, dup ? 'dup' : '').then(() => {
+          const m = document.createElement('div'); m.style.backgroundImage = bg; d.querySelector('.mtiles').append(m);
+          const c = d.querySelector('.status'); c.textContent = dup ? 'already there ✓' : String(d.querySelectorAll('.mtiles div').length);
+          if (dup) setTimeout(() => { c.textContent = String(d.querySelectorAll('.mtiles div').length); }, 900);
+        });
+      }));
+    }
+    el.querySelectorAll('.status').forEach(c => { c.textContent = 'Up to date'; });
+    await w(1000);
+    // Free up space: everything every backup has leaves the phone (to its trash).
+    kept.forEach(t => t.classList.add('freed'));
+    el.querySelector('.free').textContent = 'Freed 5 photos';
+    await w(2200);
+  });
+})();
+
+// Download: a few photos in the computer's gallery.
+(() => {
+  const box = document.querySelector('.ltiles');
+  const pool = ['374','49','177','199','110','163','306','244','10','13','17','54','65','74','77','82'];
+  pool.forEach((id, i) => { const t = document.createElement('div'); t.className = 'tile'; t.style.backgroundImage = `url(img/${i < 8 ? 'h' : 't'}/${id}.jpg)`; box.append(t); });
+  // A second album below the first, as the gallery shows them.
+  const head = document.createElement('div'); head.className = 'mh'; head.style.marginTop = '6px';
+  head.innerHTML = '<span>2026 Kids school · Mon, Sep 7, 2026</span><a>Move… &nbsp;Select 8</a>';
+  const more = document.createElement('div'); more.className = 'tiles ltiles';
+  ['92','102','108','129','152','189','211','218'].forEach(id => { const t = document.createElement('div'); t.className = 'tile'; t.style.backgroundImage = `url(img/t/${id}.jpg)`; more.append(t); });
+  box.after(head, more);
 })();
 
 // The hero phone: Winnow's three views in turn. Single (a burst in the split view, then one photo), Grid (keep the
