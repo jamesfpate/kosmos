@@ -221,6 +221,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             Btn('Add folder', icon: Icons.create_new_folder_outlined, onTap: () => pickFolder(s, context)),
           ],
+          if (media.desktop) ...[
+            _h3('Memory card import'),
+            _p('When you review an SD card, its keepers are copied here, by album, then reviewed and synced from here.'),
+            Text(s.importTo, style: const TextStyle(color: C.muted)),
+            const SizedBox(height: 6),
+            Btn('Change folder', icon: Icons.folder_open, onTap: () async {
+              final dir = await FilePicker.pickDirectory(dialogTitle: 'Import memory card keepers to');
+              if (dir != null) await s.setImportDir(dir.isScheme('file') ? dir.toFilePath() : dir.path);
+            }),
+          ],
           // Apple's library has no folders.
           if (!media.appleLibrary) _h3(media.useFolders ? 'Subfolders' : 'Folders'),
           if (!media.appleLibrary) _p('Unticked folders are skipped when culling and in the grid.'),

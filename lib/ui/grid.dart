@@ -242,6 +242,7 @@ class _GridScreenState extends State<GridScreen> {
         subtitle: Text(
             (s.screen == Screen.explore ? '${s.backlog.length} photos' : '${s.unreviewedCount} unreviewed')),
       ),
+      SourceBar(s),
       if (s.screen == Screen.explore) ...[_viewBar(context), const SizedBox(height: 6)],
       // The label, with the selection's actions (fill the gaps, clear) on the same line: no row of its own.
       SizedBox(

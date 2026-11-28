@@ -118,6 +118,7 @@ class _CullScreenState extends State<CullScreen> {
       TopBar(s,
           title: const Logo(tap: true),
           subtitle: Text(cur == null ? 'All caught up' : '${s.queue.length} left')),
+      SourceBar(s),
       Align(alignment: Alignment.centerLeft, child: Label(sel.isNotEmpty && !s.burstAll ? 'Choose album for ${sel.length}' : 'Choose album')),
       const SizedBox(height: 4),
       AlbumBar(

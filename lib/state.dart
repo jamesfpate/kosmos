@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:path/path.dart' as p;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
@@ -20,6 +21,7 @@ import 'support.dart';
 import 'update.dart';
 import 'version.dart';
 import 'info.dart';
+import 'folders.dart';
 
 enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, store, google, error }
 
@@ -199,6 +201,7 @@ class AppState extends ChangeNotifier {
       screen = cutoff == null ? Screen.start : mode;
       changed();
       _checkUpdate();
+      _watchCards();
       support.start(() {
         if (!supporter) {
           supporter = true;
@@ -225,6 +228,8 @@ class AppState extends ChangeNotifier {
     newestFirst = (m['newestFirst'] as bool?) ?? false;
     supporter = (m['supporter'] as bool?) ?? false;
     vimKeys = (m['vimKeys'] as bool?) ?? false;
+    importDir = (m['importDir'] as String?) ?? '';
+    imported = ((m['imported'] as List?) ?? []).cast<String>().toSet();
     infoFields = ((m['photoInfo'] as List?)?.cast<String>() ?? ['date', 'time']).toSet();
     animations = (m['animations'] as bool?) ?? true;
     gridFrac = (m['gridFrac'] as num?)?.toDouble() ?? 0.4;
@@ -302,7 +307,7 @@ class AppState extends ChangeNotifier {
   bool inCull(Item i) => !decided.containsKey(i.id) && i.taken >= (cutoff ?? 0) && shown(i);
 
   Future<void> reload() async {
-    final all = await media.loadItems(db, folders, onProgress: (status) {
+    final all = await media.loadItems(db, _sources, onProgress: (status) {
       if (screen != Screen.loading) return;
       loading = status;
       notifyListeners();
@@ -696,6 +701,138 @@ class AppState extends ChangeNotifier {
     changed();
     await Future<void>.delayed(Motion.total);
     fx = {};
+  }
+
+  // ---------------------------------------------------------------- memory cards (desktop)
+
+  /// Cards plugged in (checked every few seconds), and the one being reviewed (null: the usual folders or library).
+  List<MemoryCard> cards = [];
+  String? card;
+  bool _libraryBeforeCard = false;
+  Timer? _cardTimer;
+
+  /// What's being reviewed: the card, or the folders.
+  List<String> get _sources => card != null ? [card!] : folders;
+
+  MemoryCard? get cardNow => cards.where((c) => c.path == card).firstOrNull;
+
+  void _watchCards() {
+    if (!media.desktop || _cardTimer != null) return;
+    _cardTimer = Timer.periodic(const Duration(seconds: 4), (_) => _scanCards());
+    _scanCards();
+  }
+
+  Future<void> _scanCards() async {
+    final found = await findCards();
+    if (found.map((c) => c.path).join('|') == cards.map((c) => c.path).join('|')) return;
+    cards = found;
+    // Pulled out while being reviewed: back to the usual photos.
+    if (card != null && !found.any((c) => c.path == card)) return reviewFolders();
+    changed();
+  }
+
+  /// Reviews a card on its own. Nothing syncs from a card: its keepers are imported first (see [importCard]).
+  Future<void> reviewCard(String path) async {
+    if (card == path) return;
+    _libraryBeforeCard = card == null ? !media.useFolders : _libraryBeforeCard;
+    media.useFolders = true;
+    card = path;
+    gridSel = {};
+    screen = Screen.loading;
+    changed();
+    await reload();
+    screen = mode;
+    changed();
+  }
+
+  /// Back to the usual folders (or the Mac's Photos library).
+  Future<void> reviewFolders() async {
+    if (card == null) return;
+    card = null;
+    if (_libraryBeforeCard) media.useFolders = false;
+    gridSel = {};
+    screen = Screen.loading;
+    changed();
+    await reload();
+    screen = mode;
+    changed();
+  }
+
+  /// Where a card's keepers are copied: a folder of the user's choosing, ~/Pictures/Winnow to start.
+  String importDir = '';
+  String get _importDir => importDir.isNotEmpty
+      ? importDir
+      : p.join(Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.', 'Pictures', 'Winnow');
+  String get importTo => _importDir;
+
+  Future<void> setImportDir(String path) async {
+    importDir = path;
+    await _set('importDir', path);
+  }
+
+  /// The card's keepers (kept, with an album).
+  List<Item> get cardKeepers => card == null
+      ? const []
+      : [for (final i in items) if (decided[i.id]?.decision == Decision.keep && decided[i.id]?.albumId != null) i];
+
+  /// Card photos already copied to the import folder (by their path on the card).
+  Set<String> imported = {};
+  bool importing = false;
+  int importDone = 0;
+
+  int get cardToImport => cardKeepers.where((i) => !imported.contains(i.id)).length;
+
+  /// Every keeper copied and nothing left to delete: the card can be wiped.
+  bool get cardDone => card != null && cardKeepers.isNotEmpty && cardToImport == 0 && pendingTrash.isEmpty;
+
+  /// Copies the card's keepers into the import folder, in the usual layout (2026/2026-07 Hawaii/IMG_1234.jpg), checks
+  /// each copy's size, and files each copy in the same album (so it isn't reviewed again). The import folder then
+  /// joins the folders Winnow reviews and syncs. Returns how many were copied and how many failed.
+  Future<({int copied, int failed})> importCard() async {
+    if (card == null || importing) return (copied: 0, failed: 0);
+    importing = true;
+    importDone = 0;
+    changed();
+    var copied = 0, failed = 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final records = <String, Object?>{};
+    try {
+      for (final i in cardKeepers.where((i) => !imported.contains(i.id))) {
+        final albumId = decided[i.id]!.albumId!;
+        final album = albums.where((a) => a.id == albumId).firstOrNull;
+        if (album == null) continue;
+        try {
+          final from = File(i.path!);
+          final dest = storePath(_importDir, album, p.basename(i.path!));
+          final to = File(dest);
+          final size = await from.length();
+          if (!(await to.exists() && await to.length() == size)) {
+            await to.parent.create(recursive: true);
+            final part = File('$dest.part');
+            await from.copy(part.path);
+            if (await part.length() != size) throw Exception('copy incomplete');
+            await part.rename(dest);
+          }
+          records[dest] = DecisionRecord(id: dest, decision: Decision.keep, decidedAt: now, albumId: albumId).toJson();
+          imported = {...imported, i.id};
+          copied++;
+        } catch (_) {
+          failed++;
+        }
+        importDone++;
+        if (importDone % 10 == 0) changed();
+      }
+      await db.putAll('decisions', records);
+      await db.setMeta('imported', imported.toList());
+      if (!folders.contains(_importDir) && copied > 0) {
+        folders = [...folders, _importDir];
+        await db.setMeta('folders', folders);
+      }
+    } finally {
+      importing = false;
+      changed();
+    }
+    return (copied: copied, failed: failed);
   }
 
   /// Desktop: a newer release found on GitHub (checked at most once a day, in the background).
@@ -1535,6 +1672,8 @@ class AppState extends ChangeNotifier {
   /// that's on. One run at a time; a call during a run schedules another pass.
   Future<void> runSync() async {
     if (_db == null || !anyIntegration) return;
+    // Nothing uploads straight from a memory card: its keepers are imported, and sync from there.
+    if (card != null) return;
     _watchNetwork();
     final wifi = await _onWifi();
     bool go(bool on, bool wifiOnly) => on && (wifi || !wifiOnly);

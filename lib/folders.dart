@@ -262,3 +262,40 @@ class FileThumb extends ImageProvider<FileThumb> {
   @override
   int get hashCode => Object.hash(path, size);
 }
+
+/// A memory card (or a camera plugged in as a drive): any mounted volume with a DCIM folder.
+typedef MemoryCard = ({String path, String name});
+
+/// The cards plugged in right now: /Volumes on a Mac, /media and /run/media on Linux, drive letters on Windows.
+Future<List<MemoryCard>> findCards() async {
+  final roots = <String>[];
+  if (Platform.isMacOS) roots.add('/Volumes');
+  if (Platform.isLinux) {
+    final u = Platform.environment['USER'] ?? '';
+    roots.addAll(['/media/$u', '/run/media/$u', '/media']);
+  }
+  final candidates = <String>[];
+  for (final r in roots) {
+    try {
+      await for (final e in Directory(r).list(followLinks: false)) {
+        if (e is Directory) candidates.add(e.path);
+      }
+    } catch (_) {}
+  }
+  if (Platform.isWindows) {
+    for (var c = 'D'.codeUnitAt(0); c <= 'Z'.codeUnitAt(0); c++) {
+      candidates.add('${String.fromCharCode(c)}:\\');
+    }
+  }
+  final out = <MemoryCard>[];
+  for (final c in {...candidates}) {
+    try {
+      if (await Directory(p.join(c, 'DCIM')).exists()) {
+        final name = p.basename(c.replaceAll(RegExp(r'[\\/]+$'), ''));
+        out.add((path: c, name: name.isEmpty ? c : name));
+      }
+    } catch (_) {}
+  }
+  out.sort((a, b) => a.name.compareTo(b.name));
+  return out;
+}

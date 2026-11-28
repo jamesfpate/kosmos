@@ -894,3 +894,104 @@ Future<void> showHelp(BuildContext context) => showModalBottomSheet<void>(
         );
       },
     );
+
+/// Desktop: what's being reviewed, switchable from the main screen: the folders, the Mac's Photos library, or a memory
+/// card. A card just plugged in is offered right away; reviewing one adds Import (its keepers to the import folder).
+class SourceBar extends StatelessWidget {
+  const SourceBar(this.s, {super.key});
+
+  final AppState s;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!media.desktop) return const SizedBox.shrink();
+    final card = s.cardNow;
+    final label = card != null
+        ? 'SD card · ${card.name}'
+        : !media.useFolders
+            ? 'Photos library'
+            : s.folders.length == 1
+                ? s.folders.first.split(RegExp(r'[\\/]')).where((x) => x.isNotEmpty).lastOrNull ?? s.folders.first
+                : '${s.folders.length} folders';
+    final fresh = card == null ? s.cards.firstOrNull : null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(children: [
+        PopupMenuButton<String>(
+          tooltip: 'What to review',
+          color: C.surface,
+          onSelected: (v) async {
+            if (v == 'folders') {
+              await s.reviewFolders();
+              if (Platform.isMacOS && !media.useFolders) await s.setSource(folders: true);
+            } else if (v == 'library') {
+              await s.reviewFolders();
+              await s.setSource(folders: false);
+            } else if (v == 'add') {
+              if (context.mounted) await pickFolder(s, context);
+            } else if (v.startsWith('card:')) {
+              await s.reviewCard(v.substring(5));
+            }
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+                value: 'folders',
+                child: _item(Icons.folder_outlined, s.folders.isEmpty ? 'Folders' : 'Your folders (${s.folders.length})',
+                    card == null && media.useFolders)),
+            if (Platform.isMacOS) PopupMenuItem(value: 'library', child: _item(Icons.photo_library_outlined, 'Photos library', card == null && !media.useFolders)),
+            for (final c in s.cards) PopupMenuItem(value: 'card:${c.path}', child: _item(Icons.sd_card_outlined, 'SD card · ${c.name}', card?.path == c.path)),
+            const PopupMenuDivider(),
+            PopupMenuItem(value: 'add', child: _item(Icons.create_new_folder_outlined, 'Add folder…', false)),
+          ],
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(999), border: Border.all(color: C.line)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(card != null ? Icons.sd_card_outlined : (media.useFolders ? Icons.folder_outlined : Icons.photo_library_outlined), size: 16, color: C.muted),
+              const SizedBox(width: 6),
+              Text(label, style: const TextStyle(fontSize: 13)),
+              const Icon(Icons.arrow_drop_down, color: C.muted),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // A card just plugged in: one tap to review it.
+        if (fresh != null)
+          ActionChip(
+            avatar: const Icon(Icons.sd_card, size: 16, color: C.bg),
+            label: Text('Review SD card · ${fresh.name}'),
+            labelStyle: const TextStyle(color: C.bg, fontWeight: FontWeight.w600),
+            backgroundColor: C.accent,
+            side: BorderSide.none,
+            onPressed: () => s.reviewCard(fresh.path),
+          ),
+        const Spacer(),
+        if (card != null) ..._cardActions(context),
+      ]),
+    );
+  }
+
+  List<Widget> _cardActions(BuildContext context) {
+    final keepers = s.cardKeepers.length, left = s.cardToImport;
+    if (s.importing) return [Text('Importing… ${s.importDone} of ${s.importDone + left}', style: const TextStyle(color: C.muted))];
+    if (s.cardDone) return [const Icon(Icons.check_circle, color: C.keep, size: 18), const SizedBox(width: 6), const Text('All imported · safe to format the card', style: TextStyle(color: C.keep))];
+    if (keepers == 0) return [Text('Keepers get imported to ${s.importTo}', style: const TextStyle(color: C.muted, fontSize: 13))];
+    return [
+      if (left == 0) const Text('Imported · review the trash to finish', style: TextStyle(color: C.muted)),
+      if (left > 0)
+        Btn('Import $left kept', icon: Icons.download, bold: true, color: C.bg, bg: C.keep, onTap: () async {
+          final r = await s.importCard();
+          if (context.mounted) {
+            toast(context, r.failed == 0 ? 'Imported ${r.copied} to ${s.importTo}' : 'Imported ${r.copied}; ${r.failed} couldn\'t be copied');
+          }
+        }),
+    ];
+  }
+
+  Widget _item(IconData icon, String text, bool on) => Row(children: [
+        Icon(icon, size: 18, color: on ? C.accent : C.muted),
+        const SizedBox(width: 10),
+        Text(text, style: TextStyle(color: on ? C.accent : C.text, fontWeight: on ? FontWeight.w600 : null)),
+      ]);
+}
