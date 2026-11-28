@@ -587,7 +587,7 @@
       <div class="integration"><b>S3-compatible</b><span>AWS S3, Cloudflare R2, Wasabi, MinIO.</span></div>
       <div class="integration"><b>Backblaze B2</b><span>Straight into a B2 bucket.</span></div>
       <div class="integration"><b>Dropbox</b><span>Into a folder in your Dropbox.</span></div>
-      <div class="integration"><b>OneDrive</b><span>Personal or work OneDrive.</span></div>
+      <div class="integration"><b>OneDrive</b><span>Into a folder in your OneDrive.</span></div>
     </div>
     <p class="fine">Layout on file storage: Photos/2026/2026-07 Hawaii/IMG_1234.jpg, with the year’s catch-all in Photos/2026/. Apple Photos albums live in your own library, so they don’t count as a backup.</p>
   </section>
@@ -1265,13 +1265,14 @@ const Flow = (() => {
   const slides = Object.fromEntries([...document.querySelectorAll('.phone .slide')].map(x => [x.dataset.name, x]));
   const tabs = [...document.querySelectorAll('.modes button')];
   const undo = '<span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span>';
-  let gen = 0, next = null;
+  let gen = 0, next = null, jump = null;
   const w = async ms => { const g = gen; await D.wait(ms); if (g !== gen) throw 'jump'; };
   const show = name => {
     Object.entries(slides).forEach(([k, x]) => x.classList.toggle('on', k === name));
     tabs.forEach(b => b.classList.toggle('on', b.dataset.to === name));
   };
-  tabs.forEach(b => b.addEventListener('click', () => { next = b.dataset.to; gen++; }));
+  // A tab switches at once: the slide shows and its animation starts now (the old one is dropped mid-step).
+  tabs.forEach(b => b.addEventListener('click', () => { next = b.dataset.to; gen++; show(next); jump?.(); }));
 
   async function single() {
     const el = slides.single, area = el.querySelector('.area'), foot = el.querySelector('.foot');
@@ -1367,7 +1368,11 @@ const Flow = (() => {
       const name = next ?? order[i % order.length];
       if (next) { i = order.indexOf(next); next = null; }
       show(name);
-      try { await play[name](); await w(500); i++; } catch (e) { if (e !== 'jump') throw e; }
+      const jumped = new Promise(r => { jump = r; });
+      try {
+        const done = await Promise.race([play[name]().then(() => true), jumped.then(() => false)]);
+        if (done) { await w(500); i++; }
+      } catch (e) { if (e !== 'jump') throw e; }
     }
   })();
 })();
