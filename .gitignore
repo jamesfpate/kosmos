@@ -46,3 +46,4 @@ app.*.map.json
 
 # Feature notes (local only)
 .local/
+site/latest.json

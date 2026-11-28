@@ -913,22 +913,47 @@ class AppState extends ChangeNotifier {
     return (copied: copied, failed: failed);
   }
 
-  /// Desktop: a newer release found on GitHub (checked at most once a day, in the background).
+  /// Desktop: a newer release (from the website's latest.json, or GitHub), checked at most once a day in the background.
   Update? update;
+
+  /// While an update downloads: how far along (0..1).
+  double? updating;
 
   Future<void> _checkUpdate() async {
     if (!media.desktop || version.contains('dev')) return;
     final now = DateTime.now().millisecondsSinceEpoch;
     final last = (await db.allMeta())['updateCheckedAt'] as num?;
     if (last != null && now - last < 24 * 60 * 60 * 1000) {
-      final known = (await db.allMeta())['updateFound'] as Map?;
-      if (known != null) update = (version: '${known['version']}', url: '${known['url']}');
+      final k = (await db.allMeta())['updateFound'] as Map?;
+      // Still newer than this copy (not the version just installed).
+      if (k != null && isNewer('${k['version']}', version)) {
+        update = (version: '${k['version']}', url: '${k['url']}', sha256: k['sha256'] as String?, page: '${k['page'] ?? k['url']}');
+      }
       return changed();
     }
     update = await checkForUpdate();
     await db.setMeta('updateCheckedAt', now);
-    await db.setMeta('updateFound', update == null ? null : {'version': update!.version, 'url': update!.url});
+    final u = update;
+    await db.setMeta('updateFound', u == null ? null : {'version': u.version, 'url': u.url, 'sha256': u.sha256, 'page': u.page});
     changed();
+  }
+
+  /// Downloads and installs the update, then quits so the new version can take this one's place (it opens itself).
+  Future<void> installUpdateNow() async {
+    final u = update;
+    if (u == null || updating != null) return;
+    updating = 0;
+    changed();
+    try {
+      await installUpdate(u, (p) {
+        updating = p;
+        changed();
+      });
+      exit(0);
+    } finally {
+      updating = null;
+      changed();
+    }
   }
 
   /// Photo info under each photo: one field on or off.

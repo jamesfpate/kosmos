@@ -8,7 +8,7 @@ an album (🔍 searches them all; long-press a photo for full size; everything e
 SFTP, S3, B2, Dropbox, OneDrive).
 
 Albums already in an integration (Immich, PhotoPrism and Synology albums, Apple Photos albums, Android `Pictures/`
-folders, and `YYYY/…` and `Albums/…` folders in file storage) become Winnow albums to file into ("Existing albums" in
+and `DCIM/` folders (Samsung Gallery's albums), and `YYYY/…` and `Albums/…` folders in file storage) become Winnow albums to file into ("Existing albums" in
 each integration's settings, on by default; read at most hourly during sync). Ones never used stay out of the album
 bar unless their dates match the photo ("2024-06 Beach", "2024 Kids school"); search finds them all. Google Photos
 can't list albums it didn't make.
@@ -38,7 +38,7 @@ Apple albums aren't a backup, so Free up space doesn't count them. No keywords/c
 
 ## Desktop (Mac, Windows, Linux)
 Each release also has `winnow-X.Y.Z-mac.zip`, `-windows.zip` and `-linux.tar.gz`. Pick a folder of photos (subfolders
-included; a Mac can review its Photos library instead, see above); swipe or use the keyboard (← delete, → keep, ↓ later, Space play, Z undo, / search albums; in the grid, arrow keys move, Enter selects, Delete deletes, Esc clears; optional Vim keys h/j/k/l, x, u in Settings > General > Keyboard). Winnow checks GitHub once a day and shows an Update button when a newer release is out. Kept photos sync to the same
+included; a Mac can review its Photos library instead, see above); swipe or use the keyboard (← delete, → keep, ↓ later, Space play, Z undo, / search albums; in the grid, arrow keys move, Enter selects, Delete deletes, Esc clears; optional Vim keys h/j/k/l, x, u in Settings > General > Keyboard). Winnow checks for a newer release once a day (the website's `latest.json`, written by the Site workflow after each Desktop build, with each download's SHA-256; GitHub if the site can't be reached); Update downloads it, checks it, and swaps it in place of the running copy and restarts (or opens the download when the app's folder isn't writable). Kept photos sync to the same
 targets as on the phone, while the app is open. Deletes go to the Trash / Recycle Bin. Files stay where they are.
 - Mac: not notarized, so the first launch is blocked. Right-click Winnow.app → Open, or
   `xattr -dr com.apple.quarantine /Applications/Winnow.app`. Thumbnails, dates and HEIC/RAW come from macOS itself.

@@ -1,11 +1,15 @@
 name: Site
 
 # Builds the website (site/) into ghcr.io/jamesfpate/winnow-site. The homelab pulls it at its 03:00 auto-update and
-# serves it at winnow.jamespate.net through the Cloudflare tunnel.
+# serves it at winnow.jamespate.net through the Cloudflare tunnel. Also rebuilt after each Desktop run, so its
+# latest.json (what the desktop app updates itself from: the newest release's downloads and their SHA-256) is current.
 on:
   push:
     branches: [main]
     paths: ['site/**', '.github/workflows/site.yml']
+  workflow_run:
+    workflows: [Desktop]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -17,6 +21,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: latest.json from the newest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rel=$(gh api repos/${{ github.repository }}/releases/latest)
+          tag=$(jq -r .tag_name <<<"$rel")
+          dl() { # platform suffix -> {url, sha256}, or null when the release doesn't have it (yet)
+            url=$(jq -r --arg s "$1" '[.assets[] | select(.name | endswith($s))][0].browser_download_url // empty' <<<"$rel")
+            if [ -z "$url" ]; then echo null; return; fi
+            sum=$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1)
+            jq -n --arg url "$url" --arg sum "$sum" '{url: $url, sha256: $sum}'
+          }
+          jq -n --arg v "${tag#v}" --arg page "$(jq -r .html_url <<<"$rel")" \
+            --argjson mac "$(dl -mac.zip)" --argjson windows "$(dl -windows.zip)" --argjson linux "$(dl -linux.tar.gz)" \
+            '{version: $v, page: $page, downloads: {mac: $mac, windows: $windows, linux: $linux}}' > site/latest.json
+          cat site/latest.json
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io

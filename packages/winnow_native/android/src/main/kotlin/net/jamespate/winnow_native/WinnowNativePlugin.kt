@@ -71,6 +71,8 @@ class WinnowNativePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activ
             "albumEnsure" -> background(result) {
                 val path = folderFor(call.argument<String>("title")!!)
                 val known = call.argument<String>("known")
+                // An album that was already on the phone (DCIM/Hawaii, say) stays where it is under the same name.
+                if (known != null && known.trimEnd('/').substringAfterLast('/') == path.trimEnd('/').substringAfterLast('/')) return@background known
                 // A renamed album: everything in the old folder moves to the new one.
                 if (known != null && known != path) move(idsIn(known), path)
                 path
@@ -145,12 +147,15 @@ class WinnowNativePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activ
     }
 
     /**
-     * Folders directly in Pictures/ that hold photos or videos: the albums gallery apps show, the same kind Winnow
-     * makes. Screenshots and hidden folders are left out. Each with when its first and last photo was taken.
+     * Folders directly in Pictures/ or DCIM/ that hold photos or videos: the albums Samsung Gallery and other gallery
+     * apps show, the same kind Winnow makes. The camera's own folder, screenshots and hidden folders are left out.
+     * Each with when its first and last photo was taken.
      */
-    private fun folderAlbums(): List<Map<String, Any>> {
-        val root = "${android.os.Environment.DIRECTORY_PICTURES}/"
-        val skip = setOf("screenshots", "screen recordings", "screenrecorder")
+    private fun folderAlbums(): List<Map<String, Any>> =
+        listOf(android.os.Environment.DIRECTORY_PICTURES, android.os.Environment.DIRECTORY_DCIM).flatMap { folderAlbums("$it/") }
+
+    private fun folderAlbums(root: String): List<Map<String, Any>> {
+        val skip = setOf("camera", "screenshots", "screen recordings", "screenrecorder", "restored")
         val found = linkedMapOf<String, LongArray>()
         val files = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
         context.contentResolver.query(files,

@@ -13,6 +13,7 @@ import '../fx.dart';
 import '../media.dart' as media;
 import '../models.dart';
 import '../state.dart';
+import '../update.dart';
 import '../version.dart';
 import '../info.dart';
 
@@ -76,13 +77,13 @@ class TopBar extends StatelessWidget {
           on: s.screen == Screen.trash,
           onTap: s.pendingTrash.isEmpty && s.screen != Screen.trash ? null : () => s.toggleScreen(Screen.trash),
         ),
-        // A newer release (desktop): downloads it.
+        // A newer release (desktop): installs it, or opens the download when this copy can't replace itself.
         if (s.update != null)
           Pill(
             icon: Icons.system_update_alt,
-            label: 'Update ${s.update!.version}',
+            label: s.updating != null ? 'Updating ${(s.updating! * 100).round()}%' : 'Update ${s.update!.version}',
             color: C.accent,
-            onTap: () => WinnowNative.openUrl(s.update!.url),
+            onTap: s.updating != null ? null : () => _update(context, s),
           ),
         Pill(icon: Icons.help_outline, onTap: () => showHelp(context)),
         // A small dot when the last sync had an error (details on the integration's page).
@@ -994,4 +995,29 @@ class SourceBar extends StatelessWidget {
         const SizedBox(width: 10),
         Text(text, style: TextStyle(color: on ? C.accent : C.text, fontWeight: on ? FontWeight.w600 : null)),
       ]);
+}
+
+/// Asks, then installs the update in place and restarts; where it can't (a read-only folder, say), opens the download.
+Future<void> _update(BuildContext context, AppState s) async {
+  final u = s.update!;
+  if (!await canInstall(u)) return WinnowNative.openUrl(u.url);
+  if (!context.mounted) return;
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: Text('Update to ${u.version}?'),
+      content: const Text('Winnow downloads the new version, closes, and opens again updated. Your albums and settings stay.'),
+      actions: [
+        TextButton(onPressed: () => WinnowNative.openUrl(u.page), child: const Text("What's new")),
+        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Later')),
+        TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Update')),
+      ],
+    ),
+  );
+  if (go != true) return;
+  try {
+    await s.installUpdateNow();
+  } catch (e) {
+    if (context.mounted) toast(context, "Couldn't update: ${'$e'.replaceFirst('Exception: ', '')}");
+  }
 }
