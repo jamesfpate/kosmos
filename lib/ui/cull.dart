@@ -91,6 +91,16 @@ class _CullScreenState extends State<CullScreen> {
         const SingleActivator(LogicalKeyboardKey.keyZ): undo,
         const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): undo,
         const SingleActivator(LogicalKeyboardKey.keyZ, control: true): undo,
+        if (s.vimKeys) ...{
+          const SingleActivator(LogicalKeyboardKey.keyH): () => fling(Dir.left),
+          const SingleActivator(LogicalKeyboardKey.keyL): () => fling(Dir.right),
+          const SingleActivator(LogicalKeyboardKey.keyJ): later,
+          const SingleActivator(LogicalKeyboardKey.keyU): undo,
+          const SingleActivator(LogicalKeyboardKey.keyK): () {
+            final cur = s.current;
+            if (cur != null) FullView.open(context, s.group, cur);
+          },
+        },
         const SingleActivator(LogicalKeyboardKey.slash): searching.requestFocus,
         const SingleActivator(LogicalKeyboardKey.keyF, meta: true): searching.requestFocus,
         const SingleActivator(LogicalKeyboardKey.keyF, control: true): searching.requestFocus,

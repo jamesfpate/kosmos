@@ -32,7 +32,7 @@ Apple albums aren't a backup, so Free up space doesn't count them. No keywords/c
 
 ## Desktop (Mac, Windows, Linux)
 Each release also has `winnow-X.Y.Z-mac.zip`, `-windows.zip` and `-linux.tar.gz`. Pick a folder of photos (subfolders
-included; a Mac can review its Photos library instead, see above); swipe or use the keyboard (← delete, → keep, ↓ later, Space play, Z undo, / search albums). Kept photos sync to the same
+included; a Mac can review its Photos library instead, see above); swipe or use the keyboard (← delete, → keep, ↓ later, Space play, Z undo, / search albums; in the grid, arrow keys move, Enter selects, Delete deletes, Esc clears; optional Vim keys h/j/k/l, x, u in Settings > General > Keyboard). Winnow checks GitHub once a day and shows an Update button when a newer release is out. Kept photos sync to the same
 targets as on the phone, while the app is open. Deletes go to the Trash / Recycle Bin. Files stay where they are.
 - Mac: not notarized, so the first launch is blocked. Right-click Winnow.app → Open, or
   `xattr -dr com.apple.quarantine /Applications/Winnow.app`. Thumbnails, dates and HEIC/RAW come from macOS itself.

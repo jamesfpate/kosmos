@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../fx.dart';
 import '../immich.dart';
@@ -41,13 +42,124 @@ class _GridScreenState extends State<GridScreen> {
   final _pointers = <int, Offset>{};
   double? _pinchBase;
   final searching = FocusNode();
+  final _scroll = ScrollController();
+
+  /// The photo the keyboard is on (a white ring), and the grid as laid out last: rows with each photo's centre.
+  String? _cursor;
+  var _rows = <({double top, double h, List<({String id, double cx})> cells})>[];
 
   AppState get s => widget.s;
 
   @override
   void dispose() {
     searching.dispose();
+    _scroll.dispose();
     super.dispose();
+  }
+
+  static const _headerH = 40.0;
+
+  /// Remembers where each photo sits, so ↑/↓ can find the one above or below and the view can follow the ring.
+  void _remember(List<_Entry> entries) {
+    var y = 0.0;
+    final rows = <({double top, double h, List<({String id, double cx})> cells})>[];
+    for (final e in entries) {
+      switch (e) {
+        case _Header():
+          y += _headerH;
+        case _Row(:final h, :final items):
+          var x = 0.0;
+          final cells = <({String id, double cx})>[];
+          for (final i in items) {
+            final w = i.aspect * h;
+            cells.add((id: i.id, cx: x + w / 2));
+            x += w + 3;
+          }
+          rows.add((top: y, h: h, cells: cells));
+          y += h + 3;
+      }
+    }
+    _rows = rows;
+  }
+
+  /// Arrow keys (and h/j/k/l with Vim keys) move the ring; Enter, Space or x selects; Delete deletes the selection;
+  /// Esc clears it. Ignored while typing in the album search.
+  KeyEventResult _key(FocusNode _, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+    if (searching.hasFocus || _rows.isEmpty) return KeyEventResult.ignored;
+    final k = e.logicalKey, vim = s.vimKeys;
+    bool hit(LogicalKeyboardKey arrow, LogicalKeyboardKey letter) => k == arrow || (vim && k == letter);
+    if (hit(LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.keyH)) return _move(0, -1);
+    if (hit(LogicalKeyboardKey.arrowRight, LogicalKeyboardKey.keyL)) return _move(0, 1);
+    if (hit(LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.keyK)) return _move(-1, 0);
+    if (hit(LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.keyJ)) return _move(1, 0);
+    if (k == LogicalKeyboardKey.enter || k == LogicalKeyboardKey.space || (vim && k == LogicalKeyboardKey.keyX)) {
+      if (_cursor == null) return _move(0, 0);
+      s.toggleGrid(_cursor!);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.escape && s.gridSel.isNotEmpty) {
+      s.clearGrid();
+      return KeyEventResult.handled;
+    }
+    if ((k == LogicalKeyboardKey.delete || k == LogicalKeyboardKey.backspace) && s.gridSel.isNotEmpty) {
+      s.fileGrid(null);
+      return KeyEventResult.handled;
+    }
+    if (vim && k == LogicalKeyboardKey.keyU && s.undoStack.isNotEmpty) {
+      s.undo();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  KeyEventResult _move(int dRow, int dCol) {
+    var r = 0, c = 0;
+    final at = _cursor == null ? null : _where(_cursor!);
+    if (at != null) {
+      (r, c) = at;
+      if (dCol != 0) {
+        // Left/right run on through the rows, in the grid's order.
+        c += dCol;
+        if (c < 0 && r > 0) {
+          r--;
+          c = _rows[r].cells.length - 1;
+        } else if (c >= _rows[r].cells.length && r < _rows.length - 1) {
+          r++;
+          c = 0;
+        }
+        c = c.clamp(0, _rows[r].cells.length - 1);
+      } else if (dRow != 0) {
+        // Up/down: the photo in the next row whose centre is nearest.
+        final cx = _rows[r].cells[c].cx;
+        r = (r + dRow).clamp(0, _rows.length - 1);
+        final cells = _rows[r].cells;
+        c = 0;
+        for (var j = 1; j < cells.length; j++) {
+          if ((cells[j].cx - cx).abs() < (cells[c].cx - cx).abs()) c = j;
+        }
+      }
+    }
+    setState(() => _cursor = _rows[r].cells[c].id);
+    _follow(_rows[r]);
+    return KeyEventResult.handled;
+  }
+
+  (int, int)? _where(String id) {
+    for (final (r, row) in _rows.indexed) {
+      for (final (c, cell) in row.cells.indexed) {
+        if (cell.id == id) return (r, c);
+      }
+    }
+    return null;
+  }
+
+  /// Scrolls just enough to show the row with the ring.
+  void _follow(({double top, double h, List<({String id, double cx})> cells}) row) {
+    if (!_scroll.hasClients) return;
+    final p = _scroll.position, top = row.top - _headerH, bottom = row.top + row.h + 8;
+    final to = top < p.pixels ? top : (bottom > p.pixels + p.viewportDimension ? bottom - p.viewportDimension : null);
+    if (to != null) _scroll.animateTo(to.clamp(0, p.maxScrollExtent), duration: const Duration(milliseconds: 120), curve: Curves.easeOut);
   }
 
   List<_Entry> _entries(double width) {
@@ -95,7 +207,10 @@ class _GridScreenState extends State<GridScreen> {
         Expanded(child: RemoteExplorer(s, key: ValueKey(s.gridView), view: s.gridView)),
       ]);
     }
-    return Column(children: [
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _key,
+      child: Column(children: [
       TopBar(
         s,
         title: const Logo(tap: true),
@@ -151,10 +266,14 @@ class _GridScreenState extends State<GridScreen> {
                 onPointerCancel: (e) => _lift(e.pointer),
                 child: LayoutBuilder(builder: (context, box) {
                   final entries = _entries(box.maxWidth);
+                  _remember(entries);
                   return ListView.builder(
+                    controller: _scroll,
                     itemCount: entries.length,
                     itemBuilder: (context, i) => switch (entries[i]) {
-                      _Header(:final items) => s.byAlbum ? _albumHeader(items) : _monthHeader(items),
+                      // A fixed height, so the keyboard ring can work out where each row is.
+                      _Header(:final items) => SizedBox(
+                          height: _headerH, child: s.byAlbum ? _albumHeader(items) : _monthHeader(items)),
                       _Row(:final h, :final items) => Padding(
                           padding: const EdgeInsets.only(bottom: 3),
                           child: Row(children: [
@@ -195,7 +314,8 @@ class _GridScreenState extends State<GridScreen> {
               onTap: sel.isEmpty || target == null ? null : () => s.fileGrid(target.monthly ? monthAlbumId : target.id)),
         ),
       ]),
-    ]);
+    ]),
+    );
   }
 
   /// Which photos the grid shows: Unreviewed, All, or one album (an explorer; selecting + an album moves them).
@@ -394,6 +514,14 @@ class _GridScreenState extends State<GridScreen> {
           if (checked || doomed)
             IgnorePointer(
               child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: checked ? C.select : C.trash, width: 3))),
+            ),
+          // The keyboard's place: a white ring (inside any selection border).
+          if (item.id == _cursor)
+            IgnorePointer(
+              child: Padding(
+                padding: EdgeInsets.all(checked || doomed ? 3 : 0),
+                child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: C.text, width: 2))),
+              ),
             ),
         ])),
       ),

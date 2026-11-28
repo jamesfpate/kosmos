@@ -17,6 +17,7 @@ import 'models.dart';
 import 'store.dart';
 import 'stores.dart';
 import 'support.dart';
+import 'update.dart';
 
 enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, store, google, error }
 
@@ -195,6 +196,7 @@ class AppState extends ChangeNotifier {
       }
       screen = cutoff == null ? Screen.start : mode;
       changed();
+      _checkUpdate();
       support.start(() {
         if (!supporter) {
           supporter = true;
@@ -220,6 +222,7 @@ class AppState extends ChangeNotifier {
     gridAutoTrash = (m['gridAutoTrash'] as bool?) ?? false;
     newestFirst = (m['newestFirst'] as bool?) ?? false;
     supporter = (m['supporter'] as bool?) ?? false;
+    vimKeys = (m['vimKeys'] as bool?) ?? false;
     animations = (m['animations'] as bool?) ?? true;
     gridFrac = (m['gridFrac'] as num?)?.toDouble() ?? 0.4;
     thumbH = (m['thumbH'] as num?)?.toDouble() ?? 150;
@@ -690,6 +693,32 @@ class AppState extends ChangeNotifier {
     changed();
     await Future<void>.delayed(Motion.total);
     fx = {};
+  }
+
+  /// Desktop: a newer release found on GitHub (checked at most once a day, in the background).
+  Update? update;
+
+  Future<void> _checkUpdate() async {
+    if (!media.desktop) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final last = (await db.allMeta())['updateCheckedAt'] as num?;
+    if (last != null && now - last < 24 * 60 * 60 * 1000) {
+      final known = (await db.allMeta())['updateFound'] as Map?;
+      if (known != null) update = (version: '${known['version']}', url: '${known['url']}');
+      return changed();
+    }
+    update = await checkForUpdate();
+    await db.setMeta('updateCheckedAt', now);
+    await db.setMeta('updateFound', update == null ? null : {'version': update!.version, 'url': update!.url});
+    changed();
+  }
+
+  /// Desktop: h/j/k/l (and x, u) alongside the arrow keys.
+  bool vimKeys = false;
+
+  Future<void> setVimKeys(bool on) {
+    vimKeys = on;
+    return _set('vimKeys', on);
   }
 
   Future<void> setAnimations(bool on) {

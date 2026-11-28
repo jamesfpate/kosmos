@@ -190,6 +190,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 6),
             Btn('Merge ${s.monthAlbumCount} month album${s.monthAlbumCount == 1 ? '' : 's'} into years', onTap: _merge),
           ],
+          if (media.desktop) ...[
+            _h3('Keyboard'),
+            _p(s.vimKeys
+                ? 'Vim keys on. One photo: h delete, l keep, j later, k full size, u undo. Grid: h j k l move, x or Enter selects, u undo. Arrow keys work too.'
+                : 'One photo: ← delete, → keep, ↓ later, Space play, Z undo, / search albums. Grid: arrow keys move, Enter or Space selects, Delete deletes the selection, Esc clears it.'),
+            Choices(options: const [(false, 'Arrow keys'), (true, 'Arrows + Vim (h j k l)')], value: s.vimKeys, onPick: s.setVimKeys),
+          ],
           _h3('Keep / delete animation'),
           _p('The outlines in the photo trace up (keep) or down (delete); deleted photos fade out. Off: decisions are instant.'),
           Choices(options: const [(true, 'On'), (false, 'Off')], value: s.animations, onPick: s.setAnimations),

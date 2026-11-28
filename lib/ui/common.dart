@@ -75,6 +75,14 @@ class TopBar extends StatelessWidget {
           on: s.screen == Screen.trash,
           onTap: s.pendingTrash.isEmpty && s.screen != Screen.trash ? null : () => s.toggleScreen(Screen.trash),
         ),
+        // A newer release (desktop): downloads it.
+        if (s.update != null)
+          Pill(
+            icon: Icons.system_update_alt,
+            label: 'Update ${s.update!.version}',
+            color: C.accent,
+            onTap: () => WinnowNative.openUrl(s.update!.url),
+          ),
         Pill(icon: Icons.help_outline, onTap: () => showHelp(context)),
         // A small dot when the last sync had an error (details on the integration's page).
         Pill(
