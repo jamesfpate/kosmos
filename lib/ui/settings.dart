@@ -211,7 +211,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onPressed: () => s.removeFolder(f),
                 ),
               ),
-            Btn('Add folder', icon: Icons.create_new_folder_outlined, onTap: () => pickFolder(s)),
+            Btn('Add folder', icon: Icons.create_new_folder_outlined, onTap: () => pickFolder(s, context)),
           ],
           // Apple's library has no folders.
           if (!media.appleLibrary) _h3(media.useFolders ? 'Subfolders' : 'Folders'),

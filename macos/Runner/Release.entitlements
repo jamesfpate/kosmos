@@ -5,5 +5,7 @@
 	<!-- No sandbox: Winnow reads and trashes photos in any folder the user picks, and is distributed outside the App Store. -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
 </dict>
 </plist>

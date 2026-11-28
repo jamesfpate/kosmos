@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:fvp/fvp.dart' as fvp;
@@ -21,6 +24,9 @@ void main() {
     'platforms': ['windows', 'linux'],
   });
   initBackground();
+  // The Mac app isn't sandboxed (it opens any folder chosen), but file_picker checks for the sandbox's file
+  // entitlements anyway and refuses to open its dialogs without them: skip that check.
+  if (Platform.isMacOS) FilePicker.skipEntitlementsChecks();
   runApp(const WinnowApp());
 }
 

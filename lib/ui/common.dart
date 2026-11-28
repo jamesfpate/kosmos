@@ -693,9 +693,14 @@ void toast(BuildContext context, String text) =>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
 
 /// Asks for a folder of photos to review (on a computer).
-Future<void> pickFolder(AppState s) async {
-  final dir = await FilePicker.pickDirectory(dialogTitle: 'Folder of photos to review');
-  if (dir != null) await s.addFolder(dir.isScheme('file') ? dir.toFilePath() : dir.path);
+Future<void> pickFolder(AppState s, [BuildContext? context]) async {
+  try {
+    final dir = await FilePicker.pickDirectory(dialogTitle: 'Folder of photos to review');
+    if (dir != null) await s.addFolder(dir.isScheme('file') ? dir.toFilePath() : dir.path);
+  } catch (e) {
+    // Never a silent button: say what went wrong.
+    if (context != null && context.mounted) toast(context, "Couldn't open the folder picker: $e");
+  }
 }
 
 /// Pages follow a mouse drag too (Flutter's default is touch only).

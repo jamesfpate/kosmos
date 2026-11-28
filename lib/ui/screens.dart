@@ -52,7 +52,7 @@ class AccessScreen extends StatelessWidget {
         const Text('Choose a folder of photos and videos to sort. Winnow looks in its subfolders too. Nothing is '
             'uploaded unless you turn on an upload.'),
         const SizedBox(height: 12),
-        Btn('Choose folder', bold: true, color: C.bg, bg: C.accent, onTap: () => pickFolder(s)),
+        Btn('Choose folder', bold: true, color: C.bg, bg: C.accent, onTap: () => pickFolder(s, context)),
         ...other,
       ]);
     }
