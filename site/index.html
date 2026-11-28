@@ -132,6 +132,25 @@
   .phone .burstbig { width: 100%; flex: 1; aspect-ratio: auto; background-size: cover; }
   .phone .bthumbs { grid-template-columns: repeat(3, 1fr); }
   .handle { align-self: center; width: 34px; height: 4px; border-radius: 3px; background: var(--line); }
+  /* The settings slide: the Integrations part of Winnow's settings screen. */
+  .ui .stitle { font-weight: 700; font-size: 11px; }
+  .ui .rt i.gon { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .ui .sjump { display: flex; gap: 4px; overflow: hidden; }
+  .ui .sjump span { border: 1px solid var(--line); border-radius: 7px; padding: 3px 7px; background: var(--surface); white-space: nowrap; }
+  .ui .sjump span.on { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 700; }
+  .ui .sh { margin-top: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--line); color: var(--accent); font-size: 8px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .ui .sp { color: var(--muted); }
+  .ui .srows { display: flex; flex-direction: column; }
+  .phone #h-set .srows { flex: 1; justify-content: space-around; }
+  .phone #h-set .schoice { margin-bottom: 8px; }
+  .ui .srow { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+  .ui .srow em { font-style: normal; color: var(--muted); font-size: 9px; transition: color .3s; }
+  .ui .srow em::after { content: " ›"; }
+  .ui .srow em.busy { color: var(--accent); }
+  .ui .sh3 { font-weight: 700; margin-top: 4px; }
+  .ui .schoice { display: flex; gap: 4px; }
+  .ui .schoice span { border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px; background: var(--surface); }
+  .ui .schoice span.on { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 700; }
   .modes { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
   .modes button { font: inherit; font-size: 14px; color: var(--muted); background: none; border: 0; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
   .modes button.on { background: var(--accent); color: var(--bg); font-weight: 600; }
@@ -306,8 +325,17 @@
           <div class="tiles"></div>
           <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
+        <div class="slide ui" id="h-set" data-name="settings">
+          <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span class="stitle">Settings</span></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i class="gon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="sjump"><span>General</span><span>Single</span><span>Grid</span><span class="on">Integrations</span><span>Backup</span></div>
+          <div class="sh">Integrations</div>
+          <div class="sp">Upload kept photos with their albums.</div>
+          <div class="srows"><div class="srow"><span>Immich</span><em id="i-im">12 to upload</em></div><div class="srow"><span>Google Photos</span><em id="i-gp">Off</em></div><div class="srow"><span>Phone albums (folders)</span><em id="i-pa">Up to date</em></div><div class="srow"><span>PhotoPrism</span><em>Off</em></div><div class="srow"><span>Synology Photos</span><em>Off</em></div><div class="srow"><span>Nextcloud / ownCloud</span><em id="i-nc">3 to upload</em></div><div class="srow"><span>SFTP (NAS or server)</span><em>Off</em></div><div class="srow"><span>OneDrive</span><em>Off</em></div><div class="srow"><span>Dropbox</span><em>Off</em></div><div class="srow"><span>S3-compatible storage</span><em>Off</em></div><div class="srow"><span>Backblaze B2</span><em id="i-b2">Up to date</em></div></div>
+          <div class="sh3">Free up space</div>
+          <div class="schoice"><span>Off</span><span class="on">After backup</span><span>Keep last 30 days</span></div>
+        </div>
       </div>
-      <div class="modes" role="tablist"><button data-to="single" class="on">Single</button><button data-to="grid">Grid</button><button data-to="gallery">Gallery</button></div>
+      <div class="modes" role="tablist"><button data-to="single" class="on">Single</button><button data-to="grid">Grid</button><button data-to="gallery">Gallery</button><button data-to="settings">Settings</button></div>
     </div>
   </div>
 
@@ -971,7 +999,7 @@ const Trace = (() => {
 // best of a run, the gaps go), Gallery (move photos into an album). The tabs jump between them.
 (() => {
   const D = window.Demo, still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const order = ['single', 'grid', 'gallery'];
+  const order = ['single', 'grid', 'gallery', 'settings'];
   const slides = Object.fromEntries([...document.querySelectorAll('.phone .slide')].map(x => [x.dataset.name, x]));
   const tabs = [...document.querySelectorAll('.modes button')];
   const undo = '<span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span>';
@@ -1052,7 +1080,24 @@ const Trace = (() => {
     await w(1400);
   }
 
-  const play = { single, grid, gallery };
+  // Settings: the integrations, uploads counting down to "Up to date" on each one that's on.
+  async function settings() {
+    const el = slides.settings;
+    const im = el.querySelector('#i-im'), nc = el.querySelector('#i-nc');
+    let a = 12, b = 3;
+    im.textContent = `${a} to upload`; nc.textContent = `${b} to upload`;
+    im.classList.add('busy'); nc.classList.add('busy');
+    await w(900);
+    while (a > 0 || b > 0) {
+      if (a > 0) a--; if (b > 0 && a % 4 === 0) b--;
+      im.textContent = a ? `${a} to upload` : 'Up to date'; nc.textContent = b ? `${b} to upload` : 'Up to date';
+      if (!a) im.classList.remove('busy'); if (!b) nc.classList.remove('busy');
+      await w(260);
+    }
+    await w(1800);
+  }
+
+  const play = { single, grid, gallery, settings };
   if (still) { show('single'); return; }
   (async () => {
     let i = 0;
