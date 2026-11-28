@@ -3,7 +3,7 @@
 Website: https://winnow.jamespate.net (alpha).
 
 App for culling photos before they're backed up (Android, iPhone, Mac, Windows, Linux): swipe to delete or file into
-an album (🔍 searches them all; long-press a photo for full size; everything else goes to the year's catch-all album, or the month's if set), review bursts together, file older photos in a grid, browse the library by album (moving whole albums), and upload only what was kept to
+an album (🔍 searches them all; long-press a photo for full size; everything else goes to the year's catch-all album, or the month's if set), review bursts together, file older photos in a grid, browse the library by album (moving whole albums), find duplicates (exact copies and similar shots), and upload only what was kept to
 [Immich](https://immich.app), Google Photos (Android), PhotoPrism, Synology Photos or file storage (Nextcloud/WebDAV,
 SFTP, S3, B2, Dropbox, OneDrive).
 
@@ -38,6 +38,9 @@ targets as on the phone, while the app is open. Deletes go to the Trash / Recycl
   `xattr -dr com.apple.quarantine /Applications/Winnow.app`. Thumbnails, dates and HEIC/RAW come from macOS itself.
 - Windows / Linux: JPEG/PNG/WebP previews only (no HEIC), no video thumbnails. Linux needs `gio` (or uses
   ~/.local/share/Trash) and zenity/kdialog for the folder picker.
+- Memory cards: a card (any drive with a DCIM folder) shows up in the source picker as soon as it's plugged in. Reviewing
+  it imports the keepers into the import folder (Settings > General; ~/Pictures/Winnow to start) by album, checked,
+  with their albums carried over; nothing syncs from the card itself. "Safe to format" once all are imported.
 - Not on desktop: Google Photos (its sign-in needs Play Services), background upload.
 
 ## Develop

@@ -22,6 +22,7 @@ import 'update.dart';
 import 'version.dart';
 import 'info.dart';
 import 'folders.dart';
+import 'dupes.dart';
 
 enum Screen { loading, access, start, cull, grid, explore, trash, settings, immich, store, google, error }
 
@@ -703,6 +704,59 @@ class AppState extends ChangeNotifier {
     fx = {};
   }
 
+  // ---------------------------------------------------------------- duplicates
+
+  /// The last scan's groups (null: not scanned yet), and progress while scanning.
+  List<DupGroup>? dupGroups;
+  bool dupScanning = false;
+  int dupDone = 0, dupTotal = 0;
+
+  /// Fingerprints every photo not deleted (cached, so a second scan is quick) and groups the duplicates.
+  Future<void> scanDuplicates() async {
+    if (dupScanning) return;
+    dupScanning = true;
+    final candidates = [
+      for (final i in items)
+        if (shown(i) && decided[i.id]?.decision != Decision.trash && decided[i.id]?.decision != Decision.pendingTrash) i,
+    ];
+    dupDone = 0;
+    dupTotal = candidates.length;
+    changed();
+    final cached = {for (final j in await db.all('prints')) '${j['id']}': j};
+    final prints = <Item, Prints>{};
+    final fresh = <String, Object?>{};
+    for (final i in candidates) {
+      final c = cached[i.id];
+      var pr = c == null || c['v'] != Prints.version ? null : Prints.fromJson(c);
+      if (pr == null) {
+        pr = await printsFor(i);
+        if (pr != null) fresh[i.id] = {'id': i.id, ...pr.toJson()};
+      }
+      if (pr != null) prints[i] = pr;
+      if (++dupDone % 25 == 0) {
+        notifyListeners();
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    if (fresh.isNotEmpty) await db.putAll('prints', fresh);
+    dupGroups = groupDuplicates(prints);
+    dupScanning = false;
+    changed();
+  }
+
+  /// Deletes the duplicates not kept (to the trash, for review like any other delete; undoable).
+  Future<void> dropDuplicates(List<Item> drop) async {
+    if (drop.isEmpty) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _commit(drop, [for (final i in drop) DecisionRecord(id: i.id, decision: Decision.pendingTrash, decidedAt: now)]);
+    final gone = {for (final i in drop) i.id};
+    dupGroups = [
+      for (final g in dupGroups ?? const <DupGroup>[])
+        if (g.items.where((i) => !gone.contains(i.id)).length > 1) (items: g.items.where((i) => !gone.contains(i.id)).toList(), exact: g.exact),
+    ];
+    changed();
+  }
+
   // ---------------------------------------------------------------- memory cards (desktop)
 
   /// Cards plugged in (checked every few seconds), and the one being reviewed (null: the usual folders or library).
@@ -811,6 +865,8 @@ class AppState extends ChangeNotifier {
             final part = File('$dest.part');
             await from.copy(part.path);
             if (await part.length() != size) throw Exception('copy incomplete');
+            // Keep the original's time: files without a date inside are dated by it.
+            await part.setLastModified(await from.lastModified());
             await part.rename(dest);
           }
           records[dest] = DecisionRecord(id: dest, decision: Decision.keep, decidedAt: now, albumId: albumId).toJson();
@@ -956,6 +1012,7 @@ class AppState extends ChangeNotifier {
           'unreviewed' => _unreviewed(i),
           'all' => d == null || d.decision == Decision.keep,
           'reviewed' => d?.decision == Decision.keep && d?.albumId != null,
+          'duplicates' => false,
           _ => d?.decision == Decision.keep && d?.albumId == gridView,
         };
       }).toList();

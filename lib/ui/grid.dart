@@ -11,6 +11,7 @@ import '../remote.dart';
 import '../state.dart';
 import 'album_sheet.dart';
 import 'common.dart';
+import 'dupes.dart';
 import 'remote.dart';
 
 /// Grid mode: every photo without an album, by month, in justified rows. Built lazily, so only rows near the screen
@@ -224,6 +225,15 @@ class _GridScreenState extends State<GridScreen> {
     final doomed = s.gridDoomed;
     final months = s.gridMonthsChosen.length;
     String chipLabel(Album a) => a.monthly && months > 1 ? '${s.byYear ? 'By year' : 'By month'} ($months)' : albumTitle(a);
+    if (s.screen == Screen.explore && s.gridView == 'duplicates') {
+      return Column(children: [
+        TopBar(s, title: const Logo(tap: true), subtitle: const Text('Duplicates')),
+        SourceBar(s),
+        _viewBar(context),
+        const SizedBox(height: 6),
+        Expanded(child: DuplicatesView(s)),
+      ]);
+    }
     if (s.screen == Screen.explore && isImmichView(s.gridView)) {
       return Column(children: [
         TopBar(s, title: const Logo(tap: true), subtitle: const Text('Immich')),
@@ -367,6 +377,7 @@ class _GridScreenState extends State<GridScreen> {
       child: ListView(scrollDirection: Axis.horizontal, children: [
         chip('All on ${media.device}', view == 'all', () => s.setGridView('all')),
         chip('Reviewed', view == 'reviewed', () => s.setGridView('reviewed')),
+        chip('Duplicates', view == 'duplicates', () => s.setGridView('duplicates')),
         chip(album == null ? 'Albums ▾' : '${albumTitle(album)} ▾', album != null, () => _pickAlbum(context)),
         if (s.immich.ready)
           chip(isImmichView(view) ? '${_immichLabel(view)} ▾' : 'Immich ▾', isImmichView(view), () => _pickImmich(context)),
