@@ -309,6 +309,7 @@
   .dl a:hover { border-color: var(--accent); }
   .dl b { display: block; font-size: 16px; }
   .dl span { color: var(--muted); font-size: 14px; }
+  .dl u { color: var(--accent); cursor: pointer; }
   #version { color: var(--muted); font-size: 14px; margin: -10px 0 18px; }
 
 
@@ -360,8 +361,10 @@
         <a href="#backup"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 1 1 1.6-9.7A6 6 0 0 1 20 11a3.5 3.5 0 0 1-1 7"/><path d="M12 21v-8m0 0-3 3m3-3 3 3"/></svg></span><b>Back up only keepers</b><span>To Immich, Google Photos or your own storage. Deleted photos never go up.</span></a>
       </div>
       <div class="buttons">
-        <a class="btn primary" href="#download">Download</a>
+        <a class="btn primary" id="get" href="#download">Download</a>
+        <a class="btn" id="others" href="#download" hidden>Other platforms</a>
       </div>
+      <p class="fine" id="obt" hidden>No Obtainium yet? <a href="https://github.com/ImranR98/Obtainium/releases/latest">Get Obtainium</a> first, then tap again.</p>
       <p class="fine">Free. No ads, no tracking, no account. Your photos go only where you send them.</p>
     </div>
 
@@ -635,12 +638,11 @@
       <div class="mini"><div class="ui mscreen"><div class="card"><div class="ph" style="background-image:url(img/h/49.jpg)"></div><span class="cap">Sat, Jul 12, 2026 · 3:02 PM</span></div></div></div>
     </div>
     <div class="dl">
-      <a id="dl-android" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Android</b><span>APK · Android 11+</span></a>
-      <a href="https://github.com/ImranR98/Obtainium"><b>Android, auto-updating</b><span>Obtainium: add github.com/jamesfpate/winnow</span></a>
-      <a id="dl-mac" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Mac</b><span>Folders or the Photos library</span></a>
-      <a id="dl-windows" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Windows</b><span>Zip, review any folder</span></a>
-      <a id="dl-linux" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Linux</b><span>tar.gz, review any folder</span></a>
-      <a id="dl-iphone" href="https://github.com/jamesfpate/winnow/releases/latest"><b>iPhone</b><span>Early: sideload with AltStore or Sideloadly</span></a>
+      <a id="dl-android" data-os="android" href="obtainium://add/https://github.com/jamesfpate/winnow"><b>Android</b><span>With Obtainium, which keeps it updated. Android 11+. <u data-href="https://github.com/ImranR98/Obtainium/releases/latest">No Obtainium yet?</u></span></a>
+      <a id="dl-mac" data-os="mac" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Mac</b><span>Folders or the Photos library</span></a>
+      <a id="dl-windows" data-os="windows" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Windows</b><span>Zip, review any folder</span></a>
+      <a id="dl-linux" data-os="linux" href="https://github.com/jamesfpate/winnow/releases/latest"><b>Linux</b><span>tar.gz, review any folder</span></a>
+      <a id="dl-iphone" data-os="iphone" href="https://github.com/jamesfpate/winnow/releases/latest"><b>iPhone</b><span>Early: sideload with AltStore or Sideloadly</span></a>
     </div>
     <p class="fine">Everything is free. If Winnow saves you time, <a href="https://github.com/sponsors/jamesfpate">sponsor it</a> or buy the Supporter thank-you in the Play Store version; neither unlocks anything.
       The source is on <a href="https://github.com/jamesfpate/winnow">GitHub</a> under the Functional Source License: free to use, change and share, not to resell, and Apache 2.0 two years after each release.</p>
@@ -664,7 +666,7 @@ fetch('https://api.github.com/repos/jamesfpate/winnow/releases/latest')
     document.getElementById('version').textContent = 'Latest release: ' + rel.tag_name;
     const find = re => (rel.assets.find(a => re.test(a.name)) || {}).browser_download_url;
     const set = (id, re) => { const u = find(re); if (u) document.getElementById(id).href = u; };
-    set('dl-android', /\.apk$/); set('dl-mac', /-mac\.zip$/);
+    set('dl-mac', /-mac\.zip$/);
     set('dl-windows', /-windows\.zip$/); set('dl-linux', /-linux\.tar\.gz$/); set('dl-iphone', /\.ipa$/);
   })
   .catch(() => {});
@@ -1244,6 +1246,25 @@ const Flow = (() => {
     el.querySelector('.free').textContent = 'Freed 5 photos';
     await w(2200);
   });
+})();
+
+// The visitor's platform: the hero button downloads for it (Android: through Obtainium), and its card comes first.
+(() => {
+  const ua = navigator.userAgent, touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+  const os = /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/.test(ua) || touchMac ? 'iphone'
+    : /Mac/.test(ua) ? 'mac' : /Win/.test(ua) ? 'windows' : /Linux|X11/.test(ua) ? 'linux' : null;
+  // The "No Obtainium yet?" note inside the Android card opens Obtainium's releases, not the card's own link.
+  document.querySelectorAll('u[data-href]').forEach(u => u.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); location.href = u.dataset.href; }));
+  if (!os) return;
+  const card = document.querySelector(`.dl [data-os="${os}"]`);
+  card?.parentElement.prepend(card);
+  const get = document.getElementById('get'), name = { android: 'Android', iphone: 'iPhone', mac: 'Mac', windows: 'Windows', linux: 'Linux' }[os];
+  get.textContent = os === 'android' ? 'Get it with Obtainium' : `Download for ${name}`;
+  const follow = () => { get.href = card.href; };
+  follow();
+  new MutationObserver(follow).observe(card, { attributes: true, attributeFilter: ['href'] }); // when the release link arrives
+  document.getElementById('others').hidden = false;
+  if (os === 'android') document.getElementById('obt').hidden = false;
 })();
 
 // Download: a few photos in the computer's gallery.
