@@ -243,7 +243,10 @@
     background: radial-gradient(320px circle at var(--mx, -999px) var(--my, -999px), rgba(219, 234, 254, 1), rgba(96, 165, 250, 0.85) 25%, rgba(37, 99, 235, 0.4) 50%, transparent 75%);
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
     mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    opacity: 0; transition: opacity .25s;
   }
+  /* Only the card under the pointer lights up. */
+  .demo:hover::after, .integration:hover::after, .dl a:hover::after, .flow:hover::after, .core a:hover::after { opacity: 1; }
   @media (hover: none) { .demo::after, .integration::after, .dl a::after, .flow::after, .core a::after { display: none; } }
 
   /* Flow diagrams: a source on the left, destinations on the right, wires between, things travelling along them. */
@@ -257,11 +260,13 @@
   .flow .ftitle { font-size: 13px; font-weight: 700; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .flow .ftitle i { font-style: normal; font-size: 11px; color: var(--accent); font-weight: 600; }
   .flow .ftitle small { color: var(--keep); font-weight: 600; }
-  .flow .fphoto { aspect-ratio: 4 / 3; border-radius: 8px; background: #222 center / cover; transition: transform .3s, opacity .3s; }
+  .flow .fphoto { height: 210px; border-radius: 8px; background: #222 center / cover; transition: transform .3s, opacity .3s; }
   .flow .fchip { align-self: flex-start; font-size: 12px; padding: 5px 11px; border-radius: 999px; background: var(--keep); color: var(--bg); font-weight: 700; transition: transform .2s; }
   .flow .fchip b { color: var(--bg); }
-  .flow .drow { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: var(--muted); }
+  .flow .drow { display: flex; align-items: center; gap: 8px; margin-top: 6px; height: 28px; font-size: 13px; color: var(--muted); }
   .flow .drow b { color: var(--text); font-weight: 600; }
+  /* One line per destination whatever the album is called, so a rename never changes the diagram's height. */
+  .flow .drow > span:not(.dthumb) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .flow .drow small { font-size: 11px; }
   .flow .dthumb { width: 28px; height: 28px; border-radius: 5px; background: #222 center / cover; flex: none; }
   .flow .cnt { margin-left: auto; font-style: normal; font-size: 12px; color: var(--muted); min-width: 22px; text-align: right; }
@@ -276,7 +281,8 @@
   .flow .ptiles div.ok::after { content: "✓"; position: absolute; right: 3px; bottom: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--keep); color: var(--bg); font-size: 10px; font-weight: 800; display: grid; place-items: center; }
   .flow .ptiles div.freed { opacity: 0; transform: scale(0.8); transition: opacity .6s, transform .6s; }
   .flow .mtiles { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin-top: 8px; min-height: 22px; }
-  .flow .mtiles div { aspect-ratio: 1; border-radius: 3px; background: #222 center / cover; animation: land .35s ease-out; }
+  .flow .mtiles div { aspect-ratio: 1; border-radius: 3px; border: 1px dashed var(--line); }
+  .flow .mtiles div.in { border: 0; background: #222 center / cover; animation: land .35s ease-out; }
   @keyframes land { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
   .flow .dest .status { position: absolute; top: 12px; right: 12px; }
   @media (max-width: 820px) { .flow { grid-template-columns: 1fr; gap: 28px; } }
@@ -392,7 +398,7 @@
           <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
         <div class="slide ui" id="h-set" data-name="settings">
-          <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span class="stitle">Settings</span></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i class="gon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
+          <div class="tb"><div class="seg"><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="4" width="10" height="16" rx="2"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></i><i class=""><svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><path d="m9 15 4-5 3 4 2-2 3 3"/></svg></i></div><div class="wm"><span class="stitle">Integrations</span></div><div class="rt"><i><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13"/></svg><em>0</em></i><i class="gon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M4.9 19.1 7 17m10-10 2.1-2.1"/></svg></i></div></div>
           <div class="sjump"><span>General</span><span>Single</span><span>Grid</span><span class="on">Integrations</span><span>Backup</span></div>
           <div class="sh">Integrations</div>
           <div class="sp">Upload kept photos with their albums.</div>
@@ -401,7 +407,7 @@
           <div class="schoice"><span>Off</span><span class="on">After backup</span><span>Keep last 30 days</span></div>
         </div>
       </div>
-      <div class="modes" role="tablist"><button data-to="single" class="on">Single</button><button data-to="grid">Grid</button><button data-to="gallery">Gallery</button><button data-to="settings">Settings</button></div>
+      <div class="modes" role="tablist"><button data-to="single" class="on">Single</button><button data-to="grid">Grid</button><button data-to="gallery">Gallery</button><button data-to="settings">Integrations</button></div>
     </div>
   </div>
 
@@ -1198,9 +1204,13 @@ const Flow = (() => {
   const f = Flow.make(document.getElementById('f-bk')), el = f.el, w = Flow.wait;
   const pool = ['10','13','17','49','54','65','74','77','82','92','102','108','110','129','152','163'];
   let start = 0;
+  // The starting state, drawn right away so the diagram has its full height before it first plays.
+  el.querySelector('.ptiles').innerHTML = pool.slice(0, 8).map(id => `<div style="background-image:url(img/t/${id}.jpg)"></div>`).join('');
+  el.querySelectorAll('.mtiles').forEach(m => { m.innerHTML = '<div></div>'.repeat(8); });
   Flow.whenSeen(el, async () => {
     const box = el.querySelector('.ptiles'); box.innerHTML = '';
-    el.querySelectorAll('.mtiles').forEach(m => { m.innerHTML = ''; });
+    // Eight empty slots per backup from the start, so arriving photos never change the diagram's height.
+    el.querySelectorAll('.mtiles').forEach(m => { m.innerHTML = '<div></div>'.repeat(8); });
     el.querySelectorAll('.status').forEach(c => { c.textContent = '0'; });
     el.querySelector('.free').textContent = '';
     const tiles = Array.from({ length: 8 }, (_, i) => {
@@ -1218,9 +1228,10 @@ const Flow = (() => {
       await Promise.all(f.dests.map((d, i) => {
         const dup = i === 1 && k === 0; // Nextcloud already has this one: recognised, not sent again.
         return f.send(i, bg, dup ? 'dup' : '').then(() => {
-          const m = document.createElement('div'); m.style.backgroundImage = bg; d.querySelector('.mtiles').append(m);
-          const c = d.querySelector('.status'); c.textContent = dup ? 'already there ✓' : String(d.querySelectorAll('.mtiles div').length);
-          if (dup) setTimeout(() => { c.textContent = String(d.querySelectorAll('.mtiles div').length); }, 900);
+          const m = d.querySelector('.mtiles div:not(.in)'); if (m) { m.style.backgroundImage = bg; m.classList.add('in'); }
+          const n = () => String(d.querySelectorAll('.mtiles div.in').length);
+          const c = d.querySelector('.status'); c.textContent = dup ? 'already there ✓' : n();
+          if (dup) setTimeout(() => { c.textContent = n(); }, 900);
         });
       }));
     }
