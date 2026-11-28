@@ -559,8 +559,8 @@
       </div>
       <div class="dests">
         <div class="dest"><div class="ftitle">Immich</div><div class="mtiles"></div><em class="cnt status">0</em></div>
-        <div class="dest"><div class="ftitle">Nextcloud</div><div class="mtiles"></div><em class="cnt status">0</em></div>
-        <div class="dest"><div class="ftitle">S3</div><div class="mtiles"></div><em class="cnt status">0</em></div>
+        <div class="dest"><div class="ftitle">Google Photos</div><div class="mtiles"></div><em class="cnt status">0</em></div>
+        <div class="dest"><div class="ftitle">Backblaze B2</div><div class="mtiles"></div><em class="cnt status">0</em></div>
       </div>
     </div>
     <h3 class="mode">Features</h3>
@@ -1226,7 +1226,7 @@ const Flow = (() => {
     for (const [k, t] of kept.entries()) {
       const bg = t.style.backgroundImage;
       await Promise.all(f.dests.map((d, i) => {
-        const dup = i === 1 && k === 0; // Nextcloud already has this one: recognised, not sent again.
+        const dup = i === 2 && k === 0; // B2 already has this one (same checksum): recognised, not sent again.
         return f.send(i, bg, dup ? 'dup' : '').then(() => {
           const m = d.querySelector('.mtiles div:not(.in)'); if (m) { m.style.backgroundImage = bg; m.classList.add('in'); }
           const n = () => String(d.querySelectorAll('.mtiles div.in').length);
