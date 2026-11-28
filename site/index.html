@@ -56,6 +56,7 @@
   h1 span:nth-child(4) { transform: translateY(-0.14em); }
   /* The keep/delete trace: lines drawn over a photo (or the wordmark) on a canvas. */
   canvas.trace { position: absolute; pointer-events: none; z-index: 2; }
+  .alpha { align-self: flex-start; margin-top: 0.4em; padding: 3px 9px; border-radius: 999px; border: 1px solid #FBBF24; color: #FBBF24; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
   .summary { font-size: clamp(20px, 2.4vw, 24px); line-height: 1.35; margin: 0 0 12px; font-weight: 600; max-width: 26em; }
 
   /* Icon on load: the back card swings out from behind, the front card drops in, the W lands last. */
@@ -262,6 +263,7 @@
           <path class="w" fill="var(--bg)" d="M358 430h58l34 150 39-150h44l39 150 34-150h58l-63 215h-58l-32-127-32 127h-58z"/>
         </svg>
         <h1 id="wordmark" aria-label="Winnow"><span>w</span><span>i</span><span class="n">n</span><span class="n">n</span><span>o</span><span>w</span></h1>
+        <span class="alpha" title="Early release: things may change">Alpha</span>
       </div>
       <p class="summary">Review your photos and sync the keepers, sorted into albums, to Immich, Google Photos, Apple Photos or your own storage.</p>
       <p class="lede">Swipe right to keep a photo in an album, left to delete it. Bursts come up together, albums are
