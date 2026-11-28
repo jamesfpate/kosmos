@@ -1,7 +1,7 @@
 # Winnow
 
 App for culling photos before they're backed up (Android, iPhone, Mac, Windows, Linux): swipe to delete or file into
-an album (🔍 searches them all; long-press a photo for full size; everything else goes to the year's catch-all album, or the month's if set), review bursts together, file older photos in a grid, and upload only what was kept to
+an album (🔍 searches them all; long-press a photo for full size; everything else goes to the year's catch-all album, or the month's if set), review bursts together, file older photos in a grid, browse the library by album (moving whole albums), and upload only what was kept to
 [Immich](https://immich.app), Google Photos (Android), PhotoPrism, Synology Photos or file storage (Nextcloud/WebDAV,
 SFTP, S3, B2, Dropbox, OneDrive).
 
@@ -23,6 +23,9 @@ Apple albums aren't a backup, so Free up space doesn't count them. No keywords/c
 - iPhone: each release has `winnow-X.Y.Z-ios-unsigned.ipa`. Install with AltStore or Sideloadly (they sign it with
   your Apple ID; a free Apple ID re-signs every 7 days). TestFlight / App Store need a paid Apple Developer account.
 - Mac: Settings > General > Review: Folders or Photos library.
+- Android equivalent: the "Phone albums (folders)" integration (off by default) moves kept photos into
+  `Pictures/<album>/`, which Samsung Gallery and other galleries show as albums. Moves need the app open (a write
+  grant; with media management allowed, no prompt).
 - No background upload on Apple (uploads run while Winnow is open); Google Photos is Android-only.
 
 ## Desktop (Mac, Windows, Linux)

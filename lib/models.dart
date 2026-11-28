@@ -157,7 +157,8 @@ class Album {
   /// that aren't part of anything in particular go here.
   final bool monthly;
 
-  /// A catch-all for the whole year rather than a month.
+  /// Year rather than month: a catch-all for the whole year ("2026"), or a dated album named by its year
+  /// ("2026 Kids school") instead of its month ("2026-07 Hawaii").
   final bool yearly;
 
   /// A month catch-all merged into its year's: hidden, kept only so the targets can move its photos out.
@@ -245,7 +246,10 @@ String monthPrefix(int ms) {
 
 String albumTitle(Album a) {
   if (a.start == null) return a.name;
-  if (a.yearly) return '${DateTime.fromMillisecondsSinceEpoch(a.start!).year}';
+  if (a.yearly) {
+    final y = '${DateTime.fromMillisecondsSinceEpoch(a.start!).year}';
+    return a.name.isEmpty ? y : '$y ${a.name}';
+  }
   return a.name.isEmpty ? monthPrefix(a.start!) : '${monthPrefix(a.start!)} ${a.name}';
 }
 
@@ -254,14 +258,14 @@ String albumTitle(Album a) {
 String albumTag(Album a) {
   if (a.start == null) return 'Albums/${a.name}';
   final d = DateTime.fromMillisecondsSinceEpoch(a.start!);
-  if (a.yearly) return 'Albums/${d.year}';
+  if (a.yearly) return ['Albums', '${d.year}', if (a.name.isNotEmpty) a.name].join('/');
   return ['Albums', '${d.year}', two(d.month), if (a.name.isNotEmpty) a.name].join('/');
 }
 
 /// The Immich tag for a photo taken at [taken] in album [a]: a year album still tags by month, so the months can be
 /// browsed under Albums/2026.
 String photoTag(Album a, int? taken) {
-  if (!a.yearly || taken == null) return albumTag(a);
+  if (!(a.monthly && a.yearly) || taken == null) return albumTag(a);
   final d = DateTime.fromMillisecondsSinceEpoch(taken);
   return 'Albums/${d.year}/${two(d.month)}';
 }

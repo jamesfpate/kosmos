@@ -422,7 +422,7 @@
     <div class="group-label">On the device</div>
     <div class="integrations">
       <div class="integration"><b>iPhone and Mac <i>Apple Photos</i></b><span>Kept photos go into real albums in your Photos library, which iCloud syncs to your other devices. Deletes go to Recently Deleted.</span></div>
-      <div class="integration"><b>Android</b><span>Deleted photos are removed from the phone (via its trash, restorable for 30 days). Albums are kept in Winnow and synced to Google Photos, Immich or your own server.</span></div>
+      <div class="integration"><b>Android</b><span>Deleted photos are removed from the phone (via its trash, restorable for 30 days). Turn on Phone albums and kept photos move into a folder per album, which Samsung Gallery and other gallery apps show as albums.</span></div>
     </div>
     <div class="group-label">Off the device</div>
     <div class="integrations">
@@ -466,7 +466,7 @@
 
   <section id="gallery">
     <h2>Gallery mode</h2>
-    <p class="lede">Your whole library, not just what’s new: everything on the phone, what you’ve reviewed, any one album, or your Immich library.</p>
+    <p class="lede">Your whole library, not just what’s new, organised by album in the order each album starts: everything on the phone, what you’ve reviewed, any one album, or your Immich library.</p>
     <div class="demos">
       <div class="demo">
         <div class="screen ui" id="d-move">
@@ -480,7 +480,7 @@
           <div class="tiles"></div>
           <div class="foot"><span class="u"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></span><span class="d off">← Delete</span><span class="k">→ 2026-07 Hawaii</span></div>
         </div>
-        <div><h3>Refile in bulk</h3><p>Select photos anywhere in the library and tap an album: they move there, here and on every service you sync to.</p></div>
+        <div><h3>Refile in bulk</h3><p>Select photos anywhere in the library and tap an album to move them, or move a whole album into another with one tap. It follows on the phone and every service you sync to.</p></div>
       </div>
       <div class="demo">
         <div class="screen ui" id="d-clean">
@@ -778,6 +778,10 @@ const Trace = (() => {
     const del = d.q('.foot .d');
     del.textContent = sel ? `← Delete ${sel}` : '← Delete';
     del.classList.toggle('off', !sel);
+    // As in the app: with gaps to delete, the album button says what filing does.
+    const k = d.q('.foot .k');
+    k.dataset.album ??= k.textContent;
+    k.innerHTML = sel && doom ? `${k.dataset.album}<small>keep ${sel} · delete ${doom}</small>` : k.dataset.album;
   }
   // Kept photos trace and then leave the grid (they're filed); deleted ones trace and fade out where they are.
   const filed = async (kept, gone) => {

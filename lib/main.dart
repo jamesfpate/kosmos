@@ -11,8 +11,8 @@ import 'ui/grid.dart';
 import 'ui/screens.dart';
 import 'ui/settings.dart';
 import 'ui/stores.dart';
+import 'version.dart';
 
-const version = String.fromEnvironment('WINNOW_VERSION', defaultValue: '0.0.0-dev');
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

@@ -21,6 +21,28 @@ const appleDef = StoreDef(
   fields: [],
   albums: _make,
   library: true,
+  device: 'apple',
+  backup: false,
+);
+
+// Phone albums on Android: Samsung's Gallery and most other Android galleries show each folder as an album, so a
+// kept photo moves into Pictures/<album>/ (the same native calls, with folders behind them). Off by default: it
+// moves the camera's files. Renaming an album renames the folder; refiling moves the photo.
+const androidDef = StoreDef(
+  key: 'phone',
+  title: 'Phone albums (folders)',
+  label: 'Phone albums',
+  intro: [
+    'Kept photos move into a folder per album, Pictures/2026-07 Hawaii and so on, which Samsung Gallery and other '
+        'gallery apps show as albums (Google Photos lists them under On this device). Renaming an album renames its '
+        'folder; moving a photo moves the file.',
+    'Allow media management (Settings > Apps > Special app access) so Android doesn\'t ask before each batch. Moves '
+        'happen while Winnow is open, not in the background. It isn\'t a backup, so Free up space doesn\'t count it.',
+  ],
+  fields: [],
+  albums: _make,
+  library: true,
+  device: 'android',
   backup: false,
 );
 

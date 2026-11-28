@@ -214,11 +214,15 @@ class StoreDef {
     this.available = true,
     this.folderLabel = 'Folder',
     this.library = false,
+    this.device,
     this.backup = true,
   });
 
-  /// Works on the device's own Apple Photos library (Apple albums): only offered when reviewing one.
+  /// Works on the device's own photo library (albums on the phone or Mac, nothing uploaded).
   final bool library;
+
+  /// Which device library: 'apple' (offered when reviewing an Apple Photos library) or 'android'.
+  final String? device;
 
   /// Holds a copy of the photos. False for Apple albums: they're the same photos, so Free up space doesn't count them.
   final bool backup;
@@ -268,7 +272,13 @@ class StoreDef {
   }
 
   /// Can be used here: its build settings are in and it fits what's being reviewed.
-  bool get offered => available && (!library || media.appleLibrary);
+  bool get offered =>
+      available &&
+      switch (device) {
+        'apple' => media.appleLibrary,
+        'android' => Platform.isAndroid,
+        _ => true,
+      };
 
   bool ready(StoreConfig c) => offered && fields.every((f) => f.optional || c[f.key].trim().isNotEmpty);
 }
@@ -281,7 +291,7 @@ String storePath(String folder, Album album, String fileName) {
   // A year's catch-all is the year folder itself, next to that year's event folders.
   final dir = album.start == null
       ? 'Albums/$safe'
-      : (album.yearly ? safe : '${DateTime.fromMillisecondsSinceEpoch(album.start!).year}/$safe');
+      : (album.monthly && album.yearly ? safe : '${DateTime.fromMillisecondsSinceEpoch(album.start!).year}/$safe');
   return '$p$dir/${fileName.replaceAll('/', '-')}';
 }
 

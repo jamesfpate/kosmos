@@ -39,6 +39,9 @@ class _AlbumSheetState extends State<_AlbumSheet> {
   bool dated = true;
   late DateTime start;
   DateTime? end;
+
+  /// The name starts with the year ("2026 Kids school") rather than the month ("2026-07 Hawaii").
+  bool byYear = false;
   final name = TextEditingController();
 
   Album? get existing => widget.existing;
@@ -52,6 +55,7 @@ class _AlbumSheetState extends State<_AlbumSheet> {
     if (e != null) {
       name.text = e.name;
       dated = e.start != null || e.autoDate;
+      byYear = e.yearly;
       if (e.end != null) {
         final x = DateTime.fromMillisecondsSinceEpoch(e.end!);
         end = DateTime(x.year, x.month, x.day);
@@ -62,7 +66,11 @@ class _AlbumSheetState extends State<_AlbumSheet> {
   }
 
   bool get later => dated && (existing == null ? widget.photoDate == null : existing!.start == null && existing!.autoDate);
-  String get prefix => !dated ? '' : (later ? 'YYYY-MM' : monthPrefix(start.millisecondsSinceEpoch));
+  String get prefix => !dated
+      ? ''
+      : later
+          ? (byYear ? 'YYYY' : 'YYYY-MM')
+          : (byYear ? '${start.year}' : monthPrefix(start.millisecondsSinceEpoch));
   bool get dateTyped => dated && _dateStart.hasMatch(name.text);
   bool get valid => name.text.trim().isNotEmpty;
 
@@ -96,6 +104,7 @@ class _AlbumSheetState extends State<_AlbumSheet> {
         start: dated && !later ? start.millisecondsSinceEpoch : null,
         end: dated && !later && end != null ? end!.millisecondsSinceEpoch + day - 1 : null,
         autoDate: later,
+        yearly: dated && byYear,
         createdAt: e?.createdAt ?? now,
         // Not "used" until a photo goes in, so creating an album doesn't change the default.
         lastUsedAt: e?.lastUsedAt ?? 0,
@@ -134,7 +143,7 @@ class _AlbumSheetState extends State<_AlbumSheet> {
           onChanged: (v) => setState(() => dated = v),
         ),
         if (later)
-          const Text('No photo chosen yet: the YYYY-MM comes from the first photo you put in.', style: TextStyle(color: C.muted, fontSize: 13))
+          const Text('No photo chosen yet: the date comes from the first photo you put in.', style: TextStyle(color: C.muted, fontSize: 13))
         else if (dated) ...[
           Row(children: [dateField('Start', start, true), const SizedBox(width: 10), dateField('End', end, false)]),
           Row(mainAxisAlignment: MainAxisAlignment.end, children: [
@@ -155,11 +164,27 @@ class _AlbumSheetState extends State<_AlbumSheet> {
         ],
         const SizedBox(height: 10),
         Row(children: [
+          // The date the name starts with: the month (2026-07) or just the year (2026). Tap to switch.
           if (prefix.isNotEmpty) ...[
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(color: C.line, borderRadius: BorderRadius.circular(10)),
-              child: Text(prefix, style: const TextStyle(color: C.muted)),
+              padding: const EdgeInsets.all(3),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                for (final year in [false, true])
+                  GestureDetector(
+                    onTap: () => setState(() => byYear = year),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
+                      decoration: BoxDecoration(color: byYear == year ? C.surface : null, borderRadius: BorderRadius.circular(8)),
+                      child: Text(
+                        later
+                            ? (year ? 'YYYY' : 'YYYY-MM')
+                            : (year ? '${start.year}' : monthPrefix(start.millisecondsSinceEpoch)),
+                        style: TextStyle(color: byYear == year ? C.text : C.muted, fontWeight: byYear == year ? FontWeight.w600 : null),
+                      ),
+                    ),
+                  ),
+              ]),
             ),
             const SizedBox(width: 8),
           ],
@@ -408,4 +433,80 @@ class _AlbumBarState extends State<AlbumBar> {
           );
         },
       );
+}
+
+/// Picks an album (searchable), e.g. where to move a whole album to.
+Future<Album?> pickAlbum(BuildContext context, List<Album> albums, {required String title}) => showModalBottomSheet<Album>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: C.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _PickAlbum(albums, title),
+    );
+
+class _PickAlbum extends StatefulWidget {
+  const _PickAlbum(this.albums, this.title);
+
+  final List<Album> albums;
+  final String title;
+
+  @override
+  State<_PickAlbum> createState() => _PickAlbumState();
+}
+
+class _PickAlbumState extends State<_PickAlbum> {
+  final query = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    query.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    query.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final words = query.text.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final found = [
+      for (final a in widget.albums)
+        if (words.every(albumTitle(a).toLowerCase().contains)) a,
+    ]..sort((a, b) => albumTitle(a).toLowerCase().compareTo(albumTitle(b).toLowerCase()));
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.viewInsetsOf(context).bottom + 12),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.6,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(widget.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: query,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Search albums',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView(children: [
+              for (final a in found)
+                ListTile(
+                  dense: true,
+                  leading: Icon(a.monthly ? Icons.calendar_month : Icons.photo_album_outlined, color: C.muted),
+                  title: Text(albumTitle(a)),
+                  onTap: () => Navigator.pop(context, a),
+                ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
 }

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/gestures.dart';
@@ -6,11 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
+import 'package:winnow_native/winnow_native.dart';
 
 import '../fx.dart';
 import '../media.dart' as media;
 import '../models.dart';
 import '../state.dart';
+import '../version.dart';
 
 class C {
   static const bg = Color(0xFF0B0B0F);
@@ -72,10 +75,11 @@ class TopBar extends StatelessWidget {
           on: s.screen == Screen.trash,
           onTap: s.pendingTrash.isEmpty && s.screen != Screen.trash ? null : () => s.toggleScreen(Screen.trash),
         ),
-        // Red when the last backup sync had an error (details on the integration's page).
+        Pill(icon: Icons.help_outline, onTap: () => showHelp(context)),
+        // A small dot when the last sync had an error (details on the integration's page).
         Pill(
           icon: Icons.settings_outlined,
-          color: sync.error.isNotEmpty ? C.trash : null,
+          dot: sync.error.isNotEmpty,
           on: s.screen == Screen.settings || _integrationPages.contains(s.screen),
           onTap: () => _integrationPages.contains(s.screen) ? s.go(Screen.settings) : s.toggleScreen(Screen.settings),
         ),
@@ -119,13 +123,16 @@ class _Modes extends StatelessWidget {
 }
 
 class Pill extends StatelessWidget {
-  const Pill({super.key, required this.icon, this.label, this.onTap, this.on = false, this.color});
+  const Pill({super.key, required this.icon, this.label, this.onTap, this.on = false, this.color, this.dot = false});
 
   final IconData icon;
   final String? label;
   final VoidCallback? onTap;
   final bool on;
   final Color? color;
+
+  /// A small amber dot: something to look at (a sync problem), without alarm.
+  final bool dot;
 
   @override
   Widget build(BuildContext context) {
@@ -145,9 +152,21 @@ class Pill extends StatelessWidget {
               constraints: const BoxConstraints(minWidth: 40),
               padding: EdgeInsets.symmetric(horizontal: label == null ? 0 : 10),
               alignment: Alignment.center,
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(icon, size: 18, color: fg),
-                if (label != null) ...[const SizedBox(width: 4), Text(label!, style: TextStyle(color: fg))],
+              child: Stack(clipBehavior: Clip.none, children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(icon, size: 18, color: fg),
+                  if (label != null) ...[const SizedBox(width: 4), Text(label!, style: TextStyle(color: fg))],
+                ]),
+                if (dot)
+                  Positioned(
+                    right: -3,
+                    top: -3,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(color: const Color(0xFFFBBF24), shape: BoxShape.circle, border: Border.all(color: C.surface, width: 1.5)),
+                    ),
+                  ),
               ]),
             ),
           ),
@@ -804,3 +823,47 @@ class _FullViewState extends State<FullView> {
     ));
   }
 }
+
+/// Help & feedback: feedback and problem reports go to the issue tracker, with the app version and device filled in.
+Future<void> showHelp(BuildContext context) => showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: C.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (c) {
+        String issue(String title, String body) => Uri.https('github.com', '/jamesfpate/winnow/issues/new', {
+              'title': title,
+              'body': '$body\n\n---\nWinnow $version · ${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+            }).toString();
+        Future<void> open(String url) async {
+          Navigator.pop(c);
+          await WinnowNative.openUrl(url);
+        }
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const Text('Help & feedback', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              const Text(
+                'Ideas, questions or something not working? It goes to Winnow\'s issue tracker on GitHub (a free account '
+                'is needed to post), with the app version and device filled in. No photos or settings are sent.',
+                style: TextStyle(color: C.muted),
+              ),
+              const SizedBox(height: 14),
+              Btn('Send feedback', icon: Icons.chat_bubble_outline,
+                  onTap: () => open(issue('Feedback: ', 'What would make Winnow better for you?\n\n'))),
+              const SizedBox(height: 8),
+              Btn('Report a problem', icon: Icons.bug_report_outlined,
+                  onTap: () => open(issue('Problem: ', 'What happened, and what did you expect?\n\nSteps to see it again:\n1. '))),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: () => open('https://winnow.jamespate.net'),
+                child: const Text('How Winnow works', style: TextStyle(color: C.accent)),
+              ),
+              Center(child: Text('Winnow $version', style: const TextStyle(color: C.muted, fontSize: 12))),
+            ]),
+          ),
+        );
+      },
+    );

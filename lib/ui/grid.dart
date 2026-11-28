@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../fx.dart';
@@ -61,7 +63,7 @@ class _GridScreenState extends State<GridScreen> {
     }
 
     for (final i in s.backlog) {
-      final k = monthPrefix(i.taken);
+      final k = s.byAlbum ? (s.albumOf(i) ?? '') : monthPrefix(i.taken);
       if (k != key) {
         flush();
         month = [];
@@ -101,11 +103,23 @@ class _GridScreenState extends State<GridScreen> {
             (s.screen == Screen.explore ? '${s.backlog.length} photos' : '${s.unreviewedCount} unreviewed')),
       ),
       if (s.screen == Screen.explore) ...[_viewBar(context), const SizedBox(height: 6)],
-      Align(
-        alignment: Alignment.centerLeft,
-        child: Label(sel.isEmpty
-            ? (s.gridView == 'unreviewed' ? 'Pick an album, then select photos' : 'Select photos to move or delete them')
-            : 'Choose album for ${sel.length}${doomed.isNotEmpty ? ' · deletes ${doomed.length} in red' : ''}'),
+      // The label, with the selection's actions (fill the gaps, clear) on the same line: no row of its own.
+      SizedBox(
+        height: 24,
+        child: Row(children: [
+          Expanded(
+            child: Label(sel.isEmpty
+                ? (s.gridView == 'unreviewed' ? 'Pick an album, then select photos' : 'Select photos to move or delete them')
+                : 'Choose album for ${sel.length}${doomed.isNotEmpty ? ' · deletes ${doomed.length} in red' : ''}'),
+          ),
+          if (sel.isNotEmpty) ...[
+            if (s.gapCount > 0) ...[
+              _link(Icons.swap_horiz, 'Fill ${s.gapCount}', s.selectBetween),
+              const SizedBox(width: 16),
+            ],
+            _link(Icons.close, 'Clear', s.clearGrid),
+          ],
+        ]),
       ),
       const SizedBox(height: 4),
       AlbumBar(
@@ -120,21 +134,7 @@ class _GridScreenState extends State<GridScreen> {
         onNew: (name) => newAlbum(context, s, s.gridOldest, fileAfter: sel.isNotEmpty, grid: true, name: name),
         focus: searching,
       ),
-      // Selection, right above the photos: count, select between (fill the gaps), clear.
-      SizedBox(
-        height: 32,
-        child: sel.isEmpty
-            ? null
-            : Row(children: [
-                Text('${sel.length} selected', style: const TextStyle(fontWeight: FontWeight.w700)),
-                const Spacer(),
-                if (s.gapCount > 0) ...[
-                  _link(Icons.swap_horiz, 'Fill ${s.gapCount}', s.selectBetween),
-                  const SizedBox(width: 16),
-                ],
-                _link(Icons.close, 'Clear', s.clearGrid),
-              ]),
-      ),
+      const SizedBox(height: 4),
       Expanded(
         child: s.backlog.isEmpty
             ? Center(
@@ -160,7 +160,7 @@ class _GridScreenState extends State<GridScreen> {
                   return ListView.builder(
                     itemCount: entries.length,
                     itemBuilder: (context, i) => switch (entries[i]) {
-                      _Header(:final items) => _monthHeader(items),
+                      _Header(:final items) => s.byAlbum ? _albumHeader(items) : _monthHeader(items),
                       _Row(:final h, :final items) => Padding(
                           padding: const EdgeInsets.only(bottom: 3),
                           child: Row(children: [
@@ -191,6 +191,8 @@ class _GridScreenState extends State<GridScreen> {
               bold: true,
               color: C.bg,
               bg: C.keep,
+              // With "Delete the gaps" on, filing also deletes the red ones: say so, as the burst buttons do.
+              sub: sel.isNotEmpty && doomed.isNotEmpty ? 'keep ${sel.length} · delete ${doomed.length}' : null,
               onTap: sel.isEmpty || target == null ? null : () => s.fileGrid(target.monthly ? monthAlbumId : target.id)),
         ),
       ]),
@@ -321,6 +323,46 @@ class _GridScreenState extends State<GridScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(children: [
         Expanded(child: Text(fmtMonth.format(DateTime.fromMillisecondsSinceEpoch(items.first.taken)), style: const TextStyle(fontWeight: FontWeight.w700))),
+        GestureDetector(
+          onTap: () => s.toggleMonth(items),
+          child: Text('${all ? 'Clear' : 'Select'} ${items.length}', style: const TextStyle(color: C.accent)),
+        ),
+      ]),
+    );
+  }
+
+  /// A gallery section: the album (and when its first photo was taken), Move… for the whole album, Select.
+  Widget _albumHeader(List<Item> items) {
+    final id = s.albumOf(items.first);
+    final album = s.albums.where((a) => a.id == id).firstOrNull;
+    final all = items.every((i) => s.gridSel.contains(i.id));
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(children: [
+        Expanded(
+          child: Text.rich(
+            TextSpan(text: album == null ? 'Not in an album yet' : albumTitle(album), children: [
+              if (album != null)
+                TextSpan(
+                    text: '  ·  ${fmtDay.format(DateTime.fromMillisecondsSinceEpoch(items.map((i) => i.taken).reduce(min)))}',
+                    style: const TextStyle(color: C.muted, fontWeight: FontWeight.w400)),
+            ]),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (album != null) ...[
+          GestureDetector(
+            onTap: () async {
+              final to = await pickAlbum(context, s.albums.where((a) => a.id != album.id && !a.retired).toList(),
+                  title: 'Move ${albumTitle(album)} into');
+              if (to != null) await s.moveAlbum(album.id, to.id);
+            },
+            child: const Text('Move…', style: TextStyle(color: C.accent)),
+          ),
+          const SizedBox(width: 16),
+        ],
         GestureDetector(
           onTap: () => s.toggleMonth(items),
           child: Text('${all ? 'Clear' : 'Select'} ${items.length}', style: const TextStyle(color: C.accent)),

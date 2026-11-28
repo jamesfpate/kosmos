@@ -783,9 +783,48 @@ class AppState extends ChangeNotifier {
           _ => d?.decision == Decision.keep && d?.albumId == gridView,
         };
       }).toList();
+      if (byAlbum) _sortByAlbum(_backlog);
       _backlogRev = _rev;
     }
     return _backlog;
+  }
+
+  /// The gallery (everything, or everything reviewed) is organised by album rather than by month.
+  bool get byAlbum => screen == Screen.explore && (gridView == 'all' || gridView == 'reviewed');
+
+  /// The album a kept photo is filed in (null when it isn't).
+  String? albumOf(Item i) {
+    final d = decided[i.id];
+    return d?.decision == Decision.keep ? d!.albumId : null;
+  }
+
+  /// Albums in the order of their first photo (newest first when that's the order), each album's photos in date
+  /// order; photos not in an album come last. The grid's selection ranges (Fill) follow this order.
+  void _sortByAlbum(List<Item> list) {
+    final first = <String, int>{};
+    for (final i in list) {
+      final a = albumOf(i);
+      if (a != null && (first[a] == null || i.taken < first[a]!)) first[a] = i.taken;
+    }
+    final at = {for (final (n, i) in list.indexed) i.id: n};
+    int key(Item i) => first[albumOf(i)] ?? (newestFirst ? -1 : 1 << 62);
+    list.sort((x, y) {
+      final ax = albumOf(x), ay = albumOf(y);
+      if ((ax == null) != (ay == null)) return ax == null ? 1 : -1;
+      if (ax != ay) {
+        final c = newestFirst ? key(y).compareTo(key(x)) : key(x).compareTo(key(y));
+        return c != 0 ? c : ax!.compareTo(ay!);
+      }
+      return at[x.id]!.compareTo(at[y.id]!);
+    });
+  }
+
+  /// Moves every photo of album [from] into [to] (the gallery's "Move…" on an album).
+  Future<void> moveAlbum(String from, String to) async {
+    if (from == to) return;
+    gridSel = {for (final i in backlog) if (albumOf(i) == from) i.id};
+    changed();
+    await fileGrid(to);
   }
 
   void rememberImmichAlbum(String id, String name) {
@@ -1154,6 +1193,26 @@ class AppState extends ChangeNotifier {
         syncedTitles: base?.syncedTitles ?? const {},
       );
     }
+    final yd = RegExp(r'^((?:19|20)\d\d)\s+(\S.*)$').firstMatch(name.trim());
+    if (yd != null && !RegExp(r'^\d{2}\b').hasMatch(yd[2]!)) {
+      final y = DateTime(int.parse(yd[1]!)).millisecondsSinceEpoch;
+      final inYear = from != null && from.year == int.parse(yd[1]!);
+      final keep = base?.start != null && base!.yearly && startOfYear(base.start!) == y;
+      return Album(
+        id: base?.id ?? _uuid(),
+        name: yd[2]!.trim(),
+        start: keep ? base.start : (inYear ? DateTime(from.year, from.month, from.day).millisecondsSinceEpoch : y),
+        end: keep ? base.end : (inYear && to != null ? DateTime(to.year, to.month, to.day + 1).millisecondsSinceEpoch - 1 : null),
+        createdAt: base?.createdAt ?? now,
+        lastUsedAt: base?.lastUsedAt ?? 0,
+        yearly: true,
+        immichAlbumId: id,
+        googleAlbumId: base?.googleAlbumId,
+        remoteIds: base?.remoteIds ?? const {},
+        syncedTitles: base?.syncedTitles ?? const {},
+        staleTags: base?.staleTags ?? const [],
+      );
+    }
     final m = RegExp(r'^(\d{4})-(\d{2})(?:\s+(.+))?$').firstMatch(name.trim());
     int? start, end;
     var label = name.trim();
@@ -1435,7 +1494,11 @@ class AppState extends ChangeNotifier {
     final wifi = await _onWifi();
     bool go(bool on, bool wifiOnly) => on && (wifi || !wifiOnly);
     final doImmich = go(_immichOn, immich.wifiOnly);
-    final doStores = [for (final d in _storesOn) if (go(true, store(d.key).wifiOnly)) d];
+    // On-device albums need no network; Android's folder moves need the app on screen (a write grant).
+    final doStores = [
+      for (final d in _storesOn)
+        if (d.library ? !(d.device == 'android' && _background) : go(true, store(d.key).wifiOnly)) d,
+    ];
     final doGoogle = go(_googleOn, google.wifiOnly);
     final waiting =
         (_immichOn && !doImmich) || doStores.length < _storesOn.length || (_googleOn && !doGoogle);
