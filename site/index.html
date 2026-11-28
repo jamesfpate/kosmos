@@ -255,7 +255,8 @@
   .flow { position: relative; display: grid; grid-template-columns: minmax(200px, 0.8fr) 1.2fr; gap: 64px; align-items: center; margin: 8px 0 30px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .flow .wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
   .flow .wires path { fill: none; stroke: var(--line); stroke-width: 2; }
-  .flow .wires path.hot { stroke: var(--accent); }
+  .flow .wires path.light { stroke: #DBEAFE; stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 4px #60A5FA) drop-shadow(0 0 10px #3B82F6); }
+  .flow .wires path.light.dup { stroke: #DCFCE7; filter: drop-shadow(0 0 4px #4ADE80) drop-shadow(0 0 10px #22C55E); }
   .flow .src, .flow .dest { position: relative; z-index: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
   .flow .src { display: flex; flex-direction: column; gap: 10px; }
   .flow .dests { display: flex; flex-direction: column; gap: 10px; }
@@ -272,10 +273,9 @@
   .flow .drow small { font-size: 11px; }
   .flow .dthumb { width: 28px; height: 28px; border-radius: 5px; background: #222 center / cover; flex: none; }
   .flow .cnt { margin-left: auto; font-style: normal; font-size: 12px; color: var(--muted); min-width: 22px; text-align: right; }
-  .flow .dest.ping { border-color: var(--accent); }
+  .flow .dest { transition: border-color .3s, box-shadow .3s; }
+  .flow .dest.ping { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(96,165,250,.35), 0 0 18px rgba(59,130,246,.25); }
   .flow .renamed { color: var(--keep) !important; transition: color 1.2s; }
-  .flow .bubble { position: absolute; z-index: 2; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 6px; background: #222 center / cover; box-shadow: 0 0 0 2px var(--accent), 0 4px 14px rgba(0,0,0,.5); pointer-events: none; }
-  .flow .bubble.dup { box-shadow: 0 0 0 2px var(--keep); }
   .flow .ptiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
   .flow .ptiles div { position: relative; aspect-ratio: 1; border-radius: 4px; background: #222 center / cover; transition: opacity .5s, filter .5s; }
   .flow .ptiles div.del { opacity: 0.35; filter: grayscale(1); }
@@ -1145,22 +1145,24 @@ const Flow = (() => {
     draw();
     new ResizeObserver(draw).observe(el);
     const at = ([a, b, c, d], t) => [0, 1].map(k => (1 - t) ** 3 * a[k] + 3 * (1 - t) ** 2 * t * b[k] + 3 * (1 - t) * t * t * c[k] + t ** 3 * d[k]);
-    /** Sends a little photo along the wire to destination i; resolves when it arrives. */
+    /** Sends a pulse of light along the wire to destination i; resolves when it arrives (the photo shows up there). */
     async function send(i, bg, cls = '') {
       const wire = svg.children[i];
-      wire?.classList.add('hot');
-      const b = document.createElement('div'); b.className = `bubble ${cls}`; b.style.backgroundImage = bg; el.append(b);
-      const T = still ? 1 : 900, t0 = performance.now();
+      if (!wire) return;
+      const light = wire.cloneNode(); light.setAttribute('class', `light ${cls}`); svg.append(light);
+      const len = wire.getTotalLength(), seg = Math.min(70, len * 0.35);
+      light.style.strokeDasharray = `${seg} ${len + seg}`;
+      const T = still ? 1 : 850, t0 = performance.now();
       await new Promise(done => {
         const f = now => {
           const t = Math.min(1, (now - t0) / T), e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-          const [x, y] = at(paths[i], e); b.style.left = `${x}px`; b.style.top = `${y}px`;
+          light.style.strokeDashoffset = String(seg - e * (len + seg));
           t < 1 ? requestAnimationFrame(f) : done();
         };
         requestAnimationFrame(f);
       });
-      b.remove(); wire?.classList.remove('hot');
-      dests[i].classList.add('ping'); setTimeout(() => dests[i].classList.remove('ping'), 400);
+      light.remove();
+      dests[i].classList.add('ping'); setTimeout(() => dests[i].classList.remove('ping'), 450);
     }
     return { el, dests, send, wait };
   }
