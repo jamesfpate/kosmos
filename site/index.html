@@ -759,7 +759,7 @@ const Trace = (() => {
   }
 
   function draw(g, o, kind, p, alpha, frame, scale = 1) {
-    const { W, H } = o, k = M[kind], up = kind === 'keep', ins = 3;
+    const { W, H } = o, k = { ...M[kind], ...(o.colors || {}) }, up = kind === 'keep', ins = 3;
     g.clearRect(0, 0, W, H);
     if (alpha <= 0) return;
     const y0 = up ? H - ins : ins, y1 = up ? ins : H - ins, yy = y0 + (y1 - y0) * p;
@@ -849,7 +849,9 @@ const Trace = (() => {
       const asc = m.fontBoundingBoxAscent, desc = m.fontBoundingBoxDescent;
       x.fillText(l.textContent, lr.left - r.left + pad, lr.top - r.top + pad + (lr.height - asc - desc) / 2 + asc);
     }
-    const o = { W, H, chains: edges(x, W * S, H * S, 200), scale: S, frame: false, thick: 1.2, glow: 4 };
+    // The wordmark's trace is all blue (bright to pale), not the keep colours.
+    const o = { W, H, chains: edges(x, W * S, H * S, 200), scale: S, frame: false, thick: 1.2, glow: 4,
+      colors: { a: [37, 99, 235], b: [147, 197, 253] } };
     const c = document.createElement('canvas');
     c.className = 'trace';
     const dpr = Math.min(2, devicePixelRatio || 1);
