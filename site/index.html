@@ -360,8 +360,7 @@
         <a href="#backup"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 1 1 1.6-9.7A6 6 0 0 1 20 11a3.5 3.5 0 0 1-1 7"/><path d="M12 21v-8m0 0-3 3m3-3 3 3"/></svg></span><b>Back up only keepers</b><span>To Immich, Google Photos or your own storage. Deleted photos never go up.</span></a>
       </div>
       <div class="buttons">
-        <a class="btn primary" id="get-android" href="https://github.com/jamesfpate/winnow/releases/latest">Get it for Android</a>
-        <a class="btn" href="#download">iPhone, Mac, Windows, Linux</a>
+        <a class="btn primary" href="#download">Download</a>
       </div>
       <p class="fine">Free. No ads, no tracking, no account. Your photos go only where you send them.</p>
     </div>
@@ -665,7 +664,7 @@ fetch('https://api.github.com/repos/jamesfpate/winnow/releases/latest')
     document.getElementById('version').textContent = 'Latest release: ' + rel.tag_name;
     const find = re => (rel.assets.find(a => re.test(a.name)) || {}).browser_download_url;
     const set = (id, re) => { const u = find(re); if (u) document.getElementById(id).href = u; };
-    set('dl-android', /\.apk$/); set('get-android', /\.apk$/); set('dl-mac', /-mac\.zip$/);
+    set('dl-android', /\.apk$/); set('dl-mac', /-mac\.zip$/);
     set('dl-windows', /-windows\.zip$/); set('dl-linux', /-linux\.tar\.gz$/); set('dl-iphone', /\.ipa$/);
   })
   .catch(() => {});
