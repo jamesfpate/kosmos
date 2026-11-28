@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -141,6 +142,7 @@ class _CullScreenState extends State<CullScreen> {
             : SwipeCard(
                 key: card,
                 cardId: '${g.first.id}/${s.queue.length}',
+                zoomId: cur.id,
                 disabled: s.isGroup,
                 keepLabel: s.isGroup ? (s.burstAll ? 'Keep all ${g.length}' : 'Keep ${sel.length}') : 'Keep in ${target == null ? 'a new album' : albumTitle(target)}',
                 trashLabel: s.isGroup ? (s.burstAll ? 'Delete all ${g.length}' : 'Delete ${sel.length}') : 'Delete',
@@ -199,13 +201,13 @@ class _CullScreenState extends State<CullScreen> {
     final sel = s.selected;
     final large = Stack(alignment: Alignment.center, children: [
       Positioned.fill(
-        child: Preview(cur,
+        child: CardZoomView(child: Preview(cur,
             play: playing == cur.id,
             onStop: () => setState(() => playing = null),
             selected: s.isGroup && sel.contains(cur.id),
             fx: s.fx[cur.id],
             caption: true,
-            onCheck: s.isGroup ? () => s.toggleCheck(cur.id) : null),
+            onCheck: s.isGroup ? () => s.toggleCheck(cur.id) : null)),
       ),
       if (cur.isVideo && playing != cur.id)
         PlayButton(seconds: cur.duration, onTap: () => setState(() => playing = cur.id)),
@@ -348,10 +350,14 @@ class SwipeCard extends StatefulWidget {
     this.keepLabel = 'Keep',
     this.trashLabel = 'Delete',
     this.disabled = false,
+    this.zoomId,
   });
 
   /// Changes when a new photo or burst comes up; the card starts fresh in the middle.
   final String cardId;
+
+  /// The photo being zoomed (in a burst, the large one); zoom resets when it changes.
+  final String? zoomId;
   final Widget child;
   /// [fx]: play the trace (buttons); a swipe already flew the card off.
   final Future<void> Function(Dir, bool fx) onSwipe;
@@ -383,11 +389,13 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
   bool _dragging = false;
   bool _leaving = false;
 
-  /// Pinch zoom: how far, around which point, and the last pointer position of a swipe (for dropping on an album).
-  double _zoom = 1;
-  Offset _zoomAt = Offset.zero;
+  /// Pinch zoom (applied by the [CardZoomView] inside the card), whether a pinch or a pan of the zoomed photo is
+  /// going on, and the last pointer position of a swipe (for dropping on an album).
+  final zoom = CardZoom();
   bool _pinching = false;
+  bool _panning = false;
   Offset _last = Offset.zero;
+  TapDownDetails? _doubleAt;
 
   @override
   void initState() {
@@ -398,6 +406,7 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
   @override
   void didUpdateWidget(SwipeCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.zoomId != widget.zoomId) zoom.reset();
     if (oldWidget.cardId != widget.cardId) {
       _anim.stop();
       _pos = Offset.zero;
@@ -409,24 +418,41 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
   @override
   void dispose() {
     _anim.dispose();
+    zoom.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    return CardZoomScope(zoom: zoom, child: _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
         final w = _w = box.maxWidth;
         final hint = _pos.dy.abs() > _pos.dx.abs() ? 0.0 : min(1.0, _pos.dx.abs() / 120);
-        // One finger swipes (keep / delete / drag onto an album); two fingers (or a trackpad pinch) zoom into the
-        // photo for a closer look, springing back to fit on release.
-        return GestureDetector(
+        // One finger swipes (keep / delete / drag onto an album); two fingers (or a trackpad pinch, or the mouse
+        // wheel) zoom into the photo, and it stays zoomed: one finger then moves around it instead of swiping, and a
+        // double-tap (or pinching back out) fits it again.
+        return Listener(
+          onPointerSignal: (e) {
+            if (e is PointerScrollEvent && e.scrollDelta.dy != 0) zoom.zoomBy(e.position, e.scrollDelta.dy < 0 ? 1.25 : 0.8);
+          },
+          child: GestureDetector(
           onTap: widget.onTap,
+          // Single photos only: in a burst a tap checks the photo, and waiting to see if it's a double would slow that.
+          onDoubleTapDown: widget.onTap == null ? (d) => _doubleAt = d : null,
+          onDoubleTap: widget.onTap == null ? () => zoom.toggleAt(_doubleAt?.globalPosition ?? Offset.zero) : null,
           onLongPress: _leaving ? null : widget.onLongPress,
           onScaleStart: (d) {
             _last = d.focalPoint;
             if (d.pointerCount >= 2) {
               _pinching = true;
-              _zoomAt = d.localFocalPoint;
+              zoom.begin(d.focalPoint);
+              return;
+            }
+            if (zoom.zoomed) {
+              _panning = true;
               return;
             }
             final x = d.focalPoint.dx;
@@ -436,29 +462,29 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
           onScaleUpdate: (d) {
             if (d.pointerCount >= 2 || (d.scale - 1).abs() > 0.02 || _pinching) {
               if (!_pinching) {
-                // A second finger joined a swipe: it becomes a zoom, and the card goes back to the middle.
+                // A second finger joined a swipe or a pan: it becomes a zoom, and the card goes back to the middle.
                 _pinching = true;
-                _dragging = false;
-                widget.onDrag?.call(null);
-                _pos = Offset.zero;
+                _panning = false;
+                zoom.begin(d.focalPoint);
+                if (_dragging) {
+                  _dragging = false;
+                  widget.onDrag?.call(null);
+                  setState(() => _pos = Offset.zero);
+                }
               }
-              setState(() {
-                _zoom = d.scale.clamp(1.0, 5.0);
-                _zoomAt = d.localFocalPoint;
-              });
+              zoom.update(d.focalPoint, d.scale);
               return;
             }
+            if (_panning) return zoom.pan(d.focalPointDelta);
             if (!_dragging) return;
             _last = d.focalPoint;
             setState(() => _pos += d.focalPointDelta);
             widget.onDrag?.call(d.focalPoint);
           },
           onScaleEnd: (d) {
-            if (_pinching) {
-              setState(() {
-                _pinching = false;
-                _zoom = 1;
-              });
+            if (_pinching || _panning) {
+              _pinching = _panning = false;
+              zoom.end();
               return;
             }
             if (!_dragging) return;
@@ -485,26 +511,13 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
             child: Transform.rotate(
               angle: _pos.dx / w * 0.25,
               child: Stack(children: [
-                Positioned.fill(
-                  child: ClipRect(
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(end: _zoom),
-                      duration: Duration(milliseconds: _pinching ? 0 : 220),
-                      curve: Curves.easeOut,
-                      builder: (context, z, child) => Transform.scale(
-                        scale: z,
-                        origin: _zoomAt - Offset(w / 2, box.maxHeight / 2),
-                        child: child,
-                      ),
-                      child: widget.child,
-                    ),
-                  ),
-                ),
+                Positioned.fill(child: widget.child),
                 Positioned(top: 24, left: 20, child: _label(widget.keepLabel, C.keep, -0.2, _pos.dx > 0 ? hint : 0)),
                 Positioned(top: 24, right: 20, child: _label(widget.trashLabel, C.trash, 0.2, _pos.dx < 0 ? hint : 0)),
               ]),
             ),
           ),
+        ),
         );
       });
   }
@@ -560,5 +573,103 @@ class SwipeCardState extends State<SwipeCard> with SingleTickerProviderStateMixi
   void reset() {
     _leaving = false;
     _animate(Offset.zero);
+  }
+}
+
+/// The zoom of the photo on a [SwipeCard]: scale and offset, in the [CardZoomView]'s own coordinates. Pinch, pan and
+/// wheel come in as global positions, so a pinch anywhere on the card (in a burst, even over the thumbnails) zooms
+/// the large photo around the point under the fingers.
+class CardZoom extends ChangeNotifier {
+  double scale = 1;
+  Offset offset = Offset.zero;
+  final key = GlobalKey();
+
+  bool get zoomed => scale > 1.01;
+  Size get _size => (key.currentContext?.findRenderObject() as RenderBox?)?.size ?? Size.zero;
+  Offset _local(Offset global) => (key.currentContext?.findRenderObject() as RenderBox?)?.globalToLocal(global) ?? Offset.zero;
+
+  double _s0 = 1;
+  Offset _content = Offset.zero;
+
+  /// A pinch starts: remember which point of the photo is under the fingers, to keep it there.
+  void begin(Offset global) {
+    _s0 = scale;
+    _content = (_local(global) - offset) / scale;
+  }
+
+  /// [s]: the pinch's scale since [begin].
+  void update(Offset global, double s) {
+    scale = (_s0 * s).clamp(1.0, 8.0);
+    offset = _local(global) - _content * scale;
+    _fit();
+  }
+
+  void pan(Offset delta) {
+    offset += delta;
+    _fit();
+  }
+
+  /// Nearly back to fit: snap to it.
+  void end() {
+    if (scale < 1.05) reset();
+  }
+
+  void zoomBy(Offset global, double factor) {
+    begin(global);
+    update(global, factor);
+    end();
+  }
+
+  void toggleAt(Offset global) => zoomed ? reset() : zoomBy(global, 2.5);
+
+  void reset() {
+    if (scale == 1 && offset == Offset.zero) return;
+    scale = 1;
+    offset = Offset.zero;
+    notifyListeners();
+  }
+
+  /// The photo always covers its frame: no panning past its edges.
+  void _fit() {
+    final z = _size;
+    offset = Offset(offset.dx.clamp(z.width - z.width * scale, 0.0), offset.dy.clamp(z.height - z.height * scale, 0.0));
+    notifyListeners();
+  }
+}
+
+class CardZoomScope extends InheritedWidget {
+  const CardZoomScope({super.key, required this.zoom, required super.child});
+
+  final CardZoom zoom;
+
+  static CardZoom? of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<CardZoomScope>()?.zoom;
+
+  @override
+  bool updateShouldNotify(CardZoomScope old) => old.zoom != zoom;
+}
+
+/// Where a [SwipeCard]'s zoom applies (the photo, not the burst's thumbnails or the buttons).
+class CardZoomView extends StatelessWidget {
+  const CardZoomView({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final z = CardZoomScope.of(context);
+    if (z == null) return child;
+    return ClipRect(
+      key: z.key,
+      child: ListenableBuilder(
+        listenable: z,
+        builder: (_, child) => Transform(
+          transform: Matrix4.identity()
+            ..translateByDouble(z.offset.dx, z.offset.dy, 0, 1)
+            ..scaleByDouble(z.scale, z.scale, 1, 1),
+          child: child,
+        ),
+        child: child,
+      ),
+    );
   }
 }

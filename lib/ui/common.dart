@@ -765,6 +765,14 @@ class _FullViewState extends State<FullView> {
   String? playing;
   TapDownDetails? _tap;
 
+  /// Fingers on the screen: with two, it's a pinch, so the pages hold still (or the pinch would swipe to the next).
+  int _fingers = 0;
+  void _touch(int d) {
+    final was = _fingers > 1;
+    _fingers = max(0, _fingers + d);
+    if (was != _fingers > 1) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -820,10 +828,14 @@ class _FullViewState extends State<FullView> {
       backgroundColor: Colors.black,
       body: SafeArea(
         child: Stack(children: [
-          PageView.builder(
+          Listener(
+            onPointerDown: (_) => _touch(1),
+            onPointerUp: (_) => _touch(-1),
+            onPointerCancel: (_) => _touch(-1),
+            child: PageView.builder(
             controller: _pages,
             scrollBehavior: pagerScroll,
-            physics: zoomed ? const NeverScrollableScrollPhysics() : null,
+            physics: zoomed || _fingers > 1 ? const NeverScrollableScrollPhysics() : null,
             itemCount: widget.items.length,
             onPageChanged: (i) => setState(() {
               index = i;
@@ -831,6 +843,7 @@ class _FullViewState extends State<FullView> {
               _zoom.value = Matrix4.identity();
             }),
             itemBuilder: (_, i) => _page(widget.items[i]),
+          ),
           ),
           Positioned(
             top: 4,

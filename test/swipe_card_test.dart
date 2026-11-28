@@ -1,9 +1,16 @@
-// The swipe card's gestures: one finger swipes (keep / delete), two fingers zoom without swiping.
+// The swipe card's gestures: one finger swipes (keep / delete), two fingers zoom without swiping, the zoom stays and
+// one finger then moves around the photo, and a double-tap fits it again.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:winnow/state.dart';
 import 'package:winnow/ui/cull.dart';
+
+Matrix4 _matrix(WidgetTester tester) => tester
+    .widget<Transform>(find.descendant(of: find.byType(CardZoomView), matching: find.byType(Transform)).first)
+    .transform;
+double scale(WidgetTester tester) => _matrix(tester).getMaxScaleOnAxis();
+Offset offset(WidgetTester tester) => Offset(_matrix(tester).storage[12], _matrix(tester).storage[13]);
 
 void main() {
   Future<List<Dir>> pump(WidgetTester tester) async {
@@ -17,7 +24,7 @@ void main() {
             child: SwipeCard(
               cardId: 'a',
               onSwipe: (dir, fx) async => swipes.add(dir),
-              child: const ColoredBox(color: Colors.teal, key: Key('photo')),
+              child: const CardZoomView(child: ColoredBox(color: Colors.teal, key: Key('photo'))),
             ),
           ),
         ),
@@ -43,13 +50,26 @@ void main() {
       await b.moveTo(c + Offset(40.0 + i * 12, 0));
       await tester.pump(const Duration(milliseconds: 16));
     }
-    // Zoomed in while the fingers are down.
-    final zoomed = tester.widgetList<Transform>(find.descendant(of: find.byType(SwipeCard), matching: find.byType(Transform)))
-        .any((t) => t.transform.getMaxScaleOnAxis() > 1.5);
-    expect(zoomed, isTrue);
+    expect(scale(tester), greaterThan(1.5));
     await a.up();
     await b.up();
     await tester.pumpAndSettle();
     expect(swipes, isEmpty);
+    // Still zoomed after letting go.
+    expect(scale(tester), greaterThan(1.5));
+
+    // One finger now moves around the photo instead of swiping.
+    final before = offset(tester);
+    await tester.dragFrom(c, const Offset(150, 0));
+    await tester.pumpAndSettle();
+    expect(swipes, isEmpty);
+    expect(offset(tester).dx, greaterThan(before.dx));
+
+    // A double-tap fits it again.
+    await tester.tapAt(c);
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.tapAt(c);
+    await tester.pumpAndSettle();
+    expect(scale(tester), 1);
   });
 }
